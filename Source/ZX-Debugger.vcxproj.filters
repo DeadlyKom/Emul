@@ -1,0 +1,125 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <ClCompile Include="main.cpp" />
+    <ClCompile Include="Core\AppFramework.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\Delegate.cpp">
+      <Filter>Source\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\Log.cpp">
+      <Filter>Source\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="AppDebugger.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\Viewer.cpp">
+      <Filter>Source\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\CPU_State.cpp">
+      <Filter>Source\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\Disassembler.cpp">
+      <Filter>Source\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Fonts\Dos2000_ru_en.cpp">
+      <Filter>Source\Fonts</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\Fonts.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\SystemTime.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\Name.cpp">
+      <Filter>Source\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\TimerManager.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+  </ItemGroup>
+  <ItemGroup>
+    <Filter Include="Source">
+      <UniqueIdentifier>{aed5e4ca-b4bb-4ef6-9ba1-29a4a748d904}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Core">
+      <UniqueIdentifier>{aa47d757-f422-4131-bc3d-8866c7515b5e}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\UI">
+      <UniqueIdentifier>{905d5010-68d0-4f39-af23-abad60e5540c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Utils">
+      <UniqueIdentifier>{afbd7a7c-8911-4d26-9110-7a1d19bd6874}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource">
+      <UniqueIdentifier>{8ca9f9e2-6bd3-48f1-b3ea-95ef503ff9d4}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource\Icons">
+      <UniqueIdentifier>{370665a9-1906-4005-b62c-8881fcd0b928}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Fonts">
+      <UniqueIdentifier>{10167a15-6ebe-4054-91de-624a9c4b1ac6}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="Core\AppFramework.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\CoreMinimal.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Char.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Delegates.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Log.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Math_.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="resource.h">
+      <Filter>Resource</Filter>
+    </ClInclude>
+    <ClInclude Include="AppDebugger.h">
+      <Filter>Source</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Window.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\Viewer.h">
+      <Filter>Source\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\CPU_State.h">
+      <Filter>Source\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\Disassembler.h">
+      <Filter>Source\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Fonts.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\SystemTime.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Name.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\TimerManager.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <Image Include="..\Resource\Icons\ICONE.ico">
+      <Filter>Resource\Icons</Filter>
+    </Image>
+  </ItemGroup>
+  <ItemGroup>
+    <ResourceCompile Include="ZX-Debugger.rc">
+      <Filter>Resource</Filter>
+    </ResourceCompile>
+  </ItemGroup>
+</Project>
