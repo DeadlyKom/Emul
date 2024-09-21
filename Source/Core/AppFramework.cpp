@@ -210,11 +210,11 @@ void FAppFramework::Initialize()
 
 void FAppFramework::Shutdown()
 {
-	std::cout << "Framework: Shutdown." << std::endl;
-
 	ShutdownGUI();
 	DestroyWindow(hwndAppFramework);
 	Release();
+
+	std::cout << "Framework: Shutdown." << std::endl;
 }
 
 void FAppFramework::Tick(float DeltaTime)

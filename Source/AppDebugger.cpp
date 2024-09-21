@@ -1,9 +1,10 @@
 #include "AppDebugger.h"
 #include "Fonts/Dos2000_ru_en.cpp"
+#include <Devices/Device_CPU_Z80.h>
 
 namespace
 {
-	static const char* FontName_Dos2000 = "Dos2000";
+	static const FName FontName_Dos2000 = "Dos2000";
 }
 
 FAppDebugger::FAppDebugger()
@@ -25,19 +26,35 @@ void FAppDebugger::Initialize()
 		Viewer->NativeInitialize(Data);
 	}
 
+	Motherboard = std::make_shared<FMotherboard>();
+	if (Motherboard)
+	{
+		std::vector<std::shared_ptr<FDevice>> Devices =
+		{ 
+			std::make_shared<FCPU_Z80>(),
+		};
+		Motherboard->Initialize(Devices);
+	}
+
 	FFonts& Fonts = FFonts::Get();
-	ImFont* NewFont = Fonts.LoadFont(FontName_Dos2000, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 11.0f, 0);
+	ImFont* NewFont = Fonts.LoadFont(FontName_Dos2000, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 12.0f, 0);
 }
 
 void FAppDebugger::Shutdown()
 {
-	std::cout << "Debugger: Initialize." << std::endl;
-
 	if (Viewer)
 	{
 		Viewer->Destroy();
 		Viewer.reset();
 	}
+
+	if (Motherboard)
+	{
+		Motherboard->Shutdown();
+		Motherboard.reset();
+	}
+
+	std::cout << "Debugger: Shutdown." << std::endl;
 
 	FAppFramework::Shutdown();
 }

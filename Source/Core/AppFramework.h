@@ -27,7 +27,7 @@ public:
 	int32_t Launch(const std::map<std::string, std::string>& Args);
 	const FFrameworkFlags& GetFlags() { return Flags; }
 
-	// virtual functions
+	// virtual methods
 	virtual bool Startup(const std::map<std::string, std::string>& Args);
 	virtual void Initialize();
 	virtual void Shutdown();

@@ -21,5 +21,3 @@ void FSystemTime::BusyLoopSleep(float SleepTime)
 	int64_t FinalTick = (int64_t)((double)SleepTime / CpuTickDelta) + GetCurrentTick();
 	while (GetCurrentTick() < FinalTick);
 }
-
-

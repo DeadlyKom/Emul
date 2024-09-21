@@ -2,6 +2,7 @@
 
 #include <Core/AppFramework.h>
 #include "UI/Viewer.h"
+#include "Devices/Motherboard.h"
 
 class FAppDebugger : public FAppFramework
 {
@@ -16,8 +17,6 @@ public:
 	virtual bool IsOver() override;
 
 private:
-	void OnINT();
 	std::shared_ptr<SViewer> Viewer;
-
-	std::list<float> V;
+	std::shared_ptr<FMotherboard> Motherboard;
 };
