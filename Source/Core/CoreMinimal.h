@@ -12,6 +12,8 @@
 #include <vector>
 #include <memory>
 #include <string>
+#include <thread>
+#include <chrono>
 #include <iostream>
 #include <functional>
 #include <filesystem>
@@ -36,3 +38,7 @@ namespace Debugger
 	static const std::string Name = std::format(TEXT("ZX-Debugger ver. {}.{}"), BUILD_MAJOR, BUILD_MINOR);
 }
 
+constexpr double operator""_MHz(long double Frequency)
+{
+	return Frequency * 1'000'000.0;
+}

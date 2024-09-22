@@ -3,13 +3,14 @@
 #include <CoreMinimal.h>
 #include "Devices/Device.h"
 #include "Utils/Register.h"
-#include "Device_CPU_Z80_define.h"
 
 class FCPU_Z80 : public FDevice
 {
 public:
 	FCPU_Z80();
-	virtual FName GetName() override;
+
+	virtual void Reset() override;
+	virtual void ApplySignals(uint64_t SignalsBus) override;
 
 private:
 	struct
@@ -34,6 +35,7 @@ private:
 		Register16 BC_;		// register pair BC'
 
 		// internal
+		uint8_t IM;			// maskable interrupt mode
 		Register16 WZ;		// temporary address reg
 		bool IFF1;
 		bool IFF2;

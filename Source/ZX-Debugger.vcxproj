@@ -190,15 +190,17 @@
     <ClCompile Include="Devices\IO\Beeper.cpp" />
     <ClCompile Include="Devices\IO\Keyboard.cpp" />
     <ClCompile Include="Devices\Device_Memory.cpp" />
-    <ClCompile Include="Devices\Motherboard.cpp" />
     <ClCompile Include="Devices\Device_ULA.cpp" />
     <ClCompile Include="Fonts\Dos2000_ru_en.cpp" />
     <ClCompile Include="main.cpp" />
+    <ClCompile Include="Motherboard\Motherboard.cpp" />
+    <ClCompile Include="Motherboard\Motherboard_Board.cpp" />
+    <ClCompile Include="Motherboard\Motherboard_ClockGenerator.cpp" />
+    <ClCompile Include="Motherboard\Motherboard_Thread.cpp" />
     <ClCompile Include="UI\CPU_State.cpp" />
     <ClCompile Include="UI\Disassembler.cpp" />
     <ClCompile Include="UI\Viewer.cpp" />
     <ClCompile Include="Utils\Delegate.cpp" />
-    <ClCompile Include="Utils\Log.cpp" />
     <ClCompile Include="Utils\Name.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -215,18 +217,23 @@
     <ClInclude Include="Devices\IO\Beeper.h" />
     <ClInclude Include="Devices\IO\Keyboard.h" />
     <ClInclude Include="Devices\Device_Memory.h" />
-    <ClInclude Include="Devices\Motherboard.h" />
     <ClInclude Include="Devices\Device_ULA.h" />
-    <ClInclude Include="Devices\Device_CPU_Z80_define.h" />
+    <ClInclude Include="Devices\Device_define.h" />
+    <ClInclude Include="Motherboard\Motherboard.h" />
+    <ClInclude Include="Motherboard\Motherboard_Board.h" />
+    <ClInclude Include="Motherboard\Motherboard_ClockGenerator.h" />
+    <ClInclude Include="Motherboard\Motherboard_Thread.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="UI\CPU_State.h" />
     <ClInclude Include="UI\Disassembler.h" />
     <ClInclude Include="UI\Viewer.h" />
     <ClInclude Include="Utils\Char.h" />
     <ClInclude Include="Utils\Delegates.h" />
+    <ClInclude Include="Utils\Hotkey.h" />
     <ClInclude Include="Utils\Log.h" />
     <ClInclude Include="Utils\Math_.h" />
     <ClInclude Include="Utils\Name.h" />
+    <ClInclude Include="Utils\Queue.h" />
     <ClInclude Include="Utils\Register.h" />
   </ItemGroup>
   <ItemGroup>

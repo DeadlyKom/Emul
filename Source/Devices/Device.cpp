@@ -1,20 +1,21 @@
 #include "Device.h"
+#include "AppFramework.h"
 
-FDevice::FDevice(FName Name)
+FDevice::FDevice(FName Name, EDeviceType Type)
 	: DeviceName(Name)
+	, DeviceType(Type)
 	, bRegistered(false)
 {}
 
 void FDevice::Register()
 {
 	bRegistered = true;
-	auto a = DeviceName.ToString();
-	std::cout << std::format(TEXT("Debugger: Device {} is registered."), DeviceName.ToString()).c_str() << std::endl;
+	LOG_CONSOLE(("[Device] : {} is registered."), DeviceName.ToString());
 }
 
 void FDevice::Unregister()
 {
 	bRegistered = false;
-	std::cout << std::format(TEXT("Debugger: Device {} is unregistered."), DeviceName.ToString()).c_str() << std::endl;
+	LOG_CONSOLE(("[Device] : {} is unregistered."), DeviceName.ToString());
 }
 

@@ -1,12 +1,16 @@
 #include "Viewer.h"
 
+#include "AppDebugger.h"
 #include "UI/CPU_State.h"
 #include "UI/Disassembler.h"
+#include "Utils/Hotkey.h"
+#include "Motherboard/Motherboard.h"
 
 namespace
 {
 	static const char* ViewerName = TEXT("Viewer");
 	static const char* MenuFileName = TEXT("File");
+	static const char* MenuEmulationName = TEXT("Emulation");
 	static const char* MenuWindowsName = TEXT("Windows");
 }
 
@@ -42,10 +46,13 @@ void SViewer::Render()
 {
 	ImGui::DockSpaceOverViewport();
 
+	Input_HotKeys();
+
 	if (ImGui::BeginMainMenuBar())
 	{
-		ShowMenuFile();
-		ShowWindows();
+		ShowMenu_File();
+		ShowMenu_Emulation();
+		ShowMenu_Windows();
 
 		ImGui::EndMainMenuBar();
 	}
@@ -67,7 +74,23 @@ void SViewer::Destroy()
 	}
 }
 
-void SViewer::ShowMenuFile()
+void SViewer::Input_HotKeys()
+{
+	static std::map<ImGuiKeyChord, std::function<void()>> Hotkeys =
+	{
+		{ImGuiKey_F11, [this]() { GetMotherboard().NonmaskableInterrupt(); }},			// NMI
+		{ImGuiMod_Ctrl | ImGuiKey_F12, [this]() { GetMotherboard().Reset(); }},							// Reset
+	};
+
+	HotKey::Handler(Hotkeys);
+}
+
+FMotherboard& SViewer::GetMotherboard() const
+{
+	return *FAppFramework::Get<FAppDebugger>().Motherboard;
+}
+
+void SViewer::ShowMenu_File()
 {
 	if (ImGui::BeginMenu(MenuFileName))
 	{
@@ -75,7 +98,28 @@ void SViewer::ShowMenuFile()
 	}
 }
 
-void SViewer::ShowWindows()
+void SViewer::ShowMenu_Emulation()
+{
+	if (ImGui::BeginMenu(MenuEmulationName))
+	{
+		if (ImGui::MenuItem("ToDo"))
+		{
+			int a = 10;
+		}
+		ImGui::Separator();
+		if (ImGui::MenuItem("Reset", "F12"))
+		{
+			GetMotherboard().Reset();
+		}
+		if (ImGui::MenuItem("NMI", "F11"))
+		{
+			GetMotherboard().NonmaskableInterrupt();
+		}
+		ImGui::EndMenu();
+	}
+}
+
+void SViewer::ShowMenu_Windows()
 {
 	if (ImGui::BeginMenu(MenuWindowsName))
 	{

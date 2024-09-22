@@ -1,0 +1,45 @@
+#include "Motherboard_ClockGenerator.h"
+
+FClockGenerator::FClockGenerator()
+	: FrequencyInv(1.0 / 3.5_MHz)
+	, ClockCounter(0)
+{}
+
+void FClockGenerator::SetFrequency(double _Frequency)
+{
+	FrequencyInv = 1.0 / _Frequency;
+}
+
+void FClockGenerator::Tick()
+{
+	ClockCounter++;
+
+	Events.erase(std::remove_if(Events.begin(), Events.end(), 
+		[=](const FEventData& Event)
+		{
+			if (Event.ExpireTime < ClockCounter)
+			{
+				Event.Callback();
+				return true;
+			}
+			return false;
+		}), Events.end());
+}
+
+void FClockGenerator::Reset()
+{
+	ClockCounter = 0;
+	Events.clear();
+}
+
+void FClockGenerator::AddEvent(uint64_t Rate, std::function<void()>&& EventCallback, const std::string& _DebugName /*= ""*/)
+{
+	FEventData Event
+	{
+		.ExpireTime = ClockCounter + Rate + 1,
+		.DebugName = _DebugName,
+		.Callback = std::move(EventCallback),
+	};
+
+	Events.push_back(Event);
+}

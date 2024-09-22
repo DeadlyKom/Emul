@@ -3,6 +3,8 @@
 #include <CoreMinimal.h>
 #include "Window.h"
 
+class FMotherboard;
+
 enum class EWindowsType
 {
 	CPU_State,
@@ -21,10 +23,14 @@ public:
 	virtual void Destroy() override;
 
 private:
+	void Input_HotKeys();
+
+	FMotherboard& GetMotherboard() const;
 
 	// show functions
-	void ShowMenuFile();
-	void ShowWindows();
+	void ShowMenu_File();
+	void ShowMenu_Emulation();
+	void ShowMenu_Windows();
 
 	std::map<EWindowsType, std::shared_ptr<SWindow>> Windows;
 };

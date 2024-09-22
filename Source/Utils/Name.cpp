@@ -18,9 +18,10 @@ const char* GetName(uint32_t Index)
 
 uint32_t AddName(const char* _Name)
 {
-	const size_t LengthString = sizeof(_Name) / sizeof(*_Name) ;
-	char* StrPtr = new char[LengthString];
+	const size_t LengthString = std::strlen(_Name);
+	char* StrPtr = new char[LengthString + 1];
 	std::memcpy(StrPtr, _Name, LengthString);
+	*(StrPtr + LengthString) = '\0';
 	Blocks[CurrentBlock++] = StrPtr;
 	return CurrentBlock - 1;
 }

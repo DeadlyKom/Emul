@@ -1,11 +1,13 @@
 #pragma once
 
 #include <Core/AppFramework.h>
-#include "UI/Viewer.h"
-#include "Devices/Motherboard.h"
+
+class SViewer;
+class FMotherboard;
 
 class FAppDebugger : public FAppFramework
 {
+	friend SViewer;
 public:
 	FAppDebugger();
 

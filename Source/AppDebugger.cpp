@@ -1,10 +1,16 @@
 #include "AppDebugger.h"
 #include "Fonts/Dos2000_ru_en.cpp"
-#include <Devices/Device_CPU_Z80.h>
+
+#include "UI/Viewer.h"
+#include "Devices/Device.h"
+#include "Devices/Device_CPU_Z80.h"
+#include "Motherboard/Motherboard.h"
+#include "Motherboard/Motherboard_Board.h"
 
 namespace
 {
 	static const FName FontName_Dos2000 = "Dos2000";
+	static const FName MainBoardName = "Main board";
 }
 
 FAppDebugger::FAppDebugger()
@@ -15,7 +21,7 @@ void FAppDebugger::Initialize()
 {
 	FAppFramework::Initialize();
 
-	std::cout << "Debugger: Initialize." << std::endl;
+	LOG_CONSOLE("Initialize.");
 
 	Viewer = std::make_shared<SViewer>(WindowWidth, WindowHeight);
 	if (Viewer)
@@ -29,11 +35,11 @@ void FAppDebugger::Initialize()
 	Motherboard = std::make_shared<FMotherboard>();
 	if (Motherboard)
 	{
-		std::vector<std::shared_ptr<FDevice>> Devices =
-		{ 
+		Motherboard->Initialize();
+		Motherboard->AddBoard(MainBoardName,
+		{
 			std::make_shared<FCPU_Z80>(),
-		};
-		Motherboard->Initialize(Devices);
+		}, 3.5_MHz);
 	}
 
 	FFonts& Fonts = FFonts::Get();
@@ -54,7 +60,9 @@ void FAppDebugger::Shutdown()
 		Motherboard.reset();
 	}
 
-	std::cout << "Debugger: Shutdown." << std::endl;
+	auto a = Flags.bLog;
+
+	LOG_CONSOLE("Shutdown.");
 
 	FAppFramework::Shutdown();
 }
@@ -62,8 +70,6 @@ void FAppDebugger::Shutdown()
 void FAppDebugger::Tick(float DeltaTime)
 {
 	FAppFramework::Tick(DeltaTime);
-
-
 
 	if (Viewer)
 	{

@@ -25,7 +25,6 @@ public:
 	}
 
 	int32_t Launch(const std::map<std::string, std::string>& Args);
-	const FFrameworkFlags& GetFlags() { return Flags; }
 
 	// virtual methods
 	virtual bool Startup(const std::map<std::string, std::string>& Args);
@@ -36,10 +35,10 @@ public:
 	virtual bool IsOver();
 	virtual void SetRectWindow(uint16_t Width, uint16_t Height);
 
+	static FFrameworkFlags Flags;
+
 protected:
 	// internal variables
-	FFrameworkFlags Flags;
-
 	uint32_t ScreenWidth;
 	uint32_t ScreenHeight;
 	uint32_t WindowWidth;

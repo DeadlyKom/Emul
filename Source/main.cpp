@@ -7,7 +7,7 @@
 
 int main(int argc, char** argv)
 {
-	std::cout << Debugger::Name.c_str() << std::endl;
+	Utils::Log(Debugger::Name.c_str());
 
 	std::map<std::string, std::string> Args;
 	for (int i = 0; i < argc; ++i)

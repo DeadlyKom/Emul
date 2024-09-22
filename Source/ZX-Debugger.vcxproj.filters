@@ -8,9 +8,6 @@
     <ClCompile Include="Utils\Delegate.cpp">
       <Filter>Source\Utils</Filter>
     </ClCompile>
-    <ClCompile Include="Utils\Log.cpp">
-      <Filter>Source\Utils</Filter>
-    </ClCompile>
     <ClCompile Include="AppDebugger.cpp">
       <Filter>Source</Filter>
     </ClCompile>
@@ -38,9 +35,6 @@
     <ClCompile Include="Core\TimerManager.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
-    <ClCompile Include="Devices\Motherboard.cpp">
-      <Filter>Source\Devices</Filter>
-    </ClCompile>
     <ClCompile Include="Devices\Device_CPU_Z80.cpp">
       <Filter>Source\Devices</Filter>
     </ClCompile>
@@ -61,6 +55,18 @@
     </ClCompile>
     <ClCompile Include="Devices\Device.cpp">
       <Filter>Source\Devices</Filter>
+    </ClCompile>
+    <ClCompile Include="Motherboard\Motherboard.cpp">
+      <Filter>Source\Motherboard</Filter>
+    </ClCompile>
+    <ClCompile Include="Motherboard\Motherboard_Thread.cpp">
+      <Filter>Source\Motherboard</Filter>
+    </ClCompile>
+    <ClCompile Include="Motherboard\Motherboard_Board.cpp">
+      <Filter>Source\Motherboard</Filter>
+    </ClCompile>
+    <ClCompile Include="Motherboard\Motherboard_ClockGenerator.cpp">
+      <Filter>Source\Motherboard</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -90,6 +96,9 @@
     </Filter>
     <Filter Include="Source\Devices\IO">
       <UniqueIdentifier>{e70944b0-e15b-4af9-ab5f-c58279c68daf}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Motherboard">
+      <UniqueIdentifier>{5053b1c5-0ce1-4216-907e-b8eebc026a26}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -141,9 +150,6 @@
     <ClInclude Include="Core\TimerManager.h">
       <Filter>Source\Core</Filter>
     </ClInclude>
-    <ClInclude Include="Devices\Motherboard.h">
-      <Filter>Source\Devices</Filter>
-    </ClInclude>
     <ClInclude Include="Devices\Device_CPU_Z80.h">
       <Filter>Source\Devices</Filter>
     </ClInclude>
@@ -165,11 +171,29 @@
     <ClInclude Include="Utils\Register.h">
       <Filter>Source\Utils</Filter>
     </ClInclude>
-    <ClInclude Include="Devices\Device_CPU_Z80_define.h">
+    <ClInclude Include="Devices\Device_define.h">
       <Filter>Source\Devices</Filter>
     </ClInclude>
     <ClInclude Include="Devices\Device.h">
       <Filter>Source\Devices</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Queue.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Motherboard\Motherboard.h">
+      <Filter>Source\Motherboard</Filter>
+    </ClInclude>
+    <ClInclude Include="Motherboard\Motherboard_Thread.h">
+      <Filter>Source\Motherboard</Filter>
+    </ClInclude>
+    <ClInclude Include="Motherboard\Motherboard_Board.h">
+      <Filter>Source\Motherboard</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Hotkey.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Motherboard\Motherboard_ClockGenerator.h">
+      <Filter>Source\Motherboard</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
