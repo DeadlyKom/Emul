@@ -5,6 +5,7 @@
 
 class FThread;
 class FMotherboard;
+class FClockGenerator;
 
 enum class EDeviceType
 {
@@ -27,8 +28,8 @@ public:
 	EDeviceType GetType() const { return DeviceType; }
 
 	// virtual methods
+	virtual void Tick(FClockGenerator& CG, uint64_t& InOutISB) {};
 	virtual void Reset() {};
-	virtual void ApplySignals(uint64_t SignalsBus) {};
 
 protected:
 	FName DeviceName;

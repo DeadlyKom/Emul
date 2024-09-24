@@ -2,6 +2,7 @@
 
 #include <CoreMinimal.h>
 #include "Utils/Queue.h"
+#include "Core/TimerManager.h"
 #include "Motherboard_ClockGenerator.h"
 
 class FDevice;
@@ -68,6 +69,7 @@ private:
 	FName ThreadName;
 
 	uint64_t ISB;	// internal signals bus
+	FTimerManager TM;
 	FClockGenerator CG;
 
 	std::thread Thread;

@@ -2,7 +2,6 @@
 
 FClockGenerator::FClockGenerator()
 	: FrequencyInv(1.0 / 3.5_MHz)
-	, ClockCounter(0)
 {}
 
 void FClockGenerator::SetFrequency(double _Frequency)
@@ -17,7 +16,7 @@ void FClockGenerator::Tick()
 	Events.erase(std::remove_if(Events.begin(), Events.end(), 
 		[=](const FEventData& Event)
 		{
-			if (Event.ExpireTime < ClockCounter)
+			if (Event.ExpireTime <= ClockCounter)
 			{
 				Event.Callback();
 				return true;
@@ -28,7 +27,7 @@ void FClockGenerator::Tick()
 
 void FClockGenerator::Reset()
 {
-	ClockCounter = 0;
+	ClockCounter = -1;
 	Events.clear();
 }
 
@@ -36,7 +35,7 @@ void FClockGenerator::AddEvent(uint64_t Rate, std::function<void()>&& EventCallb
 {
 	FEventData Event
 	{
-		.ExpireTime = ClockCounter + Rate + 1,
+		.ExpireTime = ClockCounter + Rate,
 		.DebugName = _DebugName,
 		.Callback = std::move(EventCallback),
 	};

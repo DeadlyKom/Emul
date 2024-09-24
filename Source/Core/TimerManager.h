@@ -5,19 +5,17 @@
 
 enum class ETimerStatus
 {
+	NotInitialize,
 	Active,
 	Paused,
 	Executing,
-	Removed
 };
 
 struct FTimerHandle
 {
 	friend class FTimerManager;
 
-	FTimerHandle(int32_t _Handle = INDEX_NONE)
-		: Handle(_Handle)
-	{}
+	FTimerHandle();
 
 	bool IsValid() const
 	{
@@ -40,21 +38,17 @@ struct FTimerHandle
 	}
 
 private:
-	int32_t GetIndex() const
-	{
-		return Handle;
-	}
-
 	int32_t Handle;
 };
 
 struct FTimerData
 {
-	bool bLoop;
-	int64_t Rate;
-	int64_t ExpireTime;
-	ETimerStatus Status;
+	bool bLoop = false;
+	int64_t Rate = -1;
+	int64_t ExpireTime = -1;
+	ETimerStatus Status = ETimerStatus::NotInitialize;
 	FTimerHandle Handle;
+	std::string DebugName;
 	std::function<void(void)> Callback;
 };
 
@@ -65,20 +59,20 @@ public:
 	FTimerManager();
 
 	float Tick();
-	void SetTimer(FTimerHandle& InOutHandle, std::function<void(void)>&& Callback, float InRate, bool bLoop);
-	void ClearTimer(FTimerHandle& InHandle);
-	void PauseTimer(FTimerHandle InHandle);
-	void UnPauseTimer(FTimerHandle InHandle);
+	void SetTimer(float InRate, std::function<void(void)>&& Callback, bool bLoop = false, const std::string& _DebugName = "");
+	void SetTimer(FTimerHandle& InOutHandle, std::function<void(void)>&& Callback, float InRate, bool bLoop = false, const std::string& _DebugName = "");
+	void ClearTimer(FTimerHandle Handle);
+	void PauseTimer(FTimerHandle Handle);
+	void UnPauseTimer(FTimerHandle Handle);
 
-	float GetTimerRate(FTimerHandle InHandle) const;
-	FTimerData& GetTimer(FTimerHandle const& InHandle);
-
-	FSystemTime Time;
+	float GetTimerRate(FTimerHandle Handle) const;
+	FTimerData& GetTimer(FTimerHandle Handle);
 
 protected:
-	FTimerData* FindTimer(const FTimerHandle& InHandle);
+	FTimerData* FindTimer(FTimerHandle Handle);
 	void RemoveTimer(FTimerHandle Handle);
 
 private:
+	FSystemTime Time;
 	std::vector<FTimerData> Timers;
 };

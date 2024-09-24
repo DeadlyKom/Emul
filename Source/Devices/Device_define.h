@@ -91,16 +91,57 @@
 #define BUS_BUSRQ		(1ULL << SIGNAL_BUSRQ)
 #define BUS_BUSACK		(1ULL << SIGNAL_BUSACK)
 
+#define T1				0
+#define T2				1
+#define T3				2
+#define T4				3
+#define T5				4
+#define T6				5
+#define CTC				uint8_t(-1)	// completed tick cycle
+
+// tict half-clock
+#define T1_H1			0
+#define T1_H2			1
+#define T2_H1			2
+#define T2_H2			3
+#define T3_H1			4
+#define T3_H2			5
+#define T4_H1			6
+#define T4_H2			7
+#define T5_H1			8
+#define T5_H2			9
+#define T6_H1			10
+#define T6_H2			11
+
+#define M1				0
+#define M2				1
+#define M3				2
+#define M4				3
+#define M5				4
+#define M6				5
+
 #define SYS_CTRL_MASK											(BUS_M1	   | BUS_MREQ   | BUS_IORQ | BUS_RD  | BUS_WR    | BUS_RFSH)
 #define CPU_CTRL_MASK											(BUS_HALT  | BUS_WAIT   | BUS_INT  | BUS_NMI | BUS_RESET)
 #define BUS_CTRL_MASK											(BUS_BUSRQ | BUS_BUSACK)
+#define CTRL_OUTPUT_MASK										(BUS_M1	   | BUS_MREQ   | BUS_IORQ | BUS_RD  | BUS_WR    | BUS_RFSH | BUS_HALT | BUS_BUSACK)
+#define CTRL_INPUT_MASK											(BUS_WAIT  | BUS_INT    | BUS_NMI  | BUS_RESET | BUS_BUSRQ)
 #define ALL_CTRL_MASK											(~(MAKE_SYS_CTRL_MASK | MAKE_CPU_CTRL_MASK | MAKE_BUS_CTRL_MASK))
 #define BUS_MASK												((1ULL << 40) - 1)
 
 // signals access helper macros
+#define BUS_SET_SIGNAL(signals, signal)								(signals |= (signal))
+#define BUS_RESET_SIGNAL(signals, signal)							(signals &= ~(signal))
+#define BUS_GET_SIGNAL(signals, signal)								(signals & (signal))
+#define BUS_SET_ACTIVE_SIGNAL(signals, signal)						(BUS_RESET_SIGNAL(signals, signal))
+#define BUS_SET_INACTIVE_SIGNAL(signals, signal)					(BUS_SET_SIGNAL(signals, signal))
+
 #define BUS_MAKE_SIGNAL(ctrl, adr, data)							((ctrl)|((data&0xFF)<<16)|((adr)&0xFFFFULL))
-#define BUS_MAKE_CTRL_SIGNAL(signals,ctrl_sys,ctrl_cpu,ctrl_bus)	((signals & Z80_CTRL_MASK) | (ctrl_sys) | (ctrl_cpu) | (ctrl_bus))
-#define BUS_GET_ADDR(signals)										((uint16_t)(signals))
-#define BUS_SET_ADDR(signals,adr)									{signals=((signals)&~0xFFFF)|((adr)&0xFFFF);}
+
+#define BUS_GET_ADR(signals)										((uint16_t)(signals))
+#define BUS_SET_ADR(signals,adr)									{signals=((signals)&~0xFFFF)|((adr)&0xFFFF);}
 #define BUS_GET_DATA(signals)										((uint8_t)((signals)>>16))
 #define BUS_SET_DATA(signals,data)									{signals=((signals)&~0xFF0000ULL)|(((data)<<16)&0xFF0000ULL);}
+
+#define BUS_IS_ACTIVE_RESET(signals)								(!(signals & BUS_RESET))
+#define BUS_IS_ACTIVE_WAIT(signals)									(!(signals & BUS_WAIT))
+#define BUS_IS_INACTIVE_WAIT(signals)								(signals & BUS_WAIT)

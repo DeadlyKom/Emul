@@ -4,6 +4,7 @@
 #include "UI/Viewer.h"
 #include "Devices/Device.h"
 #include "Devices/Device_CPU_Z80.h"
+#include "Devices/Device_Memory.h"
 #include "Motherboard/Motherboard.h"
 #include "Motherboard/Motherboard_Board.h"
 
@@ -39,6 +40,7 @@ void FAppDebugger::Initialize()
 		Motherboard->AddBoard(MainBoardName,
 		{
 			std::make_shared<FCPU_Z80>(),
+			std::make_shared<FMemory>(),
 		}, 3.5_MHz);
 	}
 

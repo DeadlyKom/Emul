@@ -4,7 +4,7 @@
 
 FThread::FThread(FName Name)
 	: ThreadName(Name)
-	, ISB(0)
+	, ISB(CTRL_INPUT_MASK)
 	, ThreadStatus(EThreadStatus::Stop)
 {}
 
@@ -116,11 +116,20 @@ void FThread::Thread_Execution()
 	{
 		while (ThreadStatus == EThreadStatus::Run)
 		{
-			CG.Tick();
+			TM.Tick();		// internal auxiliary time manager
+			CG.Tick();		// internal clock generator
+
+			for (std::shared_ptr<FDevice>& Device : Devices)
+			{
+				if (Device) Device->Tick(CG, ISB);
+			}
+
+			Thread_RequestHandling();
 		}
 
 		while (ThreadStatus == EThreadStatus::Stop)
 		{
+			TM.Tick();
 			Thread_RequestHandling();
 		}
 	};
@@ -165,17 +174,22 @@ void FThread::ThreadRequest_Reset()
 		if (Device) Device->Reset();
 	}
 
-	ISB &= ~BUS_RESET;
-	CG.AddEvent(CG.ToSec(0.2), 
+	ThreadRequest_SetStatus(EThreadStatus::Run);
+	BUS_RESET_SIGNAL(ISB, BUS_RESET);
+	TM.SetTimer(0.2f,
 		[&]()
 		{
-			ISB |= BUS_RESET;
-			ThreadRequest_SetStatus(EThreadStatus::Run);
-		}, "End signal RESET");
+			BUS_SET_SIGNAL(ISB, BUS_RESET);
+		}, false, "End signal RESET");
 }
 
 void FThread::ThreadRequest_NonmaskableInterrupt()
 {
-	ISB &= ~BUS_NMI;
-	CG.AddEvent(CG.ToSec(0.2), [&]() { ISB |= BUS_RESET; }, "End signal RESET");
+	BUS_RESET_SIGNAL(ISB, BUS_NMI);
+	ThreadRequest_SetStatus(EThreadStatus::Run);
+	TM.SetTimer(0.2f,
+		[&]()
+		{
+			BUS_SET_SIGNAL(ISB, BUS_NMI);
+		}, false, "End signal NMI");
 }

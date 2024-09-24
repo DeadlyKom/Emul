@@ -1,5 +1,12 @@
 #include "TimerManager.h"
 
+static int32_t TimerHandleCounter = 0;
+static FTimerData DefaultTimerData;
+
+FTimerHandle::FTimerHandle()
+	: Handle(TimerHandleCounter++)
+{}
+
 FTimerManager::FTimerManager()
 {
 	Time.Initialize();
@@ -13,33 +20,39 @@ float FTimerManager::Tick()
 	const float DeltaTime = (float)Time.TimeBetweenTicks(OldTime, CurrentTime);
 	OldTime = CurrentTime;
 
-	for (FTimerData& Timer : Timers)
-	{
-		if (!Timer.Handle.IsValid())
+	Timers.erase(std::remove_if(Timers.begin(), Timers.end(),
+		[=](FTimerData& Timer)
 		{
-			continue;
-		}
-
-		if (CurrentTime - Timer.ExpireTime > Timer.Rate)
-		{
-			auto a = (float)Time.TimeBetweenTicks(Timer.ExpireTime, CurrentTime);
-			Timer.Callback();
-
-			if (Timer.bLoop)
+			if (!Timer.Handle.IsValid())
 			{
-				Timer.ExpireTime = CurrentTime;
+				return false;
 			}
-			else
+
+			if (CurrentTime - Timer.ExpireTime > Timer.Rate)
 			{
-				RemoveTimer(Timer.Handle);
+				Timer.Callback();
+
+				if (Timer.bLoop)
+				{
+					Timer.ExpireTime = CurrentTime;
+					return false;
+				}
+				return true;
 			}
-		}
-	}
+
+			return false;
+		}), Timers.end());
 
 	return DeltaTime;
 }
 
-void FTimerManager::SetTimer(FTimerHandle& InOutHandle, std::function<void(void)>&& Callback, float InRate, bool bLoop)
+void FTimerManager::SetTimer(float InRate, std::function<void(void)>&& Callback, bool bLoop, const std::string& _DebugName)
+{
+	FTimerHandle Handle;
+	SetTimer(Handle, std::move(Callback), InRate, bLoop, _DebugName);
+}
+
+void FTimerManager::SetTimer(FTimerHandle& InOutHandle, std::function<void(void)>&& Callback, float InRate, bool bLoop /*= false*/, const std::string& _DebugName /*= ""*/)
 {
 	if (FindTimer(InOutHandle))
 	{
@@ -54,7 +67,8 @@ void FTimerManager::SetTimer(FTimerHandle& InOutHandle, std::function<void(void)
 			.Rate = FSystemTime::SecondsToTicks(InRate),
 			.ExpireTime = Time.GetCurrentTick(),
 			.Status = ETimerStatus::Active,
-			.Handle = (int32_t)Timers.size(),
+			.Handle = FTimerHandle(),
+			.DebugName = _DebugName,
 			.Callback = std::move(Callback),
 		};
 		InOutHandle = NewTimerData.Handle;
@@ -66,40 +80,33 @@ void FTimerManager::SetTimer(FTimerHandle& InOutHandle, std::function<void(void)
 	}
 }
 
-FTimerData& FTimerManager::GetTimer(FTimerHandle const& InHandle)
+FTimerData& FTimerManager::GetTimer(FTimerHandle Handle)
 {
-	int32_t Index = InHandle.GetIndex();
-	assert(Index >= 0 && Index < Timers.size() && Timers[Index].Handle == InHandle);
-	FTimerData& Timer = Timers[Index];
-	return Timer;
+	FTimerData* Timer = FindTimer(Handle);
+	return Timer ? *Timer : DefaultTimerData;
 }
 
-FTimerData* FTimerManager::FindTimer(const FTimerHandle& InHandle)
+FTimerData* FTimerManager::FindTimer(FTimerHandle Handle)
 {
-	if (!InHandle.IsValid())
-	{
-		return nullptr;
-	}
+	auto It = std::find_if(Timers.begin(), Timers.end(),
+		[=](const FTimerData& Timer) -> bool
+		{
+			return Timer.Handle == Handle;
+		});
 
-	int32_t Index = InHandle.GetIndex();
-	if (Index < 0 || Index >= Timers.size())
-	{
-		return nullptr;
-	}
-
-	FTimerData& Timer = Timers[Index];
-	if (Timer.Handle != InHandle)
-	{
-		return nullptr;
-	}
-
-	return &Timer;
+	return It != Timers.end() ? &(*It) : nullptr;
 }
 
 void FTimerManager::RemoveTimer(FTimerHandle Handle)
 {
-	FTimerData& TimerData = Timers[Handle.GetIndex()];
-	TimerData.Callback = nullptr;
-	TimerData.Handle.Invalidate();
-	TimerData.Status = ETimerStatus::Removed;
+	Timers.erase(std::remove_if(Timers.begin(), Timers.end(),
+		[=](const FTimerData& Timer) -> bool
+		{
+			if (!Timer.Handle.IsValid())
+			{
+				return false;
+			}
+
+			return Timer.Handle == Handle;
+		}), Timers.end());
 }

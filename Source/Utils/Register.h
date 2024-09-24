@@ -17,7 +17,7 @@ public:
 		: Byte(Value)
 	{}
 
-	uint8_t Get()
+	uint8_t Get() const
 	{
 		return Byte;
 	}
@@ -195,7 +195,7 @@ public:
 		: Word(Value)
 	{}
 
-	uint16_t Get()
+	uint16_t Get() const
 	{
 		return Word;
 	}
@@ -205,12 +205,12 @@ public:
 		Word = Value;
 	}
 
-	uint8_t GetHigh()
+	uint8_t GetLow() const
 	{
 		return L.Get();
 	}
 
-	uint8_t GetLow()
+	uint8_t GetHigh() const
 	{
 		return H.Get();
 	}
@@ -235,6 +235,10 @@ public:
 		std::swap(Word, Other.Word);
 	}
 
+	void operator=(uint16_t Value)
+	{
+		Word = Value;
+	}
 	void operator=(const Register16& Other)
 	{
 		Word = Other.Word;
@@ -284,6 +288,31 @@ protected:
 	};
 };
 
+class RegisterIR : public Register16
+{
+public:
+	uint8_t GetI() const
+	{
+		return GetHigh();
+	}
+	uint8_t GetR() const
+	{
+		return GetLow();
+	}
+	void IncrementR()
+	{
+		L.Set((GetR() & 0x80) | ((GetR() + 1) & 0x7F));
+	}
+	void operator=(uint16_t Value)
+	{
+		Word = Value;
+	}
+	void operator=(const RegisterIR& Other)
+	{
+		Word = Other.Word;
+	}
+};
+
 enum class EZ80_Flag
 {
 	Carry			= 0,
@@ -317,5 +346,14 @@ public:
 	uint8_t GetAccumulator()
 	{
 		return H.Get();
+	}
+
+	void operator=(uint16_t Value)
+	{
+		Word = Value;
+	}	
+	void operator=(const RegisterAF& Other)
+	{
+		Word = Other.Word;
 	}
 };
