@@ -9,6 +9,7 @@ FThread::FThread(FName Name)
 
 void FThread::Initialize()
 {
+	CG.SetSampling(2); // tick emulation sampling is divided into two half-cycles
 	Thread = std::thread(&FThread::Thread_Execution, this);
 }
 
@@ -38,7 +39,7 @@ void FThread::SetFrequency(double Frequency)
 	Thread_Request(EThreadTypeRequest::ExecuteTask,
 		[=, this]() -> void
 		{
-			CG.SetFrequency(Frequency * 2.0 /*half-cycle*/);
+			CG.SetFrequency(Frequency);
 		});
 }
 

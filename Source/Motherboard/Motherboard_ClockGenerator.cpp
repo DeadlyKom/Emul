@@ -1,13 +1,9 @@
 #include "Motherboard_ClockGenerator.h"
 
 FClockGenerator::FClockGenerator()
-	: FrequencyInv(1.0 / 3.5_MHz)
+	: Sampling(1)
+	, FrequencyInv(1.0 / 3.5_MHz)
 {}
-
-void FClockGenerator::SetFrequency(double _Frequency)
-{
-	FrequencyInv = 1.0 / _Frequency;
-}
 
 void FClockGenerator::Tick()
 {

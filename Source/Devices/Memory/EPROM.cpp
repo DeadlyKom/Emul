@@ -19,14 +19,25 @@ namespace
 	static const char* EPROM_27CXXX_Name = "27CXXX\0";
 }
 
-FEPROM::FEPROM(EEPROM_Type _Type, const std::vector<uint8_t>& _Firmware)
+FEPROM::FEPROM(EEPROM_Type _Type, 
+			   const std::vector<uint8_t>& _Firmware,
+			   ESignalState::Type _CE /*= ESignalState::High*/,
+			   ESignalState::Type _OE /*= ESignalState::High*/)
 	: FDevice(DEVICE_NAME(_Type), EDeviceType::Memory)
 	, Type(_Type)
+	, ChipEnable(_CE)
+	, OutputEnable(_OE)
 	, Firmware(_Firmware)
 {}
 
-FEPROM::FEPROM(EEPROM_Type _Type, uint8_t* _Firmware /*= nullptr*/, uint32_t _FirmwareSize /*= 0*/)
+FEPROM::FEPROM(EEPROM_Type _Type,
+			   uint8_t* _Firmware /*= nullptr*/,
+			   uint32_t _FirmwareSize /*= 0*/,
+			   ESignalState::Type _CE /*= ESignalState::High*/,
+			   ESignalState::Type _OE /*= ESignalState::High*/)
 	: FDevice(FName(DEVICE_NAME(_Type)), EDeviceType::Memory)
+	, ChipEnable(_CE)
+	, OutputEnable(_OE)
 	, Type(_Type)
 {
 	if (_Firmware != 0 && _FirmwareSize != 0)
@@ -51,17 +62,22 @@ std::string FEPROM::ToString(EEPROM_Type Type)
 
 void FEPROM::Tick(FClockGenerator& CG, FSignalsBus& SB)
 {
-	if (SB.IsNegativeEdge(FAccessToROM::SignalName_RD_ROM))
+	OutputEnable = SB.GetSignal(FAccessToROM::SignalName_RD_ROM);
+
+	if (ChipEnable   != ESignalState::Low && 
+		OutputEnable != ESignalState::Low)
 	{
-		const uint16_t Address = SB.GetDataOnAddressBus();
-		if (Address < Firmware.size())
-		{
-			const uint8_t Value = Firmware[Address];
-			CG.AddEvent(CG.ToNanosec(60),
-				[=, &SB]()
-				{
-					SB.SetDataOnDataBus(Value);
-				}, "Delay signal");
-		}
+		return;
+	}
+
+	const uint16_t Address = SB.GetDataOnAddressBus();
+	if (Address < Firmware.size())
+	{
+		const uint8_t Value = Firmware[Address];
+		CG.AddEvent(CG.ToNanosec(60),
+			[=, &SB]()
+			{
+				SB.SetDataOnDataBus(Value);
+			}, "Delay signal");
 	}
 }

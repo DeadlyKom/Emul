@@ -42,7 +42,7 @@ void FAppDebugger::Initialize()
 		{
 			std::make_shared<FCPU_Z80>(),
 			std::make_shared<FAccessToROM>(),
-			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, std::vector<uint8_t>({ 0xAA, 0x55, 0x00, 0x00 })),
+			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, std::vector<uint8_t>({ 0xAA, 0x55, 0x00, 0x00 }), ESignalState::Low),
 		}, 3.5_MHz);
 	}
 

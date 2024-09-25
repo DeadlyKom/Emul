@@ -18,21 +18,11 @@ FAccessToROM::FAccessToROM()
 
 void FAccessToROM::Tick(FClockGenerator& CG, FSignalsBus& SB)
 {
-	const bool bAddress = SB.GetSignal(BUS_A14) || SB.GetSignal(BUS_A15);
-	const bool bControl = SB.GetSignal(BUS_RD)  || SB.GetSignal(BUS_MREQ);
+	const bool bAddress = !!SB.GetSignal(BUS_A14) || !!SB.GetSignal(BUS_A15);
+	const bool bControl = !!SB.GetSignal(BUS_RD)  || !!SB.GetSignal(BUS_MREQ);
 	const bool bReadROM = bAddress || bControl;
 
-	if (!bReadROM)
-	{
-		int a = 10;
-	}
-
-	CG.AddEvent(1,
-		[=, &SB]()
-		{
-			SB.SetSignal(SignalName_RD_ROM, bReadROM ? ESignalState::High : ESignalState::Low);
-		}, "Delay signal");
-	//SB.SetSignal(SignalName_RD_ROM, bReadROM ? ESignalState::High : ESignalState::Low);
+	SB.SetSignal(SignalName_RD_ROM, bReadROM ? ESignalState::High : ESignalState::Low);
 }
 
 void FAccessToROM::Register(FSignalsBus& SB)

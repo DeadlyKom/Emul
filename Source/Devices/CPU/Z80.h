@@ -6,6 +6,8 @@
 #include "Utils/Register.h"
 
 class FSignalsBus;
+namespace DecoderStep { enum Type : uint32_t; }
+namespace MachineCycle { enum Type : int32_t; }
 
 class FCPU_Z80 : public FDevice
 {
@@ -17,7 +19,8 @@ public:
 	virtual void Reset() override;
 
 private:
-	void InstructionOpcodeFetch(FClockGenerator& CG, FSignalsBus& SB);
+	void InstructionFetch(FClockGenerator& CG, FSignalsBus& SB);
+	void MemoryReadCycle(FClockGenerator& CG, FSignalsBus& SB);
 
 	struct
 	{
@@ -29,25 +32,27 @@ private:
 		Register16 SP;		// stack pointer
 
 		// main register set
-		RegisterAF AF;		// accumulator & flags
+		RegisterAF AF;		// register pair AF
 		Register16 HL;		// register pair HL
 		Register16 DE;		// register pair DE
 		Register16 BC;		// register pair BC
 
 		// alternate register set
-		RegisterAF AF_;		// accumulator & flags
+		RegisterAF AF_;		// register pair AF'
 		Register16 HL_;		// register pair HL'
 		Register16 DE_;		// register pair DE'
 		Register16 BC_;		// register pair BC'
 
 		// internal
 		uint8_t IM;			// maskable interrupt mode
-		uint8_t CC;			// clock cycles in one machine cycle
-		uint8_t MC;			// machine cycle counter
-		uint8_t Step;       // the currently active decoder step
-		uint8_t Opcode;     // current opcode
-		Register16 WZ;		// temporary address reg
+		uint8_t Opcode;     // fetched opcode
+		Register16 WZ;		// temporary address register
 		bool IFF1;
 		bool IFF2;
+
+		uint32_t CC;			// counter of clock cycles in one machine cycle
+		MachineCycle::Type MC;	// machine cycle counter
+		DecoderStep::Type Step;			// the currently active decoder step
+
 	} Registers;
 };

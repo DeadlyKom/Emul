@@ -130,13 +130,13 @@ public:
 												 : false;
 	}
 	
-	inline bool GetSignal(ESignalBus::Type Signal) const
+	inline ESignalState::Type GetSignal(ESignalBus::Type Signal) const
 	{
-		return !!Signals[0][Signal];
+		return Signals[0][Signal];
 	}
-	inline bool GetSignal(FName SignalName) const
+	inline ESignalState::Type GetSignal(FName SignalName) const
 	{
-		return ExtraSignals.contains(SignalName) ? !!ExtraSignals.at(SignalName).Current : false;
+		return ExtraSignals.contains(SignalName) ? ExtraSignals.at(SignalName).Current : ESignalState::HiZ;
 	}
 
 	void SetSignal(ESignalBus::Type Signal, ESignalState::Type State);

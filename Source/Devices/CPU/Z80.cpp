@@ -2,36 +2,61 @@
 #include "Utils/SignalsBus.h"
 #include "Motherboard/Motherboard_ClockGenerator.h"
 
-#define T1				0
-#define T2				1
-#define T3				2
-#define T4				3
-#define T5				4
-#define T6				5
-#define CTC				uint8_t(-1)	// completed tick cycle
-
-// tict half-clock
-#define T1_H1			0
-#define T1_H2			1
-#define T2_H1			2
-#define T2_H2			3
-#define T3_H1			4
-#define T3_H2			5
-#define T4_H1			6
-#define T4_H2			7
-#define T5_H1			8
-#define T5_H2			9
-#define T6_H1			10
-#define T6_H2			11
-
-#define MC1				0
-#define MC2				1
-#define MC3				2
-#define MC4				3
-#define MC5				4
-#define MC6				5
-
 #define DEVICE_NAME() FName(std::format("{}", ThisDeviceName))
+#define INCREMENT_HALF() { CG.Increment(reinterpret_cast<uint32_t&>(Registers.Step)); }
+#define INCREMENT_FULL() { CG.IncrementByDiscreteness(reinterpret_cast<uint32_t&>(Registers.Step)); }
+
+namespace DecoderStep
+{
+	enum Type : uint32_t
+	{
+		// full-clock tick
+		T1 = 0,
+		T2,
+		T3,
+		T4,
+		T5,
+		T6,
+
+		// half-clock tick
+		T1_H1 = 0,
+		T1_H2,
+		T2_H1,
+		T2_H2,
+		T3_H1,
+		T3_H2,
+		T4_H1,
+		T4_H2,
+		T5_H1,
+		T5_H2,
+		T6_H1,
+		T6_H2,
+
+		Completed = uint32_t(-1),
+	};
+}
+
+namespace MachineCycle
+{
+	enum Type : int32_t
+	{
+		M1,
+		M2,
+		M3,
+		M4,
+		M5,
+		M6,
+	};
+
+	Type& operator++(MachineCycle::Type& Value)
+	{
+		return reinterpret_cast<Type&>(++reinterpret_cast<int32_t&>(Value));
+	}
+	Type operator++(Type& Value, int32_t)
+	{
+		return ++Value;
+	}
+}
 
 namespace
 {
@@ -60,31 +85,31 @@ void FCPU_Z80::Tick(FClockGenerator& CG, FSignalsBus& SB)
 		SB.SetAllControlOutput(ESignalState::High);
 
 		// skip half-clocs
-		switch (Registers.Step >> 1)
+		switch (CG.ToFullCycles(Registers.Step))
 		{
 		// reset the status registers as described in "Undocumented Z80"
-		case T1:
+		case DecoderStep::T1:
 			Registers.IFF1 = false;
 			Registers.IFF2 = false;
 			Registers.IM   = 0x00;
-			Registers.Step +=2;
+			INCREMENT_FULL();
 			break;
 
-		case T2:
+		case DecoderStep::T2:
 			Registers.PC = 0x0000;
 			Registers.IR = 0x0000;
-			Registers.Step += 2;
+			INCREMENT_FULL();
 			break;
 
-		case T3:
+		case DecoderStep::T3:
 			Registers.SP = 0xFFFF;
 			Registers.AF = 0xFFFF;
-			Registers.Step += 2;
+			INCREMENT_FULL();
 			break;
 
 		default:
 			// the processor is idle, waiting for the active RESET signal to complete
-			Registers.Step = CTC;
+			Registers.Step = DecoderStep::Completed;
 			break;
 		}
 	}
@@ -99,18 +124,18 @@ void FCPU_Z80::Tick(FClockGenerator& CG, FSignalsBus& SB)
 	{
 		switch (Registers.MC)
 		{
-		case MC1:
-			InstructionOpcodeFetch(CG, SB);
+		case MachineCycle::M1:
+			InstructionFetch(CG, SB);
 			break;
-		case MC2:
+		case MachineCycle::M2:
 			break;
-		case MC3:
+		case MachineCycle::M3:
 			break;
-		case MC4:
+		case MachineCycle::M4:
 			break;
-		case MC5:
+		case MachineCycle::M5:
 			break;
-		case MC6:
+		case MachineCycle::M6:
 			break;
 		}
 	}
@@ -122,46 +147,46 @@ void FCPU_Z80::Reset()
 	memset(&Registers, 0, sizeof(Registers));
 }
 
-void FCPU_Z80::InstructionOpcodeFetch(FClockGenerator& CG, FSignalsBus& SB)
+void FCPU_Z80::InstructionFetch(FClockGenerator& CG, FSignalsBus& SB)
 {
 	// reset the internal counters
-	if (Registers.Step == CTC)
+	if (Registers.Step == DecoderStep::Completed)
 	{
 		Registers.CC = 0;
-		Registers.Step = T1;
+		Registers.Step = DecoderStep::T1_H1;
 	}
 
 	switch (Registers.Step)
 	{
-	case T1_H1:
+	case DecoderStep::T1_H1:
 		// The Program Counter is placed on the address bus at the beginning of the M1 cycle
 		SB.SetActive(BUS_M1);
 		SB.SetDataOnAddressBus(Registers.PC.Get());
-		Registers.Step++;
+		INCREMENT_HALF();
 		break;
 
-	case T1_H2:
+	case DecoderStep::T1_H2:
 		// One half clock cycle later, the MREQ and RD signals goes active
 		SB.SetActive(BUS_MREQ);
 		SB.SetActive(BUS_RD);
-		Registers.Step++;
+		INCREMENT_HALF();
 		break;
 
-	case T2_H1:
+	case DecoderStep::T2_H1:
 		// if the WAIT signal is active, wait for the next tick
 		if (SB.IsInactive(BUS_WAIT))
 		{
-			Registers.Step++;
+			INCREMENT_HALF();
 		}
 		break;
 
-	case T2_H2:
-		Registers.Step++;
+	case DecoderStep::T2_H2:
+		INCREMENT_HALF();
 		break;
 
 		// Clock states T3 and T4 of a fetch cycle are used to refresh dynamic memories
 		// The CPU uses this time to decode and execute the fetched instruction so that no other concurrent operation can be performed.
-	case T3_H1:
+	case DecoderStep::T3_H1:
 		// the CPU samples the data from the data bus with the rising edge of the clock of state T3,
 		// and this same edge is used by the CPU to turn off the RD and MREQ signals
 		Registers.Opcode = SB.GetDataOnDataBus();
@@ -179,28 +204,32 @@ void FCPU_Z80::InstructionOpcodeFetch(FClockGenerator& CG, FSignalsBus& SB)
 				SB.IsInactive(BUS_RFSH);
 			}, "set inactive RFSH at the end of T4 clock cycle");
 		SB.SetDataOnAddressBus(Registers.IR.Get());
-		Registers.Step++;
+		INCREMENT_HALF();
 		break;
 
-	case T3_H2:
+	case DecoderStep::T3_H2:
 		// One half clock cycle intro T3 later, the MREQ signals goes active.
 		SB.SetActive(BUS_MREQ);
 		Registers.IR.IncrementR();
-		Registers.Step++;
+		INCREMENT_HALF();
 		break;
 
-	case T4_H1:
-		Registers.Step++;
+	case DecoderStep::T4_H1:
+		INCREMENT_HALF();
 		break;
 
-	case T4_H2:
+	case DecoderStep::T4_H2:
 		SB.SetInactive(BUS_MREQ);
-		Registers.Step = CTC;
+		Registers.Step = DecoderStep::Completed;
 		CG.AddEvent(1,
 			[&]()
 			{ 
-				Registers.MC++; 
+				Registers.MC++;
 			}, "Finish clock cycle T4");
 		break;
 	}
+}
+
+void FCPU_Z80::MemoryReadCycle(FClockGenerator& CG, FSignalsBus& SB)
+{
 }
