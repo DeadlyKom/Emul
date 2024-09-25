@@ -15,7 +15,7 @@ public:
 
 	// motherboard setup
 	FBoard& FindOrAddBoard(FName Name);
-	void AddBoard(FName Name, const std::vector<std::shared_ptr<FDevice>>& _Devices, double Frequency);
+	void AddBoard(FName Name, std::vector<std::shared_ptr<FDevice>> _Devices, double Frequency);
 
 	// external signals
 	void Reset();

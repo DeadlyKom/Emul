@@ -1,16 +1,48 @@
-#include "Device_CPU_Z80.h"
+#include "Z80.h"
+#include "Utils/SignalsBus.h"
 #include "Motherboard/Motherboard_ClockGenerator.h"
+
+#define T1				0
+#define T2				1
+#define T3				2
+#define T4				3
+#define T5				4
+#define T6				5
+#define CTC				uint8_t(-1)	// completed tick cycle
+
+// tict half-clock
+#define T1_H1			0
+#define T1_H2			1
+#define T2_H1			2
+#define T2_H2			3
+#define T3_H1			4
+#define T3_H2			5
+#define T4_H1			6
+#define T4_H2			7
+#define T5_H1			8
+#define T5_H2			9
+#define T6_H1			10
+#define T6_H2			11
+
+#define MC1				0
+#define MC2				1
+#define MC3				2
+#define MC4				3
+#define MC5				4
+#define MC6				5
+
+#define DEVICE_NAME() FName(std::format("{}", ThisDeviceName))
 
 namespace
 {
-	static const FName CPU_Z80_DeviceName = "CPU Z80";
+	static const char* ThisDeviceName = "CPU Z80";
 }
 
 FCPU_Z80::FCPU_Z80()
-	: FDevice(CPU_Z80_DeviceName, EDeviceType::CPU)
+	: FDevice(DEVICE_NAME(), EDeviceType::CPU)
 {}
 
-void FCPU_Z80::Tick(FClockGenerator& CG, uint64_t& InOutISB)
+void FCPU_Z80::Tick(FClockGenerator& CG, FSignalsBus& SB)
 {
 	// handle signals in this sequence:
 	// 1. RESET
@@ -18,35 +50,36 @@ void FCPU_Z80::Tick(FClockGenerator& CG, uint64_t& InOutISB)
 	// 3. NMI
 	// 4. INT
 
-	if (BUS_IS_ACTIVE_RESET(InOutISB))
+	if (SB.IsActive(BUS_RESET))
 	{
 		// the address and data bus enter a high-impedance state
-		BUS_SET_ADR(InOutISB, 0xFFFF);
-		BUS_SET_DATA(InOutISB, 0xFF);
+		SB.SetDataOnAddressBus(0xFFFF);
+		SB.SetDataOnDataBus(0xFF);
 
 		// all control output signals enter an inactive state
-		InOutISB |= CTRL_OUTPUT_MASK;
+		SB.SetAllControlOutput(ESignalState::High);
 
 		// skip half-clocs
 		switch (Registers.Step >> 1)
 		{
+		// reset the status registers as described in "Undocumented Z80"
 		case T1:
 			Registers.IFF1 = false;
 			Registers.IFF2 = false;
 			Registers.IM   = 0x00;
-			Registers.Step++;
+			Registers.Step +=2;
 			break;
 
 		case T2:
 			Registers.PC = 0x0000;
 			Registers.IR = 0x0000;
-			Registers.Step++;
+			Registers.Step += 2;
 			break;
 
 		case T3:
 			Registers.SP = 0xFFFF;
 			Registers.AF = 0xFFFF;
-			Registers.Step++;
+			Registers.Step += 2;
 			break;
 
 		default:
@@ -66,18 +99,18 @@ void FCPU_Z80::Tick(FClockGenerator& CG, uint64_t& InOutISB)
 	{
 		switch (Registers.MC)
 		{
-		case M1:
-			InstructionOpcodeFetch(CG, InOutISB);
+		case MC1:
+			InstructionOpcodeFetch(CG, SB);
 			break;
-		case M2:
+		case MC2:
 			break;
-		case M3:
+		case MC3:
 			break;
-		case M4:
+		case MC4:
 			break;
-		case M5:
+		case MC5:
 			break;
-		case M6:
+		case MC6:
 			break;
 		}
 	}
@@ -87,11 +120,9 @@ void FCPU_Z80::Tick(FClockGenerator& CG, uint64_t& InOutISB)
 void FCPU_Z80::Reset()
 {
 	memset(&Registers, 0, sizeof(Registers));
-
-	// reset state as described in 'The Undocumented Z80 Documented'
 }
 
-void FCPU_Z80::InstructionOpcodeFetch(FClockGenerator& CG, uint64_t& InOutISB)
+void FCPU_Z80::InstructionOpcodeFetch(FClockGenerator& CG, FSignalsBus& SB)
 {
 	// reset the internal counters
 	if (Registers.Step == CTC)
@@ -104,20 +135,21 @@ void FCPU_Z80::InstructionOpcodeFetch(FClockGenerator& CG, uint64_t& InOutISB)
 	{
 	case T1_H1:
 		// The Program Counter is placed on the address bus at the beginning of the M1 cycle
-		BUS_SET_ACTIVE_SIGNAL(InOutISB, BUS_M1);
-		BUS_SET_ADR(InOutISB, Registers.PC.Get());
+		SB.SetActive(BUS_M1);
+		SB.SetDataOnAddressBus(Registers.PC.Get());
 		Registers.Step++;
 		break;
 
 	case T1_H2:
 		// One half clock cycle later, the MREQ and RD signals goes active
-		BUS_SET_ACTIVE_SIGNAL(InOutISB, BUS_MREQ | BUS_RD);
+		SB.SetActive(BUS_MREQ);
+		SB.SetActive(BUS_RD);
 		Registers.Step++;
 		break;
 
 	case T2_H1:
 		// if the WAIT signal is active, wait for the next tick
-		if (BUS_IS_INACTIVE_WAIT(InOutISB))
+		if (SB.IsInactive(BUS_WAIT))
 		{
 			Registers.Step++;
 		}
@@ -132,25 +164,27 @@ void FCPU_Z80::InstructionOpcodeFetch(FClockGenerator& CG, uint64_t& InOutISB)
 	case T3_H1:
 		// the CPU samples the data from the data bus with the rising edge of the clock of state T3,
 		// and this same edge is used by the CPU to turn off the RD and MREQ signals
-		Registers.Opcode = BUS_GET_DATA(InOutISB);
-		BUS_SET_INACTIVE_SIGNAL(InOutISB, BUS_M1 | BUS_MREQ | BUS_RD);
+		Registers.Opcode = SB.GetDataOnDataBus();
+		SB.SetInactive(BUS_M1);
+		SB.SetInactive(BUS_MREQ);
+		SB.SetInactive(BUS_RD);
 
 		// During T3 and T4, the lower seven bits of the address bus contain a memory refresh address and the RFSH signal becomes active,
 		// indicating that a refresh read of all dynamic memories must be performed.
-		BUS_SET_ACTIVE_SIGNAL(InOutISB,  BUS_RFSH);
+		SB.SetActive(BUS_RFSH);
 		// Timer for setting RFSH signal inactive at the end of T4 clock cycle
 		CG.AddEvent(4,
 			[&]()
 			{
-				BUS_SET_INACTIVE_SIGNAL(InOutISB, BUS_RFSH);
+				SB.IsInactive(BUS_RFSH);
 			}, "set inactive RFSH at the end of T4 clock cycle");
-		BUS_SET_DATA(InOutISB, Registers.IR.Get());
+		SB.SetDataOnAddressBus(Registers.IR.Get());
 		Registers.Step++;
 		break;
 
 	case T3_H2:
 		// One half clock cycle intro T3 later, the MREQ signals goes active.
-		BUS_SET_ACTIVE_SIGNAL(InOutISB, BUS_MREQ);
+		SB.SetActive(BUS_MREQ);
 		Registers.IR.IncrementR();
 		Registers.Step++;
 		break;
@@ -160,7 +194,7 @@ void FCPU_Z80::InstructionOpcodeFetch(FClockGenerator& CG, uint64_t& InOutISB)
 		break;
 
 	case T4_H2:
-		BUS_SET_INACTIVE_SIGNAL(InOutISB, BUS_MREQ);
+		SB.SetInactive(BUS_MREQ);
 		Registers.Step = CTC;
 		CG.AddEvent(1,
 			[&]()

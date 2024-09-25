@@ -29,7 +29,7 @@ FBoard& FMotherboard::FindOrAddBoard(FName Name)
 	return *Boards[Name];
 }
 
-void FMotherboard::AddBoard(FName Name, const std::vector<std::shared_ptr<FDevice>>& _Devices, double Frequency)
+void FMotherboard::AddBoard(FName Name, std::vector<std::shared_ptr<FDevice>> _Devices, double Frequency)
 {
 	FindOrAddBoard(Name).AddDevices(_Devices, Frequency);
 }

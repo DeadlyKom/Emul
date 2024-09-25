@@ -7,8 +7,8 @@ class FFonts
 public:
 	static FFonts& Get();
 
-	ImFont* LoadFont(FName UniqueFontName, const void* FontData, uint32_t FontDataSize, float SizePixels, uint32_t Index = INDEX_NONE);
-	ImFont* GetFont(FName UniqueFontName);
+	ImFont* LoadFont(FName FontName, const void* FontData, uint32_t FontDataSize, float SizePixels, uint32_t Index = INDEX_NONE);
+	ImFont* GetFont(FName FontName);
 
 private:
 	std::map<FName, ImFont*> Fonts;

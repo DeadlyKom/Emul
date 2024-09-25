@@ -2,18 +2,22 @@
 
 #include <CoreMinimal.h>
 #include "Devices/Device.h"
+#include "Utils/SignalsBus.h"
 #include "Utils/Register.h"
+
+class FSignalsBus;
 
 class FCPU_Z80 : public FDevice
 {
+	using ThisClass = FCPU_Z80;
 public:
 	FCPU_Z80();
 
-	virtual void Tick(FClockGenerator& CG, uint64_t& InOutISB) override;
+	virtual void Tick(FClockGenerator& CG, FSignalsBus& SB) override;
 	virtual void Reset() override;
 
 private:
-	void InstructionOpcodeFetch(FClockGenerator& CG, uint64_t& InOutISB);
+	void InstructionOpcodeFetch(FClockGenerator& CG, FSignalsBus& SB);
 
 	struct
 	{

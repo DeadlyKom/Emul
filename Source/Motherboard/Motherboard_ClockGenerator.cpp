@@ -16,7 +16,7 @@ void FClockGenerator::Tick()
 	Events.erase(std::remove_if(Events.begin(), Events.end(), 
 		[=](const FEventData& Event)
 		{
-			if (Event.ExpireTime <= ClockCounter)
+			if (Event.ExpireTime < ClockCounter)
 			{
 				Event.Callback();
 				return true;

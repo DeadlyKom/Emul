@@ -15,7 +15,7 @@ public:
 	FBoard& operator=(const FBoard&) = delete;
 
 	// board setup
-	void AddDevices(const std::vector<std::shared_ptr<FDevice>>& _Devices, double _Frequency);
+	void AddDevices(std::vector<std::shared_ptr<FDevice>> _Devices, double _Frequency);
 	void SetFrequency(double _Frequency);
 
 private:

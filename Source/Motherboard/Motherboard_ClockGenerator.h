@@ -21,7 +21,12 @@ public:
 
 	void AddEvent(uint64_t Rate, std::function<void()>&& Event, const std::string& _DebugName = "");
 
-	uint64_t ToSec(long double Time) const 
+	uint64_t ToSec(double Time) const 
+	{
+		return uint64_t(Time * FrequencyInv);
+	}
+	
+	uint64_t ToNanosec(double Time) const 
 	{
 		return uint64_t(Time * FrequencyInv);
 	}

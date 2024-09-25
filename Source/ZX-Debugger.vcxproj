@@ -184,13 +184,14 @@
     <ClCompile Include="Core\Fonts.cpp" />
     <ClCompile Include="Core\SystemTime.cpp" />
     <ClCompile Include="Core\TimerManager.cpp" />
-    <ClCompile Include="Devices\Device_CPU_Z80.cpp" />
+    <ClCompile Include="Devices\ControlUnit\AccessToROM.cpp" />
+    <ClCompile Include="Devices\ControlUnit\ULA.cpp" />
+    <ClCompile Include="Devices\CPU\Z80.cpp" />
     <ClCompile Include="Devices\Device.cpp" />
-    <ClCompile Include="Devices\Device_IO.cpp" />
     <ClCompile Include="Devices\IO\Beeper.cpp" />
     <ClCompile Include="Devices\IO\Keyboard.cpp" />
-    <ClCompile Include="Devices\Device_Memory.cpp" />
-    <ClCompile Include="Devices\Device_ULA.cpp" />
+    <ClCompile Include="Devices\Memory\RAM.cpp" />
+    <ClCompile Include="Devices\Memory\EPROM.cpp" />
     <ClCompile Include="Fonts\Dos2000_ru_en.cpp" />
     <ClCompile Include="main.cpp" />
     <ClCompile Include="Motherboard\Motherboard.cpp" />
@@ -202,6 +203,7 @@
     <ClCompile Include="UI\Viewer.cpp" />
     <ClCompile Include="Utils\Delegate.cpp" />
     <ClCompile Include="Utils\Name.cpp" />
+    <ClCompile Include="Utils\SignalsBus.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\AppFramework.h" />
@@ -211,14 +213,14 @@
     <ClInclude Include="Core\SystemTime.h" />
     <ClInclude Include="Core\TimerManager.h" />
     <ClInclude Include="Core\Window.h" />
-    <ClInclude Include="Devices\Device_CPU_Z80.h" />
+    <ClInclude Include="Devices\ControlUnit\AccessToROM.h" />
+    <ClInclude Include="Devices\ControlUnit\ULA.h" />
+    <ClInclude Include="Devices\CPU\Z80.h" />
     <ClInclude Include="Devices\Device.h" />
-    <ClInclude Include="Devices\Device_IO.h" />
     <ClInclude Include="Devices\IO\Beeper.h" />
     <ClInclude Include="Devices\IO\Keyboard.h" />
-    <ClInclude Include="Devices\Device_Memory.h" />
-    <ClInclude Include="Devices\Device_ULA.h" />
-    <ClInclude Include="Devices\Device_define.h" />
+    <ClInclude Include="Devices\Memory\RAM.h" />
+    <ClInclude Include="Devices\Memory\EPROM.h" />
     <ClInclude Include="Motherboard\Motherboard.h" />
     <ClInclude Include="Motherboard\Motherboard_Board.h" />
     <ClInclude Include="Motherboard\Motherboard_ClockGenerator.h" />
@@ -227,6 +229,7 @@
     <ClInclude Include="UI\CPU_State.h" />
     <ClInclude Include="UI\Disassembler.h" />
     <ClInclude Include="UI\Viewer.h" />
+    <ClInclude Include="Utils\SignalsBus.h" />
     <ClInclude Include="Utils\Char.h" />
     <ClInclude Include="Utils\Delegates.h" />
     <ClInclude Include="Utils\Hotkey.h" />
@@ -241,6 +244,12 @@
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Resource\Icons\ICONE.ico" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Utils\SignalsBusNames.inl" />
+  </ItemGroup>
+  <ItemGroup>
+    <Natvis Include="..\test.natvis" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

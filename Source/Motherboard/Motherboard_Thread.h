@@ -2,6 +2,7 @@
 
 #include <CoreMinimal.h>
 #include "Utils/Queue.h"
+#include "Utils/SignalsBus.h"
 #include "Core/TimerManager.h"
 #include "Motherboard_ClockGenerator.h"
 
@@ -40,7 +41,7 @@ public:
 	FThread& operator=(const FThread&) = delete;
 
 	// device setup
-	void AddDevices(const std::vector<std::shared_ptr<FDevice>>& _Devices);
+	void AddDevices(std::vector<std::shared_ptr<FDevice>> _Devices);
 
 private:
 	void Initialize();
@@ -68,7 +69,7 @@ private:
 
 	FName ThreadName;
 
-	uint64_t ISB;	// internal signals bus
+	FSignalsBus SB;
 	FTimerManager TM;
 	FClockGenerator CG;
 

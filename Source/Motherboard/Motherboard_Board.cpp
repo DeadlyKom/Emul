@@ -27,7 +27,7 @@ void FBoard::NonmaskableInterrupt()
 	Thread->NonmaskableInterrupt();
 }
 
-void FBoard::AddDevices(const std::vector<std::shared_ptr<FDevice>>& Devices, double _Frequency)
+void FBoard::AddDevices(std::vector<std::shared_ptr<FDevice>> Devices, double _Frequency)
 {
 	Thread->AddDevices(Devices);
 	SetFrequency(_Frequency);

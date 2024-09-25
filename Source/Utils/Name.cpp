@@ -6,7 +6,9 @@ namespace
 	static constexpr uint32_t FNameMaxBlockBits = 13;
 	static constexpr uint32_t FNameMaxBlocks = 1 << FNameMaxBlockBits;
 
-	static uint32_t Counter = 0;
+	static std::atomic_int Counter = 0;
+	static std::mutex NameMutex;
+
 	static uint32_t CurrentBlock = 0;
 	static char* Blocks[FNameMaxBlocks] = {};
 }
@@ -18,12 +20,19 @@ const char* GetName(uint32_t Index)
 
 uint32_t AddName(const char* _Name)
 {
+	NameMutex.lock();
+
 	const size_t LengthString = std::strlen(_Name);
 	char* StrPtr = new char[LengthString + 1];
+	const uint32_t Index = CurrentBlock;
+
 	std::memcpy(StrPtr, _Name, LengthString);
 	*(StrPtr + LengthString) = '\0';
 	Blocks[CurrentBlock++] = StrPtr;
-	return CurrentBlock - 1;
+
+	NameMutex.unlock();
+
+	return Index;
 }
 
 uint32_t FindName(const char* _Name)
@@ -53,7 +62,7 @@ void Release()
 		if (StrPtr)
 		{
 			delete[] StrPtr;
-			StrPtr = nullptr;
+			Blocks[i] = nullptr;
 		}
 	}
 }
@@ -66,10 +75,35 @@ FName::FName()
 
 FName::FName(const char* _Name)
 {
-	ID = FindName(_Name);
-	if (ID == INDEX_NONE)
+	if (CurrentBlock < FNameMaxBlocks)
 	{
-		ID = AddName(_Name);
+		ID = FindName(_Name);
+		if (ID == INDEX_NONE)
+		{
+			ID = AddName(_Name);
+		}
+	}
+	else
+	{
+		ID = INDEX_NONE;
+	}
+	Counter++;
+}
+
+FName::FName(const std::string& _StrName)
+{
+	if (CurrentBlock < FNameMaxBlocks)
+	{
+		
+		ID = FindName(_StrName.c_str());
+		if (ID == INDEX_NONE)
+		{
+			ID = AddName(_StrName.c_str());
+		}
+	}
+	else
+	{
+		ID = INDEX_NONE;
 	}
 	Counter++;
 }

@@ -1,9 +1,9 @@
 #pragma once
 
 #include <CoreMinimal.h>
-#include "Device_define.h"
 
 class FThread;
+class FSignalsBus;
 class FMotherboard;
 class FClockGenerator;
 
@@ -11,7 +11,7 @@ enum class EDeviceType
 {
 	// device types are arranged according to processing priorities
 	CPU,
-	ULA,
+	ControlUnit,
 	Memory,
 	IO,
 };
@@ -28,7 +28,7 @@ public:
 	EDeviceType GetType() const { return DeviceType; }
 
 	// virtual methods
-	virtual void Tick(FClockGenerator& CG, uint64_t& InOutISB) {};
+	virtual void Tick(FClockGenerator& CG, FSignalsBus& SB) {};
 	virtual void Reset() {};
 
 protected:
@@ -36,8 +36,8 @@ protected:
 	EDeviceType DeviceType;
 
 private:
-	void Register();
-	void Unregister();
+	virtual void Register(FSignalsBus& SB);
+	virtual void Unregister(FSignalsBus& SB);
 
 	bool bRegistered;
 };

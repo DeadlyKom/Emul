@@ -6,7 +6,7 @@ FFonts& FFonts::Get()
 	return *Instance.get();
 }
 
-ImFont* FFonts::LoadFont(FName UniqueFontName, const void* FontData, uint32_t FontDataSize, float SizePixels, uint32_t Index /*= INDEX_NONE*/)
+ImFont* FFonts::LoadFont(FName FontName, const void* FontData, uint32_t FontDataSize, float SizePixels, uint32_t Index /*= INDEX_NONE*/)
 {
 	static const ImWchar FontRanges[] = { 0x0020, 0x03ff, 0 };
 
@@ -16,12 +16,11 @@ ImFont* FFonts::LoadFont(FName UniqueFontName, const void* FontData, uint32_t Fo
 		return nullptr;
 	}
 
-	Fonts.emplace(UniqueFontName, NewFont);
+	Fonts.emplace(FontName, NewFont);
 	return NewFont;
 }
 
-ImFont* FFonts::GetFont(FName UniqueFontName)
+ImFont* FFonts::GetFont(FName FontName)
 {
-	const std::map<FName, ImFont*>::iterator& SearchIt = Fonts.find(UniqueFontName);
-	return SearchIt != Fonts.end() ? SearchIt->second : nullptr;
+	return Fonts.contains(FontName) ? Fonts[FontName] : nullptr;
 }

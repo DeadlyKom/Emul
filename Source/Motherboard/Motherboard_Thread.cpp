@@ -4,7 +4,6 @@
 
 FThread::FThread(FName Name)
 	: ThreadName(Name)
-	, ISB(CTRL_INPUT_MASK)
 	, ThreadStatus(EThreadStatus::Stop)
 {}
 
@@ -39,11 +38,11 @@ void FThread::SetFrequency(double Frequency)
 	Thread_Request(EThreadTypeRequest::ExecuteTask,
 		[=, this]() -> void
 		{
-			CG.SetFrequency(Frequency);
+			CG.SetFrequency(Frequency * 2.0 /*half-cycle*/);
 		});
 }
 
-void FThread::AddDevices(const std::vector<std::shared_ptr<FDevice>>& _Devices)
+void FThread::AddDevices(std::vector<std::shared_ptr<FDevice>> _Devices)
 {
 	Thread_Request(EThreadTypeRequest::ExecuteTask,
 		[=, this]() -> void
@@ -64,7 +63,7 @@ void FThread::Device_Registration(const std::vector<std::shared_ptr<FDevice>>& _
 
 		if (It == Devices.end())
 		{
-			Device->Register();
+			Device->Register(SB);
 			Devices.push_back(Device);
 		}
 		else
@@ -85,7 +84,7 @@ void FThread::Device_Unregistration()
 {
 	for (std::shared_ptr<FDevice>& Device : Devices)
 	{
-		if (Device) Device->Unregister();
+		if (Device) Device->Unregister(SB);
 	}
 }
 
@@ -121,7 +120,7 @@ void FThread::Thread_Execution()
 
 			for (std::shared_ptr<FDevice>& Device : Devices)
 			{
-				if (Device) Device->Tick(CG, ISB);
+				if (Device) Device->Tick(CG, SB);
 			}
 
 			Thread_RequestHandling();
@@ -175,21 +174,21 @@ void FThread::ThreadRequest_Reset()
 	}
 
 	ThreadRequest_SetStatus(EThreadStatus::Run);
-	BUS_RESET_SIGNAL(ISB, BUS_RESET);
+	SB.SetActive(BUS_RESET);
 	TM.SetTimer(0.2f,
 		[&]()
 		{
-			BUS_SET_SIGNAL(ISB, BUS_RESET);
+			SB.SetInactive(BUS_RESET);
 		}, false, "End signal RESET");
 }
 
 void FThread::ThreadRequest_NonmaskableInterrupt()
 {
-	BUS_RESET_SIGNAL(ISB, BUS_NMI);
+	SB.SetActive(BUS_NMI);
 	ThreadRequest_SetStatus(EThreadStatus::Run);
 	TM.SetTimer(0.2f,
 		[&]()
 		{
-			BUS_SET_SIGNAL(ISB, BUS_NMI);
+			SB.SetInactive(BUS_NMI);
 		}, false, "End signal NMI");
 }
