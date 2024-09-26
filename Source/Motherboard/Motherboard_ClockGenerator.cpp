@@ -1,40 +1,62 @@
 #include "Motherboard_ClockGenerator.h"
 
+namespace
+{
+	constexpr size_t CapacityStep = 128;
+}
+
 FClockGenerator::FClockGenerator()
 	: Sampling(1)
 	, FrequencyInv(1.0 / 3.5_MHz)
-{}
+	, ClockCounter(-1)
+	, ElementCount(CapacityStep)
+	, LastElementIndex(0)
+{
+	Events.resize(CapacityStep);
+}
 
 void FClockGenerator::Tick()
 {
 	ClockCounter++;
 
-	Events.erase(std::remove_if(Events.begin(), Events.end(), 
-		[=](const FEventData& Event)
+	for (size_t i = 0; i < LastElementIndex; ++i)
+	{
+		const FEventData& Event = Events[i];
+		if (Event.ExpireTime > ClockCounter)
 		{
-			if (Event.ExpireTime < ClockCounter)
-			{
-				Event.Callback();
-				return true;
-			}
-			return false;
-		}), Events.end());
+			continue;
+		}
+		Event.Callback();
+		if (i + 1 < LastElementIndex)
+		{
+			std::swap(Events[i--], Events.back());
+			LastElementIndex--;
+		}
+	}
 }
 
 void FClockGenerator::Reset()
 {
 	ClockCounter = -1;
-	Events.clear();
+	LastElementIndex = 0;
 }
 
+#ifndef NDEBUG
 void FClockGenerator::AddEvent(uint64_t Rate, std::function<void()>&& EventCallback, const std::string& _DebugName /*= ""*/)
+#else
+void FClockGenerator::AddEvent(uint64_t Rate, std::function<void()>&& EventCallback)
+#endif 
 {
-	FEventData Event
+	if (LastElementIndex > ElementCount)
 	{
-		.ExpireTime = ClockCounter + Rate,
-		.DebugName = _DebugName,
-		.Callback = std::move(EventCallback),
-	};
+		ElementCount += CapacityStep;
+		Events.resize(ElementCount);
+	}
 
-	Events.push_back(Event);
+	FEventData* Event = &Events[LastElementIndex];
+	Event->ExpireTime = ClockCounter + Rate + (ClockCounter == -1 ? 0 : 1);
+#ifndef NDEBUG
+	Event->DebugName = _DebugName;
+#endif
+	Event->Callback = std::move(EventCallback);
 }

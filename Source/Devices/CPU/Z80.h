@@ -15,12 +15,12 @@ class FCPU_Z80 : public FDevice
 public:
 	FCPU_Z80();
 
-	virtual void Tick(FClockGenerator& CG, FSignalsBus& SB) override;
+	virtual void Tick() override;
 	virtual void Reset() override;
 
 private:
-	void InstructionFetch(FClockGenerator& CG, FSignalsBus& SB);
-	void MemoryReadCycle(FClockGenerator& CG, FSignalsBus& SB);
+	void InstructionFetch();
+	void MemoryReadCycle();
 
 	struct
 	{
@@ -45,14 +45,19 @@ private:
 
 		// internal
 		uint8_t IM;			// maskable interrupt mode
-		uint8_t Opcode;     // fetched opcode
 		Register16 WZ;		// temporary address register
 		bool IFF1;
 		bool IFF2;
 
+		uint8_t Opcode;			// fetched opcode
 		uint32_t CC;			// counter of clock cycles in one machine cycle
+#ifndef NDEBUG
 		MachineCycle::Type MC;	// machine cycle counter
-		DecoderStep::Type Step;			// the currently active decoder step
+		DecoderStep::Type Step;	// the currently active decoder step
+#else
+		uint32_t MC;
+		uint32_t Step;
+#endif 
 
 	} Registers;
 };

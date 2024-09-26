@@ -6,7 +6,7 @@
 #define REGISTER_BUS_NAME(num,name) name = num,
 namespace ESignalBus
 {
-	enum Type
+	enum Type : int32_t
 	{
 		// Include all the hard-coded names
 		#include "SignalsBusNames.inl"
@@ -23,7 +23,7 @@ namespace ESignalBus
 
 namespace ESignalState
 {
-	enum Type
+	enum Type : int32_t
 	{
 		Low		= 0,
 		High	= 1,
@@ -57,90 +57,45 @@ public:
 	{
 		return Signals[0][Signal] == ActiveSignal;
 	}
-	inline bool IsActive(FName SignalName, ESignalState::Type ActiveSignal = ESignalState::Low) const
-	{
-		return ExtraSignals.contains(SignalName) ? ExtraSignals.at(SignalName).Current == ActiveSignal : false;
-	}
 	inline bool IsInactive(ESignalBus::Type Signal, ESignalState::Type ActiveSignal = ESignalState::Low) const
 	{
 		return Signals[0][Signal] != ActiveSignal;
 	}
-	inline bool IsInactive(FName SignalName, ESignalState::Type ActiveSignal = ESignalState::Low) const
+	
+	inline void SetSignal(ESignalBus::Type Signal, ESignalState::Type State)
 	{
-		return ExtraSignals.contains(SignalName) ? ExtraSignals.at(SignalName).Current != ActiveSignal : false;
+		Signals[1][Signal] = Signals[0][Signal];
+		Signals[0][Signal] = State;
 	}
 	inline void SetActive(ESignalBus::Type Signal, ESignalState::Type ActiveSignal = ESignalState::Low)
 	{
 		Signals[1][Signal] = Signals[0][Signal];
 		Signals[0][Signal] = ActiveSignal;
 	}
-	inline void SetActive(FName SignalName, ESignalState::Type ActiveSignal = ESignalState::Low)
-	{
-		if (ExtraSignals.contains(SignalName))
-		{
-			ExtraSignals[SignalName].Prev = ExtraSignals[SignalName].Current;
-			ExtraSignals[SignalName].Current = ActiveSignal;
-		}
-	}
 	inline void SetInactive(ESignalBus::Type Signal, ESignalState::Type InactiveSignal = ESignalState::High)
 	{
 		Signals[1][Signal] = Signals[0][Signal];
 		Signals[0][Signal] = InactiveSignal;
-	}
-	inline void SetInactive(FName SignalName, ESignalState::Type InactiveSignal = ESignalState::High)
-	{
-		if (ExtraSignals.contains(SignalName))
-		{
-			ExtraSignals[SignalName].Prev = ExtraSignals[SignalName].Current;
-			ExtraSignals[SignalName].Current = InactiveSignal;
-		}
 	}
 	inline void SetHighImpedance(ESignalBus::Type Signal)
 	{
 		Signals[1][Signal] = Signals[0][Signal];
 		Signals[0][Signal] = ESignalState::HiZ;
 	}
-	inline void SetHighImpedance(FName SignalName)
-	{
-		if (ExtraSignals.contains(SignalName))
-		{
-			ExtraSignals[SignalName].Prev = ExtraSignals[SignalName].Current;
-			ExtraSignals[SignalName].Current = ESignalState::HiZ;
-		}
-	}
 
 	inline bool IsPositiveEdge(ESignalBus::Type Signal) // -> low-to-high transition
 	{
 		return /*last*/Signals[1][Signal] == ESignalState::Low && /*current*/Signals[0][Signal] == ESignalState::High;
 	}
-	inline bool IsPositiveEdge(FName SignalName) // -> low-to-high transition
-	{
-		return ExtraSignals.contains(SignalName) ? /*last*/   ExtraSignals.at(SignalName).Prev    == ESignalState::Low	&&
-												   /*current*/ExtraSignals.at(SignalName).Current == ESignalState::High
-												 : false;
-	}
 	inline bool IsNegativeEdge(ESignalBus::Type Signal) // -> high-to-low transition
 	{
 		return /*last*/Signals[1][Signal] == ESignalState::High && /*current*/Signals[0][Signal] == ESignalState::Low;
 	}
-	inline bool IsNegativeEdge(FName SignalName) // -> high-to-low transition
-	{
-		return ExtraSignals.contains(SignalName) ? /*last*/   ExtraSignals.at(SignalName).Prev    == ESignalState::High &&
-												   /*current*/ExtraSignals.at(SignalName).Current == ESignalState::Low
-												 : false;
-	}
-	
+
 	inline ESignalState::Type GetSignal(ESignalBus::Type Signal) const
 	{
 		return Signals[0][Signal];
 	}
-	inline ESignalState::Type GetSignal(FName SignalName) const
-	{
-		return ExtraSignals.contains(SignalName) ? ExtraSignals.at(SignalName).Current : ESignalState::HiZ;
-	}
-
-	void SetSignal(ESignalBus::Type Signal, ESignalState::Type State);
-	void SetSignal(FName SignalName, ESignalState::Type State);
 
 	uint16_t GetDataOnAddressBus() const;
 	uint8_t GetDataOnDataBus() const;
@@ -150,9 +105,6 @@ public:
 
 	void SetAllControlOutput(ESignalState::Type State);
 
-	void AddSignal(FName SignalName);
-
 private:
 	ESignalState::Type Signals[2][ESignalBus::MaxHardcodedNameIndex];
-	std::map<FName, FExtraSignals> ExtraSignals;
 };

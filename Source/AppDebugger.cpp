@@ -64,8 +64,6 @@ void FAppDebugger::Shutdown()
 		Motherboard.reset();
 	}
 
-	auto a = Flags.bLog;
-
 	LOG_CONSOLE("Shutdown.");
 
 	FAppFramework::Shutdown();

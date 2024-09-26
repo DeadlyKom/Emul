@@ -2,12 +2,20 @@
 
 #include <CoreMinimal.h>
 
-enum class ExecSpeed : int { _20PERCENT = 0, HALF, NORMAL, X2, MAX };
+#ifdef NDEBUG
+#define ADD_EVENT(clock_generator, Rate, DebugName, EventCallback) (clock_generator.AddEvent(Rate, EventCallback))
+#define ADD_EVENT_(clock_generator, Rate, DebugName, EventCallback) (clock_generator->AddEvent(Rate, EventCallback))
+#else
+#define ADD_EVENT(clock_generator, Rate, DebugName, EventCallback) (clock_generator.AddEvent(Rate, EventCallback, DebugName))
+#define ADD_EVENT_(clock_generator, Rate, DebugName, EventCallback) (clock_generator->AddEvent(Rate, EventCallback, DebugName))
+#endif
 
 struct FEventData
 {
 	uint64_t ExpireTime;
+#ifndef NDEBUG
 	std::string DebugName;
+#endif 
 	std::function<void()> Callback;
 };
 
@@ -26,20 +34,27 @@ public:
 	inline void Increment(uint32_t& Counter) const { Counter++; }
 	inline void IncrementByDiscreteness(uint32_t& Counter) const { Counter += Sampling; }
 
-	void AddEvent(uint64_t Rate, std::function<void()>&& Event, const std::string& _DebugName = "");
+#ifndef NDEBUG
+	void AddEvent(uint64_t Rate, std::function<void()>&& EventCallback, const std::string& _DebugName = "");
+#else
+	void AddEvent(uint64_t Rate, std::function<void()>&& EventCallback);
+#endif 
 
 	inline uint64_t ToSec(double Time) const 
 	{
-		return uint64_t(Time * FrequencyInv);
+		return uint64_t(Time / FrequencyInv);
 	}
 	inline uint64_t ToNanosec(double Time) const
 	{
-		return uint64_t(Time * FrequencyInv);
+		return uint64_t((Time * 0.000000001) / FrequencyInv);
 	}
 
 private:
 	uint32_t Sampling;
 	double FrequencyInv;
 	uint64_t ClockCounter;
+
+	size_t ElementCount;
+	size_t LastElementIndex;
 	std::vector<FEventData> Events;
 };

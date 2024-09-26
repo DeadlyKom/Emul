@@ -28,16 +28,21 @@ public:
 	EDeviceType GetType() const { return DeviceType; }
 
 	// virtual methods
-	virtual void Tick(FClockGenerator& CG, FSignalsBus& SB) {};
+	virtual void Tick() {};
 	virtual void Reset() {};
 
 protected:
 	FName DeviceName;
 	EDeviceType DeviceType;
+	FSignalsBus* SB;
+	FClockGenerator* CG;
+
+	virtual void Register() {}
+	virtual void Unregister() {}
 
 private:
-	virtual void Register(FSignalsBus& SB);
-	virtual void Unregister(FSignalsBus& SB);
+	void InternalRegister(FSignalsBus& _SB, FClockGenerator& _CG);
+	void InternalUnregister();
 
 	bool bRegistered;
 };

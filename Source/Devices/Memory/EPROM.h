@@ -22,7 +22,7 @@ public:
 	FEPROM(EEPROM_Type _Type, uint8_t* _Firmware = nullptr, uint32_t _FirmwareSize = 0, ESignalState::Type _CE = ESignalState::High, ESignalState::Type _OE = ESignalState::High);
 
 	static std::string ToString(EEPROM_Type Type);
-	virtual void Tick(FClockGenerator& CG, FSignalsBus& SB) override;
+	virtual void Tick() override;
 
 private:
 	EEPROM_Type Type;

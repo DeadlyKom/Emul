@@ -5,20 +5,6 @@ FSignalsBus::FSignalsBus()
 	memset(&Signals, ESignalState::HiZ, ESignalBus::MaxHardcodedNameIndex * sizeof(ESignalState::Type) * 2);
 }
 
-void FSignalsBus::SetSignal(ESignalBus::Type Signal, ESignalState::Type State)
-{
-	Signals[1][Signal] = Signals[0][Signal];
-	Signals[0][Signal] = State;
-}
-
-void FSignalsBus::SetSignal(FName SignalName, ESignalState::Type State)
-{
-	if (ExtraSignals.contains(SignalName))
-	{
-		ExtraSignals[SignalName].Prev = ExtraSignals[SignalName].Current;
-		ExtraSignals[SignalName].Current = State;
-	}
-}
 
 uint16_t FSignalsBus::GetDataOnAddressBus() const
 {
@@ -112,12 +98,3 @@ void FSignalsBus::SetAllControlOutput(ESignalState::Type State)
 	Signals[0][BUS_BUSACK]	= State;
 }
 
-void FSignalsBus::AddSignal(FName SignalName)
-{
-	if (ExtraSignals.contains(SignalName))
-	{
-		return;
-	}
-
-	ExtraSignals.emplace(SignalName, FExtraSignals(ESignalState::HiZ));
-}

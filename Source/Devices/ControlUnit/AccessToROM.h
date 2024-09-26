@@ -9,10 +9,5 @@ class FAccessToROM : public FDevice
 public:
 	FAccessToROM();
 
-	virtual void Tick(FClockGenerator& CG, FSignalsBus& SB) override;
-
-	static const FName SignalName_RD_ROM;
-
-private:
-	virtual void Register(FSignalsBus& SB);
+	virtual void Tick() override;
 };

@@ -64,7 +64,7 @@ void FThread::Device_Registration(const std::vector<std::shared_ptr<FDevice>>& _
 
 		if (It == Devices.end())
 		{
-			Device->Register(SB);
+			Device->InternalRegister(SB, CG);
 			Devices.push_back(Device);
 		}
 		else
@@ -85,7 +85,7 @@ void FThread::Device_Unregistration()
 {
 	for (std::shared_ptr<FDevice>& Device : Devices)
 	{
-		if (Device) Device->Unregister(SB);
+		if (Device) Device->InternalUnregister();
 	}
 }
 
@@ -116,12 +116,10 @@ void FThread::Thread_Execution()
 	{
 		while (ThreadStatus == EThreadStatus::Run)
 		{
-			TM.Tick();		// internal auxiliary time manager
 			CG.Tick();		// internal clock generator
-
 			for (std::shared_ptr<FDevice>& Device : Devices)
 			{
-				if (Device) Device->Tick(CG, SB);
+				if (Device) Device->Tick();
 			}
 
 			Thread_RequestHandling();
@@ -176,11 +174,11 @@ void FThread::ThreadRequest_Reset()
 
 	ThreadRequest_SetStatus(EThreadStatus::Run);
 	SB.SetActive(BUS_RESET);
-	TM.SetTimer(0.2f,
-		[&]()
+	ADD_EVENT(CG, CG.ToSec(0.2f), "End signal RESET",
+		[=]()
 		{
 			SB.SetInactive(BUS_RESET);
-		}, false, "End signal RESET");
+		});
 }
 
 void FThread::ThreadRequest_NonmaskableInterrupt()

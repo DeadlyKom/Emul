@@ -60,24 +60,24 @@ std::string FEPROM::ToString(EEPROM_Type Type)
 	}
 }
 
-void FEPROM::Tick(FClockGenerator& CG, FSignalsBus& SB)
+void FEPROM::Tick()
 {
-	OutputEnable = SB.GetSignal(FAccessToROM::SignalName_RD_ROM);
+	OutputEnable = SB->GetSignal(BUS_RD_ROM);
 
-	if (ChipEnable   != ESignalState::Low && 
+	if (ChipEnable   != ESignalState::Low || 
 		OutputEnable != ESignalState::Low)
 	{
 		return;
 	}
 
-	const uint16_t Address = SB.GetDataOnAddressBus();
+	const uint16_t Address = SB->GetDataOnAddressBus();
 	if (Address < Firmware.size())
 	{
 		const uint8_t Value = Firmware[Address];
-		CG.AddEvent(CG.ToNanosec(60),
-			[=, &SB]()
+		ADD_EVENT_(CG, CG->ToNanosec(60), "Delay signal",
+			[=]() -> void
 			{
-				SB.SetDataOnDataBus(Value);
-			}, "Delay signal");
+				SB->SetDataOnDataBus(Value);
+			});
 	}
 }
