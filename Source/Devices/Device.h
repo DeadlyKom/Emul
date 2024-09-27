@@ -24,8 +24,10 @@ public:
 	FDevice(FName Name, EDeviceType Type);
 	FDevice() = default;
 
-	FName GetName() const { return DeviceName; }
-	EDeviceType GetType() const { return DeviceType; }
+	FORCEINLINE FName GetName() const { return DeviceName; }
+	FORCEINLINE EDeviceType GetType() const { return DeviceType; }
+	FORCEINLINE FSignalsBus& GetSignalsBus() { return *SB; }
+	FORCEINLINE FClockGenerator& GetClockGenerator() { return *CG; }
 
 	// virtual methods
 	virtual void Tick() {};

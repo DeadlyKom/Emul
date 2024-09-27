@@ -80,4 +80,14 @@ void FEPROM::Tick()
 				SB->SetDataOnDataBus(Value);
 			});
 	}
+	else
+	{
+		// unstable data bus
+		const uint8_t Value = rand();
+		ADD_EVENT_(CG, CG->ToNanosec(60), "Delay signal",
+			[=]() -> void
+			{
+				SB->SetDataOnDataBus(Value);
+			});
+	}
 }

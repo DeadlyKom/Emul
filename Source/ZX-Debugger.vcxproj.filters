@@ -74,6 +74,12 @@
     <ClCompile Include="Devices\ControlUnit\AccessToROM.cpp">
       <Filter>Source\Devices\ControlUnit</Filter>
     </ClCompile>
+    <ClCompile Include="Devices\CPU\Z80_Unprefixed.cpp">
+      <Filter>Source\Devices\CPU</Filter>
+    </ClCompile>
+    <ClCompile Include="Devices\CPU\Z80_Cycle.cpp">
+      <Filter>Source\Devices\CPU</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source">
@@ -212,6 +218,9 @@
     </ClInclude>
     <ClInclude Include="Devices\ControlUnit\AccessToROM.h">
       <Filter>Source\Devices\ControlUnit</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\CommandPipeline.h">
+      <Filter>Source\Utils</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

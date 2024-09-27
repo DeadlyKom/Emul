@@ -4,7 +4,6 @@
 
 struct Register8
 {
-public:
 	Register8()
 		: Byte(0)
 	{}
@@ -139,6 +138,15 @@ public:
 		Byte--;
 	}
 
+	Register8& operator++()
+	{
+		return ++Byte, * this;
+	}
+	uint8_t operator*()
+	{
+		return Byte;
+	}
+
 	void operator=(const Register8& Other)
 	{
 		Byte = Other.Byte;
@@ -176,13 +184,11 @@ public:
 		Byte -= Value;
 	}
 
-protected:
 	uint8_t Byte;
 };
 
-class Register16
+struct Register16
 {
-public:
 	Register16()
 		: Word(0)
 	{}
@@ -235,6 +241,15 @@ public:
 		std::swap(Word, Other.Word);
 	}
 
+	Register16& operator++()
+	{
+		return ++Word, *this;
+	}
+	uint16_t operator*()
+	{
+		return Word;
+	}
+
 	void operator=(uint16_t Value)
 	{
 		Word = Value;
@@ -247,10 +262,10 @@ public:
 	{
 		Word += Other.Word;
 	}
-	void operator+=(const Register16& Other)
-	{
-		Word += Other.Word;
-	}
+	//void operator+=(const Register16& Other)
+	//{
+	//	Word += Other.Word;
+	//}
 	void operator+(uint16_t Value)
 	{
 		Word += Value;
@@ -276,7 +291,6 @@ public:
 		Word -= Value;
 	}
 
-protected:
 	union
 	{
 		struct

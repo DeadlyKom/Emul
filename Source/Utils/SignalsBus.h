@@ -53,46 +53,46 @@ class FSignalsBus
 public:
 	FSignalsBus();
 
-	inline bool IsActive(ESignalBus::Type Signal, ESignalState::Type ActiveSignal = ESignalState::Low) const
+	FORCEINLINE bool IsActive(ESignalBus::Type Signal, ESignalState::Type ActiveSignal = ESignalState::Low) const
 	{
 		return Signals[0][Signal] == ActiveSignal;
 	}
-	inline bool IsInactive(ESignalBus::Type Signal, ESignalState::Type ActiveSignal = ESignalState::Low) const
+	FORCEINLINE bool IsInactive(ESignalBus::Type Signal, ESignalState::Type ActiveSignal = ESignalState::Low) const
 	{
 		return Signals[0][Signal] != ActiveSignal;
 	}
-	
-	inline void SetSignal(ESignalBus::Type Signal, ESignalState::Type State)
+
+	FORCEINLINE void SetSignal(ESignalBus::Type Signal, ESignalState::Type State)
 	{
 		Signals[1][Signal] = Signals[0][Signal];
 		Signals[0][Signal] = State;
 	}
-	inline void SetActive(ESignalBus::Type Signal, ESignalState::Type ActiveSignal = ESignalState::Low)
+	FORCEINLINE void SetActive(ESignalBus::Type Signal, ESignalState::Type ActiveSignal = ESignalState::Low)
 	{
 		Signals[1][Signal] = Signals[0][Signal];
 		Signals[0][Signal] = ActiveSignal;
 	}
-	inline void SetInactive(ESignalBus::Type Signal, ESignalState::Type InactiveSignal = ESignalState::High)
+	FORCEINLINE void SetInactive(ESignalBus::Type Signal, ESignalState::Type InactiveSignal = ESignalState::High)
 	{
 		Signals[1][Signal] = Signals[0][Signal];
 		Signals[0][Signal] = InactiveSignal;
 	}
-	inline void SetHighImpedance(ESignalBus::Type Signal)
+	FORCEINLINE void SetHighImpedance(ESignalBus::Type Signal)
 	{
 		Signals[1][Signal] = Signals[0][Signal];
 		Signals[0][Signal] = ESignalState::HiZ;
 	}
 
-	inline bool IsPositiveEdge(ESignalBus::Type Signal) // -> low-to-high transition
+	FORCEINLINE bool IsPositiveEdge(ESignalBus::Type Signal) // -> low-to-high transition
 	{
 		return /*last*/Signals[1][Signal] == ESignalState::Low && /*current*/Signals[0][Signal] == ESignalState::High;
 	}
-	inline bool IsNegativeEdge(ESignalBus::Type Signal) // -> high-to-low transition
+	FORCEINLINE bool IsNegativeEdge(ESignalBus::Type Signal) // -> high-to-low transition
 	{
 		return /*last*/Signals[1][Signal] == ESignalState::High && /*current*/Signals[0][Signal] == ESignalState::Low;
 	}
 
-	inline ESignalState::Type GetSignal(ESignalBus::Type Signal) const
+	FORCEINLINE ESignalState::Type GetSignal(ESignalBus::Type Signal) const
 	{
 		return Signals[0][Signal];
 	}

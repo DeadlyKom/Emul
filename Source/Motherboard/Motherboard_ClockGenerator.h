@@ -23,6 +23,7 @@ class FClockGenerator
 {
 public:
 	FClockGenerator();
+	~FClockGenerator();
 
 	void Tick();
 	void Reset();

@@ -122,6 +122,7 @@ void FThread::Thread_Execution()
 				if (Device) Device->Tick();
 			}
 
+			// ToDo check request at end of frame
 			Thread_RequestHandling();
 		}
 
@@ -175,7 +176,7 @@ void FThread::ThreadRequest_Reset()
 	ThreadRequest_SetStatus(EThreadStatus::Run);
 	SB.SetActive(BUS_RESET);
 	ADD_EVENT(CG, CG.ToSec(0.2f), "End signal RESET",
-		[=]()
+		[&]()
 		{
 			SB.SetInactive(BUS_RESET);
 		});

@@ -199,6 +199,8 @@
     <ClCompile Include="Devices\ControlUnit\AccessToROM.cpp" />
     <ClCompile Include="Devices\ControlUnit\ULA.cpp" />
     <ClCompile Include="Devices\CPU\Z80.cpp" />
+    <ClCompile Include="Devices\CPU\Z80_Cycle.cpp" />
+    <ClCompile Include="Devices\CPU\Z80_Unprefixed.cpp" />
     <ClCompile Include="Devices\Device.cpp" />
     <ClCompile Include="Devices\IO\Beeper.cpp" />
     <ClCompile Include="Devices\IO\Keyboard.cpp" />
@@ -241,6 +243,7 @@
     <ClInclude Include="UI\CPU_State.h" />
     <ClInclude Include="UI\Disassembler.h" />
     <ClInclude Include="UI\Viewer.h" />
+    <ClInclude Include="Utils\CommandPipeline.h" />
     <ClInclude Include="Utils\SignalsBus.h" />
     <ClInclude Include="Utils\Char.h" />
     <ClInclude Include="Utils\Delegates.h" />

@@ -15,6 +15,11 @@ FClockGenerator::FClockGenerator()
 	Events.resize(CapacityStep);
 }
 
+FClockGenerator::~FClockGenerator()
+{
+	// ToDo remove all events
+}
+
 void FClockGenerator::Tick()
 {
 	ClockCounter++;
@@ -26,12 +31,13 @@ void FClockGenerator::Tick()
 		{
 			continue;
 		}
-		Event.Callback();
+		if (Event.Callback) Event.Callback();
 		if (i + 1 < LastElementIndex)
 		{
-			std::swap(Events[i--], Events.back());
-			LastElementIndex--;
+			std::swap(Events[i], Events[LastElementIndex-1]);
+			i--;
 		}
+		LastElementIndex--;
 	}
 }
 
@@ -53,8 +59,8 @@ void FClockGenerator::AddEvent(uint64_t Rate, std::function<void()>&& EventCallb
 		Events.resize(ElementCount);
 	}
 
-	FEventData* Event = &Events[LastElementIndex];
-	Event->ExpireTime = ClockCounter + Rate + (ClockCounter == -1 ? 0 : 1);
+	FEventData* Event = &Events[LastElementIndex++];
+	Event->ExpireTime = ClockCounter + Rate + (ClockCounter == -1 ? 1 : 0);
 #ifndef NDEBUG
 	Event->DebugName = _DebugName;
 #endif
