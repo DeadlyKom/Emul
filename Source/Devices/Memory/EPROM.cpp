@@ -19,11 +19,11 @@ namespace
 	static const char* EPROM_27CXXX_Name = "27CXXX\0";
 }
 
-FEPROM::FEPROM(EEPROM_Type _Type, 
+FEPROM::FEPROM(EEPROM_Type _Type,
 			   const std::vector<uint8_t>& _Firmware,
 			   ESignalState::Type _CE /*= ESignalState::High*/,
 			   ESignalState::Type _OE /*= ESignalState::High*/)
-	: FDevice(DEVICE_NAME(_Type), EDeviceType::Memory)
+	: FDevice(DEVICE_NAME(_Type), EName::EPROM, EDeviceType::Memory)
 	, Type(_Type)
 	, ChipEnable(_CE)
 	, OutputEnable(_OE)
@@ -35,7 +35,7 @@ FEPROM::FEPROM(EEPROM_Type _Type,
 			   uint32_t _FirmwareSize /*= 0*/,
 			   ESignalState::Type _CE /*= ESignalState::High*/,
 			   ESignalState::Type _OE /*= ESignalState::High*/)
-	: FDevice(FName(DEVICE_NAME(_Type)), EDeviceType::Memory)
+	: FDevice(FName(DEVICE_NAME(_Type)), EName::EPROM, EDeviceType::Memory)
 	, ChipEnable(_CE)
 	, OutputEnable(_OE)
 	, Type(_Type)

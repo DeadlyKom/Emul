@@ -14,10 +14,10 @@
     <ClCompile Include="UI\Viewer.cpp">
       <Filter>Source\UI</Filter>
     </ClCompile>
-    <ClCompile Include="UI\CPU_State.cpp">
+    <ClCompile Include="UI\Disassembler.cpp">
       <Filter>Source\UI</Filter>
     </ClCompile>
-    <ClCompile Include="UI\Disassembler.cpp">
+    <ClCompile Include="UI\CPU_State.cpp">
       <Filter>Source\UI</Filter>
     </ClCompile>
     <ClCompile Include="Fonts\Dos2000_ru_en.cpp">
@@ -79,6 +79,15 @@
     </ClCompile>
     <ClCompile Include="Devices\CPU\Z80_Cycle.cpp">
       <Filter>Source\Devices\CPU</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\UI.cpp">
+      <Filter>Source\Utils</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\CallStack.cpp">
+      <Filter>Source\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="UI\MemoryDump.cpp">
+      <Filter>Source\UI</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -153,10 +162,10 @@
     <ClInclude Include="UI\Viewer.h">
       <Filter>Source\UI</Filter>
     </ClInclude>
-    <ClInclude Include="UI\CPU_State.h">
+    <ClInclude Include="UI\Disassembler.h">
       <Filter>Source\UI</Filter>
     </ClInclude>
-    <ClInclude Include="UI\Disassembler.h">
+    <ClInclude Include="UI\CPU_State.h">
       <Filter>Source\UI</Filter>
     </ClInclude>
     <ClInclude Include="Core\Fonts.h">
@@ -222,6 +231,15 @@
     <ClInclude Include="Utils\CommandPipeline.h">
       <Filter>Source\Utils</Filter>
     </ClInclude>
+    <ClInclude Include="Utils\UI.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\CallStack.h">
+      <Filter>Source\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="UI\MemoryDump.h">
+      <Filter>Source\UI</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Resource\Icons\ICONE.ico">
@@ -235,6 +253,9 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="Utils\SignalsBusNames.inl">
+      <Filter>Source\Utils</Filter>
+    </None>
+    <None Include="Utils\Name_DefaultNames.inl">
       <Filter>Source\Utils</Filter>
     </None>
   </ItemGroup>

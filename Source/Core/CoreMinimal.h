@@ -8,6 +8,7 @@
 #define IMGUI_DEFINE_MATH_OPERATORS
 #pragma warning(disable : 4996)				//_CRT_SECURE_NO_WARNINGS
 
+#include <any>
 #include <map>
 #include <vector>
 #include <memory>
@@ -15,6 +16,7 @@
 #include <thread>
 #include <chrono>
 #include <iostream>
+#include <typeindex>
 #include <functional>
 #include <filesystem>
 

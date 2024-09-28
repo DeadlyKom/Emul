@@ -1,13 +1,20 @@
 #include "Device.h"
 #include "AppFramework.h"
 
-FDevice::FDevice(FName Name, EDeviceType Type)
+FDevice::FDevice(FName Name, EName::Type DeviceID, EDeviceType Type)
 	: DeviceName(Name)
+	, UniqueDeviceID(DeviceID)
 	, DeviceType(Type)
 	, bRegistered(false)
 	, SB(nullptr)
 	, CG(nullptr)
 {}
+
+bool FDevice::TickStopCondition(std::function<bool(std::shared_ptr<FDevice>)>&& Condition)
+{
+	Tick();
+	return Condition(shared_from_this());
+}
 
 void FDevice::InternalRegister(FSignalsBus& _SB, FClockGenerator& _CG)
 {

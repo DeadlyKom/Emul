@@ -2,11 +2,11 @@
 
 namespace
 {
-	static const char* DisassemblerName = TEXT("Disassembler");
+	static const char* ThisWindowName = TEXT("Disassembler");
 }
 
 SDisassembler::SDisassembler()
-	: SWindow(DisassemblerName, true)
+	: SWindow(ThisWindowName, true)
 {}
 
 void SDisassembler::Initialize()
@@ -21,6 +21,6 @@ void SDisassembler::Render()
 		return;
 	}
 
-	ImGui::Begin(DisassemblerName, &bOpen);
+	ImGui::Begin(ThisWindowName, &bOpen);
 	ImGui::End();
 }

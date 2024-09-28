@@ -2,6 +2,8 @@
 #include "Devices/Device.h"
 #include "AppFramework.h"
 
+#include "Devices/CPU/Z80.h"
+
 FThread::FThread(FName Name)
 	: ThreadName(Name)
 	, ThreadStatus(EThreadStatus::Stop)
@@ -19,8 +21,8 @@ void FThread::Shutdown()
 		[this]() -> void
 		{
 			Device_Unregistration();
+			ThreadRequest_SetStatus(EThreadStatus::Quit);
 		});
-	Thread_Request(EThreadTypeRequest::Quit);
 	Thread.join();
 }
 
@@ -49,6 +51,24 @@ void FThread::AddDevices(std::vector<std::shared_ptr<FDevice>> _Devices)
 		[=, this]() -> void
 		{
 			Device_Registration(_Devices);
+		});
+}
+
+void FThread::Inut_Debugger(bool bEnterDebugger)
+{
+	Thread_Request(EThreadTypeRequest::ExecuteTask,
+		[=, this]() -> void
+		{
+			ThreadRequest_SetStatus(bEnterDebugger ? EThreadStatus::Stop : EThreadStatus::Run);
+		});
+}
+
+void FThread::Input_Step(FCPU_StepType::Type Type)
+{
+	Thread_Request(EThreadTypeRequest::ExecuteTask,
+		[=, this]() -> void
+		{
+			ThreadRequest_Step(Type);
 		});
 }
 
@@ -102,9 +122,20 @@ std::vector<std::shared_ptr<FDevice>> FThread::Device_GetByType(EDeviceType Type
 	return std::move(Result);
 }
 
-void FThread::Thread_Request(EThreadTypeRequest TypeRequest, std::function<void()>&& Task/* = nullptr*/)
+void FThread::Thread_Request(EThreadTypeRequest TypeRequest, Callback&& Task/* = nullptr*/)
 {
 	ThreadRequest.Push({ TypeRequest, std::move(Task) });
+}
+
+std::any FThread::Thread_ThreadRequestResult(EName::Type DeviceID, const std::type_index& Type)
+{
+	Thread_Request(EThreadTypeRequest::ExecuteTask,
+		[=]()
+		{
+			GetState_RequestHandler(DeviceID, Type);
+		});
+
+	return ThreadRequestResult.Pop();
 }
 
 void FThread::Thread_Execution()
@@ -126,6 +157,21 @@ void FThread::Thread_Execution()
 			Thread_RequestHandling();
 		}
 
+		while (ThreadStatus == EThreadStatus::Trace)
+		{
+			CG.Tick();		// internal clock generator
+
+			bool bStopTrace = false;
+			for (std::shared_ptr<FDevice> Device : Devices)
+			{
+				if (Device)
+				{
+					bStopTrace |= Device->TickStopCondition([this](std::shared_ptr<FDevice> _Device) -> bool { return ThreadRequest_StopCondition(_Device); });
+				}
+			}
+			if (bStopTrace) { StepType = FCPU_StepType::None; ThreadRequest_SetStatus(EThreadStatus::Stop); }
+		}
+
 		while (ThreadStatus == EThreadStatus::Stop)
 		{
 			TM.Tick();
@@ -144,9 +190,6 @@ void FThread::Thread_RequestHandling()
 		switch (TypeRequest)
 		{
 		case EThreadTypeRequest::None:																	break;
-		case EThreadTypeRequest::Run:					ThreadRequest_SetStatus(EThreadStatus::Run);	break;
-		case EThreadTypeRequest::Stop:					ThreadRequest_SetStatus(EThreadStatus::Stop);	break;
-		case EThreadTypeRequest::Quit:					ThreadRequest_SetStatus(EThreadStatus::Quit);	break;
 		case EThreadTypeRequest::ExecuteTask:			ThreadRequest_ExecuteTask(std::move(Task));		break;
 		case EThreadTypeRequest::Reset:					ThreadRequest_Reset();							break;
 		case EThreadTypeRequest::NonmaskableInterrupt:	ThreadRequest_NonmaskableInterrupt();			break;
@@ -159,7 +202,41 @@ void FThread::ThreadRequest_SetStatus(EThreadStatus NewStatus)
 	ThreadStatus = NewStatus;
 }
 
-void FThread::ThreadRequest_ExecuteTask(const  std::function<void()>&& Task)
+void FThread::ThreadRequest_Step(FCPU_StepType::Type Type)
+{
+	if (StepType == Type)
+	{
+		return;
+	}
+
+	StepType = Type;
+	ThreadRequest_SetStatus(EThreadStatus::Trace);
+}
+
+bool FThread::ThreadRequest_StopCondition(std::shared_ptr<FDevice> Device)
+{
+	std::shared_ptr<FCPU_Z80> CPU = std::dynamic_pointer_cast<FCPU_Z80>(Device);
+	if (CPU == nullptr)
+	{
+		return false;
+	}
+
+	switch (StepType)
+	{
+	case FCPU_StepType::StepTo:
+		break;
+	case FCPU_StepType::StepInto:
+		break;
+	case FCPU_StepType::StepOver:
+		break;
+	case FCPU_StepType::StepOut:
+		break;
+	}
+
+	return CPU->Registers.Step == DecoderStep::Completed && CPU->Registers.CP.IsEmpty();
+}
+
+void FThread::ThreadRequest_ExecuteTask(const Callback&& Task)
 {
 	if (Task) Task();
 }
@@ -191,4 +268,37 @@ void FThread::ThreadRequest_NonmaskableInterrupt()
 		{
 			SB.SetInactive(BUS_NMI);
 		}, false, "End signal NMI");
+}
+
+void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_index& Type)
+{
+	if (DeviceID == EName::None)
+	{
+		// get thread status
+		if (Type == typeid(EThreadStatus))
+		{
+			const EThreadStatus Status = ThreadStatus;
+			return ThreadRequestResult.Push(Status);
+		}
+	}
+	else
+	{
+		for (std::shared_ptr<FDevice>& Device : Devices)
+		{
+			if (Device->UniqueDeviceID != DeviceID)
+			{
+				continue;
+			}
+
+			if (Type == typeid(FRegisters))
+			{
+				// ToDo need an interface to receive data from the CPU
+				if (std::shared_ptr<FCPU_Z80> CPU = std::dynamic_pointer_cast<FCPU_Z80>(Device))
+				{
+					return ThreadRequestResult.Push(CPU->Registers);
+				}
+			}
+		}
+	}
+	assert(false);
 }

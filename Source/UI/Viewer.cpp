@@ -1,29 +1,34 @@
 #include "Viewer.h"
 
 #include "AppDebugger.h"
+#include "UI/CallStack.h"
 #include "UI/CPU_State.h"
+#include "UI/MemoryDump.h"
 #include "UI/Disassembler.h"
 #include "Utils/Hotkey.h"
 #include "Motherboard/Motherboard.h"
 
 namespace
 {
-	static const char* ViewerName = TEXT("Viewer");
+	static const char* ThisWindowName = TEXT("Viewer");
 	static const char* MenuFileName = TEXT("File");
 	static const char* MenuEmulationName = TEXT("Emulation");
 	static const char* MenuWindowsName = TEXT("Windows");
 }
 
 SViewer::SViewer(uint32_t _Width, uint32_t _Height)
-	: SWindow(ViewerName, false, _Width, _Height)
+	: SWindow(ThisWindowName, false, _Width, _Height)
 {}
 
 void SViewer::NativeInitialize(const FNativeDataInitialize& _Data)
 {
 	SWindow::NativeInitialize(_Data);
 
-	Windows = { { EWindowsType::CPU_State,			std::make_shared<SCPU_State>()			},
-				{ EWindowsType::Disassembler,		std::make_shared<SDisassembler>()		},
+	Windows = { 
+				{ EWindowsType::CallStack,			std::make_shared<SCallStack>()		},
+				{ EWindowsType::CPU_State,			std::make_shared<SCPU_State>()		},
+				{ EWindowsType::MemoryDump,			std::make_shared<SMemoryDump>()		},
+				{ EWindowsType::Disassembler,		std::make_shared<SDisassembler>()	},
 			  };
 
 	// initialize windows
@@ -76,10 +81,11 @@ void SViewer::Destroy()
 
 void SViewer::Input_HotKeys()
 {
-	static std::map<ImGuiKeyChord, std::function<void()>> Hotkeys =
+	static std::vector<FHotKey> Hotkeys =
 	{
-		{ImGuiKey_F11, [this]() { GetMotherboard().NonmaskableInterrupt(); }},			// NMI
-		{ImGuiMod_Ctrl | ImGuiKey_F12, [this]() { GetMotherboard().Reset(); }},							// Reset
+		{ ImGuiKey_GraveAccent,			ImGuiInputFlags_None,	[this]() { GetMotherboard().Inut_Debugger();		}},		// debugger
+		{ ImGuiKey_F11,					ImGuiInputFlags_None,	[this]() { GetMotherboard().NonmaskableInterrupt(); }},		// NMI
+		{ ImGuiMod_Ctrl | ImGuiKey_F12, ImGuiInputFlags_None,	[this]() { GetMotherboard().Reset();				}},		// Reset
 	};
 
 	HotKey::Handler(Hotkeys);

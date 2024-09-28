@@ -20,11 +20,7 @@ public:
     {
         std::unique_lock<std::mutex> Lock(Mutex);
 
-        Condition.wait(Lock,
-        [this]()
-        { 
-            return !Queue.empty();
-        });
+        Condition.wait(Lock, [this]() { return !Queue.empty(); });
 
         T Item = Queue.front();
         Queue.pop();

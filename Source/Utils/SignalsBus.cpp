@@ -2,7 +2,7 @@
 
 FSignalsBus::FSignalsBus()
 {
-	memset(&Signals, ESignalState::HiZ, ESignalBus::MaxHardcodedNameIndex * sizeof(ESignalState::Type) * 2);
+	memset(&Signals, ESignalState::HiZ, ESignalBus::MaxHardcodedIndex * sizeof(ESignalState::Type) * 2);
 }
 
 

@@ -3,10 +3,10 @@
 #include <CoreMinimal.h>
 #include "Window.h"
 
-class SDisassembler : public SWindow
+class SMemoryDump : public SWindow
 {
 public:
-	SDisassembler();
+	SMemoryDump();
 
 	virtual void Initialize() override;
 	virtual void Render() override;

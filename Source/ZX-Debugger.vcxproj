@@ -212,12 +212,15 @@
     <ClCompile Include="Motherboard\Motherboard_Board.cpp" />
     <ClCompile Include="Motherboard\Motherboard_ClockGenerator.cpp" />
     <ClCompile Include="Motherboard\Motherboard_Thread.cpp" />
-    <ClCompile Include="UI\CPU_State.cpp" />
+    <ClCompile Include="UI\CallStack.cpp" />
     <ClCompile Include="UI\Disassembler.cpp" />
+    <ClCompile Include="UI\CPU_State.cpp" />
+    <ClCompile Include="UI\MemoryDump.cpp" />
     <ClCompile Include="UI\Viewer.cpp" />
     <ClCompile Include="Utils\Delegate.cpp" />
     <ClCompile Include="Utils\Name.cpp" />
     <ClCompile Include="Utils\SignalsBus.cpp" />
+    <ClCompile Include="Utils\UI.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\AppFramework.h" />
@@ -240,8 +243,10 @@
     <ClInclude Include="Motherboard\Motherboard_ClockGenerator.h" />
     <ClInclude Include="Motherboard\Motherboard_Thread.h" />
     <ClInclude Include="resource.h" />
-    <ClInclude Include="UI\CPU_State.h" />
+    <ClInclude Include="UI\CallStack.h" />
     <ClInclude Include="UI\Disassembler.h" />
+    <ClInclude Include="UI\CPU_State.h" />
+    <ClInclude Include="UI\MemoryDump.h" />
     <ClInclude Include="UI\Viewer.h" />
     <ClInclude Include="Utils\CommandPipeline.h" />
     <ClInclude Include="Utils\SignalsBus.h" />
@@ -253,6 +258,7 @@
     <ClInclude Include="Utils\Name.h" />
     <ClInclude Include="Utils\Queue.h" />
     <ClInclude Include="Utils\Register.h" />
+    <ClInclude Include="Utils\UI.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ZX-Debugger.rc" />
@@ -261,6 +267,7 @@
     <Image Include="..\Resource\Icons\ICONE.ico" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Utils\Name_DefaultNames.inl" />
     <None Include="Utils\SignalsBusNames.inl" />
   </ItemGroup>
   <ItemGroup>

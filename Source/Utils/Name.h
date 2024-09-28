@@ -2,6 +2,25 @@
 
 #include <CoreMinimal.h>
 
+// Define a message as an enumeration.
+#define REGISTER_NAME(num,name) name = num,
+namespace EName
+{
+	enum Type : int32_t
+	{
+		// Include all the hard-coded names
+		#include "Name_DefaultNames.inl"
+
+		// Special constant for the last hard-coded name index
+		MaxHardcodedIndex,
+	};
+}
+#undef REGISTER_NAME
+
+#define REGISTER_NAME(num,name) inline constexpr EName::Type NAME_##name = EName::name;
+#include "Name_DefaultNames.inl"
+#undef REGISTER_NAME
+
 class FName
 {
 public:

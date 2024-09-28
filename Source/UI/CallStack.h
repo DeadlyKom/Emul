@@ -3,10 +3,10 @@
 #include <CoreMinimal.h>
 #include "Window.h"
 
-class SDisassembler : public SWindow
+class SCallStack : public SWindow
 {
 public:
-	SDisassembler();
+	SCallStack();
 
 	virtual void Initialize() override;
 	virtual void Render() override;

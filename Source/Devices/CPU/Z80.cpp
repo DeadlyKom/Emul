@@ -10,7 +10,7 @@ namespace
 }
 
 FCPU_Z80::FCPU_Z80()
-	: FDevice(DEVICE_NAME(), EDeviceType::CPU)
+	: FDevice(DEVICE_NAME(), EName::Z80, EDeviceType::CPU)
 {}
 
 void FCPU_Z80::Tick()

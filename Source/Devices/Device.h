@@ -21,7 +21,7 @@ class FDevice : public std::enable_shared_from_this<FDevice>
 	friend FThread;
 	friend FMotherboard;
 public:
-	FDevice(FName Name, EDeviceType Type);
+	FDevice(FName Name, EName::Type UniqueID, EDeviceType Type);
 	FDevice() = default;
 
 	FORCEINLINE FName GetName() const { return DeviceName; }
@@ -31,10 +31,12 @@ public:
 
 	// virtual methods
 	virtual void Tick() {};
+	virtual bool TickStopCondition(std::function<bool(std::shared_ptr<FDevice>)>&& Condition);
 	virtual void Reset() {};
 
 protected:
 	FName DeviceName;
+	EName::Type UniqueDeviceID;
 	EDeviceType DeviceType;
 	FSignalsBus* SB;
 	FClockGenerator* CG;

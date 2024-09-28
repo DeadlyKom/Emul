@@ -3,11 +3,20 @@
 #include <Core/AppFramework.h>
 
 class SViewer;
+class SCallStack;
+class SCPU_State;
+class SMemoryDump;
+class SDisassembler;
 class FMotherboard;
 
 class FAppDebugger : public FAppFramework
 {
 	friend SViewer;
+	friend SCallStack;
+	friend SCPU_State;
+	friend SMemoryDump;
+	friend SDisassembler;
+
 public:
 	FAppDebugger();
 

@@ -38,16 +38,18 @@ void FAppDebugger::Initialize()
 	if (Motherboard)
 	{
 		Motherboard->Initialize();
-		Motherboard->AddBoard(MainBoardName,
+		Motherboard->AddBoard(MainBoardName, EName::MainBoard,
 		{
 			std::make_shared<FCPU_Z80>(),
 			std::make_shared<FAccessToROM>(),
 			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, std::vector<uint8_t>({ 0x00, 0x18, 0xFD, 0x00 }), ESignalState::Low),
 		}, 3.5_MHz);
+
+		Motherboard->Reset();
 	}
 
 	FFonts& Fonts = FFonts::Get();
-	ImFont* NewFont = Fonts.LoadFont(FontName_Dos2000, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 12.0f, 0);
+	ImFont* NewFont = Fonts.LoadFont(FontName_Dos2000, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 13.0f, 0);
 }
 
 void FAppDebugger::Shutdown()
@@ -97,4 +99,3 @@ bool FAppDebugger::IsOver()
 {
 	return Viewer ? !Viewer->IsOpen() : true;
 }
-

@@ -115,7 +115,7 @@ void FCPU_Z80::Cycle_InstructionFetch()
 		break;
 	case DecoderStep::T4_H2:
 		SB->SetInactive(BUS_MREQ);
-		ADD_EVENT_(CG, 1, "increment PC", [&]() { ++Registers.PC; });
+		++Registers.PC;
 		COMPLETED();
 		break;
 	}
@@ -165,11 +165,11 @@ void FCPU_Z80::Cycle_MemoryReadCycle(uint16_t Address, Register8& Register, std:
 
 void FCPU_Z80::Cycle_ALU_LoadWZ_AddWZ_UnloadWZ()
 {
-	// 1 такт, загружает смещение в младший регистр WZ
-	// 2 такт, в старший байт регистра WZ загружается 0
-	// 3 такт, сложение WZ += PC (ALU)
-	// 4 такт, выгрузка из WZ.L в PC.L
-	// 5 такт, выгрузка из WZ.H в PC.H
+	// 1 tick, low register WZ stores relative offset
+	// 2 tick, high byte of WZ register is loaded with 0x00 if offset is positive, 0xFF if negative
+	// 3 tick, add WZ += PC (ALU)
+	// 4 tick, unload from WZ.L to PC.L
+	// 5 tick, unload from WZ.H to PC.H
 
 	switch (Registers.Step)
 	{

@@ -11,7 +11,7 @@ namespace
 }
 
 FAccessToROM::FAccessToROM()
-	: FDevice(DEVICE_NAME(), EDeviceType::ControlUnit)
+	: FDevice(DEVICE_NAME(), EName::AccessToROM, EDeviceType::ControlUnit)
 {}
 
 void FAccessToROM::Tick()

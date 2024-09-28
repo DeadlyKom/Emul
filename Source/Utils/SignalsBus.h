@@ -12,7 +12,7 @@ namespace ESignalBus
 		#include "SignalsBusNames.inl"
 
 		// Special constant for the last hard-coded name index
-		MaxHardcodedNameIndex,
+		MaxHardcodedIndex,
 	};
 }
 #undef REGISTER_BUS_NAME
@@ -106,5 +106,5 @@ public:
 	void SetAllControlOutput(ESignalState::Type State);
 
 private:
-	ESignalState::Type Signals[2][ESignalBus::MaxHardcodedNameIndex];
+	ESignalState::Type Signals[2][ESignalBus::MaxHardcodedIndex];
 };

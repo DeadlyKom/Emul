@@ -8,6 +8,8 @@ class FMotherboard;
 enum class EWindowsType
 {
 	CPU_State,
+	CallStack,
+	MemoryDump,
 	Disassembler,
 };
 
