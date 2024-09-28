@@ -125,13 +125,6 @@ struct FRegisters
 	int32_t Prefix;
 #endif
 	FCommandPipeline CP;
-
-	static constexpr int32_t PrimaryRegistrars = 13;
-	static constexpr const char* RegistersName[PrimaryRegistrars] = {
-		"PC", "IR", "IX", "IY", "SP",
-		"AF", "HL", "DE", "BC",
-		"AF'", "HL'", "DE'", "BC'",
-	};
 };
 
 class FCPU_Z80 : public FDevice

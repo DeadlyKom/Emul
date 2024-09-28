@@ -15,10 +15,34 @@ SCPU_State::SCPU_State()
 
 void SCPU_State::Initialize()
 {
-	for (int32_t i = 0; i < FRegisters::PrimaryRegistrars; ++i)
+	HighlightRegisters =
 	{
-		RegisterColor[i] = &UI::COLOR_NUMBER;
-	}
+		{	/*0*/ {"PC",	(uint8_t*)&LatestRegistersState.PC.Word,	UI::COLOR_NUMBER,	INDEX_NONE,			true},
+			/*1*/ {"HL",	(uint8_t*)&LatestRegistersState.HL.L.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*2*/ {nullptr,	(uint8_t*)&LatestRegistersState.HL.H.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*3*/ {"HL'",	(uint8_t*)&LatestRegistersState.HL_.L.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*4*/ {nullptr,	(uint8_t*)&LatestRegistersState.HL_.H.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false}	},
+		
+		{	/*0*/ {"SP",	(uint8_t*)&LatestRegistersState.SP.Word,	UI::COLOR_NUMBER,	INDEX_NONE,			true},
+			/*1*/ {"DE",	(uint8_t*)&LatestRegistersState.DE.L.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*2*/ {nullptr,	(uint8_t*)&LatestRegistersState.DE.H.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*3*/ {"DE'",	(uint8_t*)&LatestRegistersState.DE_.L.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*4*/ {nullptr,	(uint8_t*)&LatestRegistersState.DE_.H.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false}	},
+		
+		{	/*0*/ {"IX",	(uint8_t*)&LatestRegistersState.IX.L.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*1*/ {nullptr,	(uint8_t*)&LatestRegistersState.IX.H.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*2*/ {"BC",	(uint8_t*)&LatestRegistersState.BC.L.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*3*/ {nullptr,	(uint8_t*)&LatestRegistersState.BC.H.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*4*/ {"BC'",	(uint8_t*)&LatestRegistersState.BC_.L.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*5*/ {nullptr,	(uint8_t*)&LatestRegistersState.BC_.H.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false}	},
+
+		{	/*0*/ {"IY",	(uint8_t*)&LatestRegistersState.IY.L.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*1*/ {nullptr,	(uint8_t*)&LatestRegistersState.IY.H.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*2*/ {"AF",	(uint8_t*)&LatestRegistersState.AF.L.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*3*/ {nullptr,	(uint8_t*)&LatestRegistersState.AF.H.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*4*/ {"AF'",	(uint8_t*)&LatestRegistersState.AF_.L.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false},
+			/*5*/ {nullptr,	(uint8_t*)&LatestRegistersState.AF_.H.Byte,	UI::COLOR_NUMBER,	UI::COLOR_NUMBER,	false}	},
+	};
 }
 
 void SCPU_State::Render()
@@ -36,7 +60,12 @@ void SCPU_State::Render()
 	const EThreadStatus Status = GetMotherboard().GetState<EThreadStatus>(NAME_MainBoard, NAME_None);
 	if (Status == EThreadStatus::Stop)
 	{
-		Update_Registers();
+		const uint64_t ClockCounter = GetMotherboard().GetState<uint64_t>(NAME_MainBoard, NAME_None);
+		if (ClockCounter != LatestClockCounter)
+		{
+			Update_Registers();
+			LatestClockCounter = ClockCounter;
+		}
 	}
 
 	DrawStates(Status == EThreadStatus::Stop);
@@ -52,13 +81,32 @@ FMotherboard& SCPU_State::GetMotherboard() const
 void SCPU_State::Update_Registers()
 {
 	const FRegisters RegistersState = GetMotherboard().GetState<FRegisters>(NAME_MainBoard, NAME_Z80);
-	const uint16_t* LatestState = reinterpret_cast<const uint16_t*>(&LatestRegistersState);
-	const uint16_t* CurrentState = reinterpret_cast<const uint16_t*>(&RegistersState);
+	HighlightRegisters[0][0].H_Color = RegistersState.PC    == LatestRegistersState.PC		? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[0][1].H_Color = RegistersState.HL.L  == LatestRegistersState.HL.L	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[0][2].H_Color = RegistersState.HL.H  == LatestRegistersState.HL.H	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[0][3].H_Color = RegistersState.HL_.L == LatestRegistersState.HL_.L	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[0][4].H_Color = RegistersState.HL_.H == LatestRegistersState.HL_.H	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	
+	HighlightRegisters[1][0].H_Color = RegistersState.SP    == LatestRegistersState.SP		? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[1][1].H_Color = RegistersState.DE.L  == LatestRegistersState.DE.L	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[1][2].H_Color = RegistersState.DE.H  == LatestRegistersState.DE.H	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[1][3].H_Color = RegistersState.DE_.L == LatestRegistersState.DE_.L	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[1][4].H_Color = RegistersState.DE_.H == LatestRegistersState.DE_.H	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	
+	HighlightRegisters[2][0].H_Color = RegistersState.IX.L  == LatestRegistersState.IX.L	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[2][1].H_Color = RegistersState.IX.H  == LatestRegistersState.IX.H	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[2][2].H_Color = RegistersState.BC.L  == LatestRegistersState.BC.L	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[2][3].H_Color = RegistersState.BC.H  == LatestRegistersState.BC.H	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[2][4].H_Color = RegistersState.BC_.L == LatestRegistersState.BC_.L	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[2][5].H_Color = RegistersState.BC_.H == LatestRegistersState.BC_.H	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	
+	HighlightRegisters[3][0].H_Color = RegistersState.IY.L  == LatestRegistersState.IY.L	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[3][1].H_Color = RegistersState.IY.H  == LatestRegistersState.IY.H	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[3][2].H_Color = RegistersState.AF.L  == LatestRegistersState.AF.L	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[3][3].H_Color = RegistersState.AF.H  == LatestRegistersState.AF.H	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[3][4].H_Color = RegistersState.AF_.L == LatestRegistersState.AF_.L	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
+	HighlightRegisters[3][5].H_Color = RegistersState.AF_.H == LatestRegistersState.AF_.H	? UI::COLOR_NUMBER : UI::COLOR_NUMBER_UPDATED;
 
-	for (int32_t i = 0; i < FRegisters::PrimaryRegistrars; ++i)
-	{
-		RegisterColor[i] = LatestState[i] == CurrentState[i] ? &UI::COLOR_NUMBER : &UI::COLOR_NUMBER_UPDATED;
-	}
 	LatestRegistersState = RegistersState;
 }
 
@@ -74,28 +122,73 @@ void SCPU_State::DrawStates(bool bEnabled)
 		ImGuiTableFlags_ContextMenuInBody;
 
 	UI::DrawTable("CPU States", Flags, bEnabled, {
-		{ "Regs", ImGuiTableColumnFlags_WidthFixed, 80, 0, std::bind(&ThisClass::Column_DrawRegisters, this) },
+		{ "Regs", ImGuiTableColumnFlags_WidthFixed, 80, 0, std::bind(&ThisClass::DrawRegisters, this) },
 		});
 
 	ImGui::PopStyleVar(2);
 }
 
-void SCPU_State::Column_DrawRegisters()
+void SCPU_State::DrawRegisters()
 {
 	static ImGuiTableFlags flags =
 		ImGuiTableFlags_NoPadOuterX | ImGuiTableFlags_ScrollY |
 		ImGuiTableFlags_SizingStretchSame |
 		ImGuiTableFlags_NoPadInnerX |
 		ImGuiTableFlags_ContextMenuInBody;
-	if (ImGui::BeginTable("Registers_", 2, flags))
+	if (ImGui::BeginTable("Registers_", 4, flags))
 	{
+		ImGui::PushFont(FFonts::Get().GetFont(NAME_DOS_14));
 		const uint16_t* CurrentState = reinterpret_cast<const uint16_t*>(&LatestRegistersState);
 		ImGui::TableSetupColumn("RegistersNames", ImGuiTableColumnFlags_WidthFixed, 30);
-		for (int32_t i = 0; i < FRegisters::PrimaryRegistrars; ++i)
+
+		for (std::vector<FRegisterVisual>& Visual : HighlightRegisters)
 		{
-			UI::DrawProperty(FRegisters::RegistersName[i], std::format("#{:04X}", CurrentState[i]).c_str(), nullptr, *RegisterColor[i]);
+			DrawRegisters_Row(Visual);
 		}
+
+		ImGui::PopFont();
 		ImGui::EndTable();
+	}
+}
+
+void SCPU_State::DrawRegisters_Row(const std::vector<FRegisterVisual>& RowVisual)
+{
+	ImGui::TableNextRow();
+	ImGui::TableNextColumn();
+
+	for (const FRegisterVisual& Visual : RowVisual)
+	{
+		if (Visual.Name)
+		{
+			ImGui::PushStyleColor(ImGuiCol_Text, UI::ToVec4(0x008080FF));
+			UI::TextAligned(std::format("{}:", Visual.Name).c_str(), {1.0f, 0.5f});
+			ImGui::PopStyleColor();
+
+			ImGui::TableNextColumn();
+
+			ImGui::PushStyleColor(ImGuiCol_Text, UI::ToVec4(0x808080FF));
+			ImGui::Text("#");
+			ImGui::PopStyleColor();
+
+			ImGui::SameLine();
+
+			ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(Visual.H_Color));
+			ImGui::Text(std::format("{:02X}", *(Visual.Value+1)).c_str());
+			ImGui::PopStyleColor();
+
+			if (!Visual.bWord)
+			{
+				continue;
+			}
+		}
+
+		ImGui::SameLine();
+
+		ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(Visual.L_Color == INDEX_NONE ? Visual.H_Color : Visual.L_Color));
+		ImGui::Text(std::format("{:02X}", *(Visual.Value+0)).c_str());
+		ImGui::PopStyleColor();
+
+		ImGui::SameLine();
 	}
 }
 

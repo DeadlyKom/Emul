@@ -6,7 +6,7 @@ FFonts& FFonts::Get()
 	return *Instance.get();
 }
 
-ImFont* FFonts::LoadFont(FName FontName, const void* FontData, uint32_t FontDataSize, float SizePixels, uint32_t Index /*= INDEX_NONE*/)
+ImFont* FFonts::LoadFont(EFont::Type FontName, const void* FontData, uint32_t FontDataSize, float SizePixels, uint32_t Index /*= INDEX_NONE*/)
 {
 	static const ImWchar FontRanges[] = { 0x0020, 0x03ff, 0 };
 
@@ -20,7 +20,7 @@ ImFont* FFonts::LoadFont(FName FontName, const void* FontData, uint32_t FontData
 	return NewFont;
 }
 
-ImFont* FFonts::GetFont(FName FontName)
+ImFont* FFonts::GetFont(EFont::Type FontName)
 {
 	return Fonts.contains(FontName) ? Fonts[FontName] : nullptr;
 }

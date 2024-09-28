@@ -11,7 +11,6 @@
 
 namespace
 {
-	static const FName FontName_Dos2000 = "Dos2000";
 	static const FName MainBoardName = "Main board";
 }
 
@@ -49,7 +48,8 @@ void FAppDebugger::Initialize()
 	}
 
 	FFonts& Fonts = FFonts::Get();
-	ImFont* NewFont = Fonts.LoadFont(FontName_Dos2000, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 13.0f, 0);
+	Fonts.LoadFont(NAME_DOS_12, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 12.0f, 0);
+	Fonts.LoadFont(NAME_DOS_14, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 14.0f, 0);
 }
 
 void FAppDebugger::Shutdown()
@@ -83,7 +83,7 @@ void FAppDebugger::Tick(float DeltaTime)
 
 void FAppDebugger::Render()
 {
-	ImGui::PushFont(FFonts::Get().GetFont(FontName_Dos2000));
+	ImGui::PushFont(FFonts::Get().GetFont(NAME_DOS_12));
 
 	FAppFramework::Render();
 

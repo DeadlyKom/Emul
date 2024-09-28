@@ -258,6 +258,12 @@
     <None Include="Utils\Name_DefaultNames.inl">
       <Filter>Source\Utils</Filter>
     </None>
+    <None Include="Utils\UI_DefaultColor.inl">
+      <Filter>Source\Utils</Filter>
+    </None>
+    <None Include="Core\Font_DefaultNames.inl">
+      <Filter>Source\Core</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\test.natvis" />

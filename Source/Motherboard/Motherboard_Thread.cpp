@@ -280,6 +280,10 @@ void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_inde
 			const EThreadStatus Status = ThreadStatus;
 			return ThreadRequestResult.Push(Status);
 		}
+		else if (Type == typeid(uint64_t))
+		{
+			return ThreadRequestResult.Push(CG.GetClockCounter());
+		}
 	}
 	else
 	{

@@ -146,6 +146,10 @@ struct Register8
 	{
 		return Byte;
 	}
+	bool operator==(const Register8& Other)
+	{
+		return Byte == Other.Byte;
+	}
 
 	void operator=(const Register8& Other)
 	{
@@ -248,6 +252,10 @@ struct Register16
 	uint16_t operator*()
 	{
 		return Word;
+	}
+	bool operator==(const Register16& Other)
+	{
+		return Word == Other.Word;
 	}
 
 	void operator=(uint16_t Value)

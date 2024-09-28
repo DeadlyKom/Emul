@@ -27,6 +27,8 @@ public:
 	virtual void Render() override;
 	virtual bool IsOver() override;
 
+	//const FName& GetFont();
+
 private:
 	std::shared_ptr<SViewer> Viewer;
 	std::shared_ptr<FMotherboard> Motherboard;

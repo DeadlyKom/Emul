@@ -267,8 +267,10 @@
     <Image Include="..\Resource\Icons\ICONE.ico" />
   </ItemGroup>
   <ItemGroup>
+    <None Include="Core\Font_DefaultNames.inl" />
     <None Include="Utils\Name_DefaultNames.inl" />
     <None Include="Utils\SignalsBusNames.inl" />
+    <None Include="Utils\UI_DefaultColor.inl" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\test.natvis" />

@@ -7,6 +7,15 @@
 
 class FMotherboard;
 
+struct FRegisterVisual
+{
+	const char* Name;
+	uint8_t* Value;
+	int32_t H_Color;
+	int32_t L_Color;
+	bool bWord;
+};
+
 class SCPU_State : public SWindow
 {
 	using ThisClass = SCPU_State;
@@ -22,12 +31,12 @@ private:
 	void Update_Registers();
 
 	void DrawStates(bool bEnabled);
-	void Column_DrawRegisters();
+	void DrawRegisters();
+	void DrawRegisters_Row(const std::vector<FRegisterVisual>& RowVisual);
 
 	void Input_HotKeys();
 
+	uint64_t LatestClockCounter;
 	FRegisters LatestRegistersState;
-
-	// highlight registers with color
-	const ImVec4* RegisterColor[FRegisters::PrimaryRegistrars];
+	std::vector<std::vector<FRegisterVisual>> HighlightRegisters;
 };

@@ -33,10 +33,34 @@ namespace UI
 			(Color & COLOR_32_A_MASK) >> COLOR_32_A_SHIFT << IM_COL32_A_SHIFT;
 	}
 
-	// disasm text colors
-	static constexpr ImVec4 COLOR_WHITE = ToVec4(0xFFFFFFFF);
-	static constexpr ImVec4 COLOR_NUMBER = ToVec4(0xD0D0D0FF);
-	static constexpr ImVec4 COLOR_NUMBER_UPDATED = ToVec4(0xD0902FFF);
+	// Define a message as an enumeration.
+#define REGISTER_COLOR(num,name,color) name = num,
+namespace EColor
+{
+	enum Type : int32_t
+	{
+		// Include all the hard-coded names
+		#include "UI_DefaultColor.inl"
+
+		// Special constant for the last hard-coded name index
+		MaxHardcodedIndex,
+	};
+}
+#undef REGISTER_COLOR
+
+#define REGISTER_COLOR(num,name,color) { color },
+static constexpr ImVec4 Colors[EColor::MaxHardcodedIndex] =
+{
+	#include "UI_DefaultColor.inl"
+};
+#undef REGISTER_COLOR
+
+#define REGISTER_COLOR(num,name,color) inline constexpr EColor::Type COLOR_##name = EColor::name;
+#include "UI_DefaultColor.inl"
+#undef REGISTER_COLOR
+
+#define COL_REF(color)		(&UI::Colors[color])
+#define COL_CONST(color)	(UI::Colors[color])
 
 	struct FColumn
 	{
@@ -50,7 +74,7 @@ namespace UI
 	void DrawTable(const char* TableID, ImGuiTableFlags Flags, bool bEnabled, const std::vector<UI::FColumn>& Columns);
 
 	void DrawTooltip(const char* Text);
-	void DrawProperty(const char* PropertyName, const char* Value,const char* Tooltip = nullptr, const ImVec4& Color = COLOR_WHITE);
+	void DrawProperty(const char* PropertyName, const char* Value,const char* Tooltip = nullptr, const ImVec4& Color = Colors[COLOR_WHITE]);
 
 	void TextAligned(const char* Text, const ImVec2& Aligment = { 1.0f, 0.5f });
 }
