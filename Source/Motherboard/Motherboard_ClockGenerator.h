@@ -30,10 +30,10 @@ public:
 
 	void SetSampling(uint32_t _Sampling) { Sampling = _Sampling; }
 	void SetFrequency(double _Frequency) { FrequencyInv = 1.0 / (_Frequency * (double)Sampling); }
-	inline uint64_t GetClockCounter() const { return ClockCounter; }
-	inline uint32_t ToFullCycles(uint32_t Counter) const { return Counter / Sampling; }
-	inline void Increment(uint32_t& Counter) const { Counter++; }
-	inline void IncrementByDiscreteness(uint32_t& Counter) const { Counter += Sampling; }
+	FORCEINLINE uint64_t GetClockCounter() const { return ClockCounter; }
+	FORCEINLINE void Increment(uint32_t& Counter) const { Counter++; }
+	FORCEINLINE uint32_t ToFullCycles(uint32_t Counter) const { return Counter / Sampling; }
+	//FORCEINLINE void IncrementByDiscreteness(uint32_t& Counter) const { Counter += Sampling; }
 
 #ifndef NDEBUG
 	void AddEvent(uint64_t Rate, std::function<void()>&& EventCallback, const std::string& _DebugName = "");
@@ -41,11 +41,11 @@ public:
 	void AddEvent(uint64_t Rate, std::function<void()>&& EventCallback);
 #endif 
 
-	inline uint64_t ToSec(double Time) const 
+	FORCEINLINE uint64_t ToSec(double Time) const
 	{
 		return uint64_t(Time / FrequencyInv);
 	}
-	inline uint64_t ToNanosec(double Time) const
+	FORCEINLINE uint64_t ToNanosec(double Time) const
 	{
 		return uint64_t((Time * 0.000000001) / FrequencyInv);
 	}

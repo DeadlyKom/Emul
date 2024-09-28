@@ -9,7 +9,7 @@ class FAppFramework;
 namespace Utils
 {	
 	template <typename... Args>
-	constexpr void Log(const std::string& _fmt, Args&&... _Args)
+	void Log(const std::string& _fmt, Args&&... _Args)
 	{
 		static std::mutex LogMutex;
 

@@ -262,10 +262,10 @@ struct Register16
 	{
 		Word += Other.Word;
 	}
-	//void operator+=(const Register16& Other)
-	//{
-	//	Word += Other.Word;
-	//}
+	void operator+=(const Register16& Other)
+	{
+		Word += Other.Word;
+	}
 	void operator+(uint16_t Value)
 	{
 		Word += Value;

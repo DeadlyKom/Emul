@@ -5,15 +5,59 @@
 #define INCREMENT_HALF() { CG->Increment(reinterpret_cast<uint32_t&>(Registers.Step)); }
 #define COMPLETED()		 { Registers.Step = DecoderStep::Completed; }
 
+void FCPU_Z80::Cycle_Reset()
+{
+	int a = CG->ToFullCycles(Registers.Step);
+	// the address and data bus enter a high-impedance state
+	SB->SetDataOnAddressBus(0xFFFF);
+	SB->SetDataOnDataBus(0xFF);
+
+	// all control output signals enter an inactive state
+	SB->SetAllControlOutput(ESignalState::High);
+
+	// skip half-clocs
+	switch (CG->ToFullCycles(Registers.Step))
+	{
+		// reset the status registers as described in "Undocumented Z80"
+	case DecoderStep::T1:
+		Registers.IFF1 = false;
+		Registers.IFF2 = false;
+		Registers.IM = 0x00;
+		INCREMENT_HALF();
+		break;
+
+	case DecoderStep::T2:
+		Registers.PC = 0x0000;
+		Registers.IR = 0x0000;
+		INCREMENT_HALF();
+		break;
+
+	case DecoderStep::T3:
+		Registers.SP = 0xFFFF;
+		Registers.AF = 0xFFFF;
+		INCREMENT_HALF();
+		break;
+
+	default:
+		// the processor is idle, waiting for the active RESET signal to complete
+		if (Registers.Step != DecoderStep::Completed)
+		{
+			COMPLETED();
+			ADD_EVENT_(CG, 1, "Reset completed", [&]() { Cycle_InstructionFetch(); });
+		}
+		break;
+	}
+}
+
 void FCPU_Z80::DecodeAndExecuteFetchedInstruction(uint8_t Opcode)
 {
 #ifndef NDEBUG
-	assert(false);
+	assert(Unprefixed[Opcode] != nullptr);
 #endif
 	Unprefixed[Opcode](*this);
 }
 
-void FCPU_Z80::InstructionFetch()
+void FCPU_Z80::Cycle_InstructionFetch()
 {
 	switch (Registers.Step)
 	{
@@ -55,11 +99,7 @@ void FCPU_Z80::InstructionFetch()
 		// indicating that a refresh read of all dynamic memories must be performed.
 		SB->SetActive(BUS_RFSH);
 		// timer for setting RFSH signal inactive at the end of T4 clock cycle
-		ADD_EVENT_(CG, 4, "set inactive RFSH at the end of T4 clock cycle",
-			[&]()
-			{
-				SB->IsInactive(BUS_RFSH);
-			});
+		ADD_EVENT_(CG, 4, "set inactive RFSH at the end of T4 clock cycle", [&]() { SB->IsInactive(BUS_RFSH); });
 		SB->SetDataOnAddressBus(Registers.IR.Get());
 		INCREMENT_HALF();
 		break;
@@ -75,17 +115,13 @@ void FCPU_Z80::InstructionFetch()
 		break;
 	case DecoderStep::T4_H2:
 		SB->SetInactive(BUS_MREQ);
-		ADD_EVENT_(CG, 1, "increment PC",
-			[&]()
-			{
-				++Registers.PC;
-			});
+		ADD_EVENT_(CG, 1, "increment PC", [&]() { ++Registers.PC; });
 		COMPLETED();
 		break;
 	}
 }
 
-void FCPU_Z80::MemoryReadCycle(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback /*= nullptr*/)
+void FCPU_Z80::Cycle_MemoryReadCycle(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback /*= nullptr*/)
 {
 	switch (Registers.Step)
 	{
@@ -123,6 +159,49 @@ void FCPU_Z80::MemoryReadCycle(uint16_t Address, Register8& Register, std::funct
 		SB->SetInactive(BUS_RD);
 		if (CompletedCallback) CompletedCallback(*this);
 		COMPLETED();
+		break;
+	}
+}
+
+void FCPU_Z80::Cycle_ALU_LoadWZ_AddWZ_UnloadWZ()
+{
+	// 1 такт, загружает смещение в младший регистр WZ
+	// 2 такт, в старший байт регистра WZ загружается 0
+	// 3 такт, сложение WZ += PC (ALU)
+	// 4 такт, выгрузка из WZ.L в PC.L
+	// 5 такт, выгрузка из WZ.H в PC.H
+
+	switch (Registers.Step)
+	{
+	case DecoderStep::T1_H1:
+		INCREMENT_HALF();
+		break;
+
+	case DecoderStep::T2_H1:
+		Registers.WZ.H = Registers.WZ.L.GetBit(7) ? 0xFF : 0x00;
+		INCREMENT_HALF();
+		break;
+
+	case DecoderStep::T3_H1:
+		Registers.WZ += Registers.PC;
+		INCREMENT_HALF();
+		break;
+
+	case DecoderStep::T4_H1:
+		Registers.PC.L = Registers.WZ.L;
+		INCREMENT_HALF();
+		break;
+
+	case DecoderStep::T5_H1:
+		Registers.PC.H = Registers.WZ.H;
+		INCREMENT_HALF();
+		break;
+	case DecoderStep::T5_H2:
+		COMPLETED();
+		break;
+
+	default:
+		INCREMENT_HALF();
 		break;
 	}
 }

@@ -13,7 +13,7 @@ namespace DecoderStep
 	enum Type : int32_t
 	{
 		// half-clock tick
-		T1_H1 = 0,
+		T1_H1	= 0,
 		T1_H2,
 		T2_H1,
 		T2_H2,
@@ -25,6 +25,13 @@ namespace DecoderStep
 		T5_H2,
 		T6_H1,
 		T6_H2,
+
+		T1		= 0,
+		T2,
+		T3,
+		T4,
+		T5,
+		T6,
 
 		Completed = -1,
 	};
@@ -117,12 +124,16 @@ public:
 	virtual void Tick() override;
 	virtual void Reset() override;
 
-	void InstructionFetch();
-	void MemoryReadCycle(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback = nullptr);
+	void Cycle_InstructionFetch();
+	void Cycle_MemoryReadCycle(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback = nullptr);
+
+	// ALU operation of adding the Program Counter and relative offset using the intermediate register WZ
+	void Cycle_ALU_LoadWZ_AddWZ_UnloadWZ();
 
 	FRegisters Registers;
 
 private:
+	void Cycle_Reset();
 	void DecodeAndExecuteFetchedInstruction(uint8_t Opcode);
 
 	static const CMD_FUNC Unprefixed[256];
