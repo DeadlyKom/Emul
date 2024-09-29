@@ -15,6 +15,7 @@
 #include <string>
 #include <thread>
 #include <chrono>
+#include <fstream>
 #include <iostream>
 #include <typeindex>
 #include <functional>

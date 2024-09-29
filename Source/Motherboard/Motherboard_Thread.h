@@ -80,9 +80,11 @@ private:
 	void ThreadRequest_ExecuteTask(const Callback&& Task);
 	void ThreadRequest_Reset();
 	void ThreadRequest_NonmaskableInterrupt();
+	void ThreadRequest_LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath);
 
 	void GetState_RequestHandler(EName::Type DeviceID, const std::type_index& Type);
 
+	void LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath);
 	template<typename T>
 	T GetState(EName::Type DeviceID)
 	{

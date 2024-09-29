@@ -240,6 +240,12 @@
     <ClInclude Include="UI\MemoryDump.h">
       <Filter>Source\UI</Filter>
     </ClInclude>
+    <ClInclude Include="Devices\Memory\Interface_Memory.h">
+      <Filter>Source\Devices\Memory</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Memory.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Resource\Icons\ICONE.ico">

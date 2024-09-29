@@ -1,4 +1,5 @@
 #include "UI.h"
+#include "Fonts.h"
 
 void UI::DrawTable(const char* TableID, ImGuiTableFlags Flags, bool bEnabled, const std::vector<FColumn>& Columns)
 {
@@ -54,6 +55,17 @@ void UI::DrawProperty(const char* PropertyName, const char* Value, const char* T
 		ImGui::SameLine();
 		DrawTooltip(Tooltip);
 	}
+}
+
+int32_t UI::GetVisibleLines(EFont::Type FontName)
+{
+	ImFont* FoundFont = FFonts::Get().GetFont(FontName);
+	if (FoundFont == nullptr)
+	{
+		return INDEX_NONE;
+	}
+
+	return int32_t((ImGui::GetWindowSize().y - ImGui::GetCursorPosY()) / FoundFont->ConfigData->SizePixels);
 }
 
 void UI::TextAligned(const char* Text, const ImVec2& Aligment)

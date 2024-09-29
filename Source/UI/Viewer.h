@@ -16,7 +16,7 @@ enum class EWindowsType
 class SViewer : public SWindow
 {
 public:
-	SViewer(uint32_t _Width, uint32_t _Height);
+	SViewer(EFont::Type _FontName, uint32_t _Width, uint32_t _Height);
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
 	virtual void Initialize() override;

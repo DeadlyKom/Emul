@@ -34,6 +34,7 @@ private:
 	// input
 	void Input_Step(FCPU_StepType::Type Type);
 
+	void LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath);
 	template<typename T>
 	T GetState(EName::Type DeviceID)
 	{

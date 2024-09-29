@@ -5,8 +5,8 @@ namespace
 	static const char* ThisWindowName = TEXT("Call stack");
 }
 
-SCallStack::SCallStack()
-	: SWindow(ThisWindowName, true)
+SCallStack::SCallStack(EFont::Type _FontName)
+	: SWindow(ThisWindowName, _FontName, true)
 {}
 
 void SCallStack::Initialize()

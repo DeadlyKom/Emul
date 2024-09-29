@@ -20,19 +20,19 @@ class SCPU_State : public SWindow
 {
 	using ThisClass = SCPU_State;
 public:
-	SCPU_State();
+	SCPU_State(EFont::Type _FontName);
 
 	virtual void Initialize() override;
 	virtual void Render() override;
 
 private:
-	FMotherboard& GetMotherboard() const;
+	FORCEINLINE FMotherboard& GetMotherboard() const;
 
 	void Update_Registers();
 
-	void DrawStates(bool bEnabled);
-	void DrawRegisters();
-	void DrawRegisters_Row(const std::vector<FRegisterVisual>& RowVisual);
+	void Draw_States(bool bEnabled);
+	void Draw_Registers();
+	void Draw_Registers_Row(const std::vector<FRegisterVisual>& RowVisual);
 
 	void Input_HotKeys();
 

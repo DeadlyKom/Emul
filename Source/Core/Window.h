@@ -1,6 +1,7 @@
 #pragma once
 
 #include <CoreMinimal.h>
+#include "Fonts.h"
 
 class SWindow;
 
@@ -14,12 +15,13 @@ struct FNativeDataInitialize
 class SWindow : public std::enable_shared_from_this<SWindow>
 {
 public:
-	SWindow(std::string _Name, bool _bIncludeInWindows = false , uint32_t _Width = -1, uint32_t _Height = -1)
+	SWindow(std::string _Name, EFont::Type _FontName, bool _bIncludeInWindows = false, uint32_t _Width = -1, uint32_t _Height = -1)
 		: bOpen(true)
 		, bIncludeInWindows(_bIncludeInWindows)
 		, DefaultWidth(_Width)
 		, DefaultHeight(_Height)
 		, Name(_Name)
+		, FontName(_FontName)
 	{}
 
 	virtual void NativeInitialize(const FNativeDataInitialize& _Data)
@@ -62,4 +64,5 @@ protected:
 	uint32_t DefaultHeight;
 	
 	std::string Name;
+	EFont::Type FontName;
 };

@@ -236,6 +236,7 @@
     <ClInclude Include="Devices\Device.h" />
     <ClInclude Include="Devices\IO\Beeper.h" />
     <ClInclude Include="Devices\IO\Keyboard.h" />
+    <ClInclude Include="Devices\Memory\Interface_Memory.h" />
     <ClInclude Include="Devices\Memory\RAM.h" />
     <ClInclude Include="Devices\Memory\EPROM.h" />
     <ClInclude Include="Motherboard\Motherboard.h" />
@@ -249,6 +250,7 @@
     <ClInclude Include="UI\MemoryDump.h" />
     <ClInclude Include="UI\Viewer.h" />
     <ClInclude Include="Utils\CommandPipeline.h" />
+    <ClInclude Include="Utils\Memory.h" />
     <ClInclude Include="Utils\SignalsBus.h" />
     <ClInclude Include="Utils\Char.h" />
     <ClInclude Include="Utils\Delegates.h" />

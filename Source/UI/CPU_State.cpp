@@ -9,8 +9,8 @@ namespace
 	static const char* ThisWindowName = TEXT("CPU State");
 }
 
-SCPU_State::SCPU_State()
-	: SWindow(ThisWindowName, true)
+SCPU_State::SCPU_State(EFont::Type _FontName)
+	: SWindow(ThisWindowName, _FontName, true)
 {}
 
 void SCPU_State::Initialize()
@@ -54,22 +54,20 @@ void SCPU_State::Render()
 	}
 
 	ImGui::Begin(ThisWindowName, &bOpen);
-
-	Input_HotKeys();
-
-	const EThreadStatus Status = GetMotherboard().GetState<EThreadStatus>(NAME_MainBoard, NAME_None);
-	if (Status == EThreadStatus::Stop)
 	{
-		const uint64_t ClockCounter = GetMotherboard().GetState<uint64_t>(NAME_MainBoard, NAME_None);
-		if (ClockCounter != LatestClockCounter)
+		Input_HotKeys();
+		const EThreadStatus Status = GetMotherboard().GetState<EThreadStatus>(NAME_MainBoard, NAME_None);
+		if (Status == EThreadStatus::Stop)
 		{
-			Update_Registers();
-			LatestClockCounter = ClockCounter;
+			const uint64_t ClockCounter = GetMotherboard().GetState<uint64_t>(NAME_MainBoard, NAME_None);
+			if (ClockCounter != LatestClockCounter)
+			{
+				Update_Registers();
+				LatestClockCounter = ClockCounter;
+			}
 		}
+		Draw_States(Status == EThreadStatus::Stop);
 	}
-
-	DrawStates(Status == EThreadStatus::Stop);
-
 	ImGui::End();
 }
 
@@ -110,7 +108,7 @@ void SCPU_State::Update_Registers()
 	LatestRegistersState = RegistersState;
 }
 
-void SCPU_State::DrawStates(bool bEnabled)
+void SCPU_State::Draw_States(bool bEnabled)
 {
 	ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, { 5.0f, 0.0f });
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, { 0.0f, 0.0f });
@@ -122,13 +120,13 @@ void SCPU_State::DrawStates(bool bEnabled)
 		ImGuiTableFlags_ContextMenuInBody;
 
 	UI::DrawTable("CPU States", Flags, bEnabled, {
-		{ "Regs", ImGuiTableColumnFlags_WidthFixed, 80, 0, std::bind(&ThisClass::DrawRegisters, this) },
+		{ "Regs", ImGuiTableColumnFlags_WidthFixed, 80, 0, std::bind(&ThisClass::Draw_Registers, this) },
 		});
 
 	ImGui::PopStyleVar(2);
 }
 
-void SCPU_State::DrawRegisters()
+void SCPU_State::Draw_Registers()
 {
 	static ImGuiTableFlags flags =
 		ImGuiTableFlags_NoPadOuterX | ImGuiTableFlags_ScrollY |
@@ -143,7 +141,7 @@ void SCPU_State::DrawRegisters()
 
 		for (std::vector<FRegisterVisual>& Visual : HighlightRegisters)
 		{
-			DrawRegisters_Row(Visual);
+			Draw_Registers_Row(Visual);
 		}
 
 		ImGui::PopFont();
@@ -151,7 +149,7 @@ void SCPU_State::DrawRegisters()
 	}
 }
 
-void SCPU_State::DrawRegisters_Row(const std::vector<FRegisterVisual>& RowVisual)
+void SCPU_State::Draw_Registers_Row(const std::vector<FRegisterVisual>& RowVisual)
 {
 	ImGui::TableNextRow();
 	ImGui::TableNextColumn();
@@ -160,21 +158,14 @@ void SCPU_State::DrawRegisters_Row(const std::vector<FRegisterVisual>& RowVisual
 	{
 		if (Visual.Name)
 		{
-			ImGui::PushStyleColor(ImGuiCol_Text, UI::ToVec4(0x008080FF));
+			ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_REGISTERS));
 			UI::TextAligned(std::format("{}:", Visual.Name).c_str(), {1.0f, 0.5f});
 			ImGui::PopStyleColor();
 
 			ImGui::TableNextColumn();
-
-			ImGui::PushStyleColor(ImGuiCol_Text, UI::ToVec4(0x808080FF));
-			ImGui::Text("#");
-			ImGui::PopStyleColor();
-
+			ImGui::TextColored(COL_CONST(UI::COLOR_REGISTERS), "#");
 			ImGui::SameLine();
-
-			ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(Visual.H_Color));
-			ImGui::Text(std::format("{:02X}", *(Visual.Value+1)).c_str());
-			ImGui::PopStyleColor();
+			ImGui::TextColored(COL_CONST(Visual.H_Color), std::format("{:02X}", *(Visual.Value + 1)).c_str());
 
 			if (!Visual.bWord)
 			{
@@ -183,24 +174,11 @@ void SCPU_State::DrawRegisters_Row(const std::vector<FRegisterVisual>& RowVisual
 		}
 
 		ImGui::SameLine();
-
-		ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(Visual.L_Color == INDEX_NONE ? Visual.H_Color : Visual.L_Color));
-		ImGui::Text(std::format("{:02X}", *(Visual.Value+0)).c_str());
-		ImGui::PopStyleColor();
-
+		ImGui::TextColored(COL_CONST(Visual.L_Color == INDEX_NONE ? Visual.H_Color : Visual.L_Color), std::format("{:02X}", *(Visual.Value + 0)).c_str());
 		ImGui::SameLine();
 	}
 }
 
 void SCPU_State::Input_HotKeys()
 {
-	static std::vector<FHotKey> Hotkeys =
-	{
-		{ ImGuiKey_F4,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepTo);		}},	// debugger: step into
-		{ ImGuiKey_F7,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepInto);	}},	// debugger: step into
-		{ ImGuiKey_F8,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepOver);	}},	// debugger: step over
-		{ ImGuiKey_F11,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepOut);		}},	// debugger: step out
-	};
-
-	Shortcut::Handler(Hotkeys);
 }

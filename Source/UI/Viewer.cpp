@@ -16,8 +16,8 @@ namespace
 	static const char* MenuWindowsName = TEXT("Windows");
 }
 
-SViewer::SViewer(uint32_t _Width, uint32_t _Height)
-	: SWindow(ThisWindowName, false, _Width, _Height)
+SViewer::SViewer(EFont::Type _FontName, uint32_t _Width, uint32_t _Height)
+	: SWindow(ThisWindowName, _FontName, false, _Width, _Height)
 {}
 
 void SViewer::NativeInitialize(const FNativeDataInitialize& _Data)
@@ -25,10 +25,10 @@ void SViewer::NativeInitialize(const FNativeDataInitialize& _Data)
 	SWindow::NativeInitialize(_Data);
 
 	Windows = { 
-				{ EWindowsType::CallStack,			std::make_shared<SCallStack>()		},
-				{ EWindowsType::CPU_State,			std::make_shared<SCPU_State>()		},
-				{ EWindowsType::MemoryDump,			std::make_shared<SMemoryDump>()		},
-				{ EWindowsType::Disassembler,		std::make_shared<SDisassembler>()	},
+				{ EWindowsType::CallStack,			std::make_shared<SCallStack>(NAME_DOS_12)				},
+				{ EWindowsType::CPU_State,			std::make_shared<SCPU_State>(NAME_DOS_14)				},
+				{ EWindowsType::MemoryDump,			std::make_shared<SMemoryDump>(NAME_DOS_12)				},
+				{ EWindowsType::Disassembler,		std::make_shared<SDisassembler>(NAME_DISASSEMBLER_16)	},
 			  };
 
 	// initialize windows

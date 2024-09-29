@@ -3,6 +3,7 @@
 #include "AppFramework.h"
 
 #include "Devices/CPU/Z80.h"
+#include "Devices/Memory/Interface_Memory.h"
 
 FThread::FThread(FName Name)
 	: ThreadName(Name)
@@ -256,6 +257,7 @@ void FThread::ThreadRequest_Reset()
 		[&]()
 		{
 			SB.SetInactive(BUS_RESET);
+			ThreadStatus = EThreadStatus::Stop;
 		});
 }
 
@@ -268,6 +270,22 @@ void FThread::ThreadRequest_NonmaskableInterrupt()
 		{
 			SB.SetInactive(BUS_NMI);
 		}, false, "End signal NMI");
+}
+
+void FThread::ThreadRequest_LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath)
+{
+	for (std::shared_ptr<FDevice>& Device : Devices)
+	{
+		if (Device->UniqueDeviceID != DeviceID)
+		{
+			continue;
+		}
+
+		if (std::shared_ptr<IMemory> Memory = std::dynamic_pointer_cast<IMemory>(Device))
+		{
+			return Memory->Load(FilePath);
+		}
+	}
 }
 
 void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_index& Type)
@@ -284,6 +302,21 @@ void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_inde
 		{
 			return ThreadRequestResult.Push(CG.GetClockCounter());
 		}
+	}
+	else if (DeviceID == EName::Memory)
+	{
+		FMemorySnapshot MS(CG.GetClockCounter());
+		for (std::shared_ptr<FDevice>& Device : Devices)
+		{
+			if (Device->GetType() == EDeviceType::Memory)
+			{
+				if (std::shared_ptr<IMemory> Memory = std::dynamic_pointer_cast<IMemory>(Device))
+				{
+					Memory->Snapshot(MS);
+				}
+			}
+		}
+		return ThreadRequestResult.Push(MS);
 	}
 	else
 	{
@@ -305,4 +338,13 @@ void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_inde
 		}
 	}
 	assert(false);
+}
+
+void FThread::LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath)
+{
+	Thread_Request(EThreadTypeRequest::ExecuteTask,
+		[=]()
+		{
+			ThreadRequest_LoadRawData(DeviceID, FilePath);
+		});
 }

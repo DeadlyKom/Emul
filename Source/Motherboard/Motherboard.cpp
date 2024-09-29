@@ -66,6 +66,18 @@ void FMotherboard::Input_Step(FCPU_StepType::Type Type)
 	}
 }
 
+void FMotherboard::LoadRawData(EName::Type BoardID, EName::Type DeviceID, std::filesystem::path FilePath)
+{
+	for (auto& [Name, Board] : Boards)
+	{
+		if (Board->UniqueBoardID != BoardID)
+		{
+			continue;
+		}
+		Board->LoadRawData(DeviceID, FilePath);
+	}
+}
+
 void FMotherboard::Reset()
 {
 	LOG_CONSOLE("Reset");

@@ -6,7 +6,7 @@
 class SCallStack : public SWindow
 {
 public:
-	SCallStack();
+	SCallStack(EFont::Type _FontName);
 
 	virtual void Initialize() override;
 	virtual void Render() override;

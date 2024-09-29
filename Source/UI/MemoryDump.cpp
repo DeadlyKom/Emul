@@ -5,8 +5,8 @@ namespace
 	static const char* ThisWindowName = TEXT("Memory dump");
 }
 
-SMemoryDump::SMemoryDump()
-	: SWindow(ThisWindowName, true)
+SMemoryDump::SMemoryDump(EFont::Type _FontName)
+	: SWindow(ThisWindowName, _FontName, true)
 {}
 
 void SMemoryDump::Initialize()

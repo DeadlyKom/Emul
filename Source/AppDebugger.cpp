@@ -24,7 +24,7 @@ void FAppDebugger::Initialize()
 
 	LOG_CONSOLE("Initialize.");
 
-	Viewer = std::make_shared<SViewer>(WindowWidth, WindowHeight);
+	Viewer = std::make_shared<SViewer>(NAME_DOS_12, WindowWidth, WindowHeight);
 	if (Viewer)
 	{
 		FNativeDataInitialize Data;
@@ -41,8 +41,12 @@ void FAppDebugger::Initialize()
 		{
 			std::make_shared<FCPU_Z80>(),
 			std::make_shared<FAccessToROM>(),
-			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, std::vector<uint8_t>({ 0x00, 0x18, 0xFD, 0x00 }), ESignalState::Low),
+			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, 0, std::vector<uint8_t>({ 0x00, 0x18, 0xFD, 0x00 }), ESignalState::Low),
 		}, 3.5_MHz);
+
+		// load ROM
+		std::filesystem::path FIlePath = "D:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";// std::filesystem::current_path();
+		Motherboard->LoadRawData(NAME_MainBoard, NAME_EPROM, FIlePath);
 
 		Motherboard->Reset();
 	}
@@ -50,6 +54,7 @@ void FAppDebugger::Initialize()
 	FFonts& Fonts = FFonts::Get();
 	Fonts.LoadFont(NAME_DOS_12, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 12.0f, 0);
 	Fonts.LoadFont(NAME_DOS_14, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 14.0f, 0);
+	Fonts.LoadFont(NAME_DISASSEMBLER_16, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 16.0f, 0);
 }
 
 void FAppDebugger::Shutdown()

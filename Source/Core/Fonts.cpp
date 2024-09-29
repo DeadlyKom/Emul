@@ -24,3 +24,14 @@ ImFont* FFonts::GetFont(EFont::Type FontName)
 {
 	return Fonts.contains(FontName) ? Fonts[FontName] : nullptr;
 }
+
+void FFonts::SetSize(EFont::Type FontName, int32_t SizePixels)
+{
+	ImFont* FoundFont = GetFont(FontName);
+	if (FoundFont == nullptr)
+	{
+		return;
+	}
+
+	FoundFont->Scale = (float)SizePixels / FoundFont->ConfigData->SizePixels;
+}

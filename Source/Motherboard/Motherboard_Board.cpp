@@ -33,6 +33,11 @@ void FBoard::Input_Step(FCPU_StepType::Type Type)
 	Thread->Input_Step(Type);
 }
 
+void FBoard::LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath)
+{
+	Thread->LoadRawData(DeviceID, FilePath);
+}
+
 void FBoard::AddDevices(std::vector<std::shared_ptr<FDevice>> Devices, double _Frequency)
 {
 	Thread->AddDevices(Devices);

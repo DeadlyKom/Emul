@@ -6,7 +6,7 @@
 class SMemoryDump : public SWindow
 {
 public:
-	SMemoryDump();
+	SMemoryDump(EFont::Type _FontName);
 
 	virtual void Initialize() override;
 	virtual void Render() override;

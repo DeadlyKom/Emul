@@ -1,4 +1,5 @@
 #include "EPROM.h"
+#include "AppFramework.h"
 #include "Devices/Device.h"
 #include "Utils/SignalsBus.h"
 #include "Devices/ControlUnit/AccessToROM.h"
@@ -20,6 +21,7 @@ namespace
 }
 
 FEPROM::FEPROM(EEPROM_Type _Type,
+			   uint16_t _PlacementAddress,
 			   const std::vector<uint8_t>& _Firmware,
 			   ESignalState::Type _CE /*= ESignalState::High*/,
 			   ESignalState::Type _OE /*= ESignalState::High*/)
@@ -27,18 +29,21 @@ FEPROM::FEPROM(EEPROM_Type _Type,
 	, Type(_Type)
 	, ChipEnable(_CE)
 	, OutputEnable(_OE)
+	, PlacementAddress(_PlacementAddress)
 	, Firmware(_Firmware)
 {}
 
 FEPROM::FEPROM(EEPROM_Type _Type,
+			   uint16_t _PlacementAddress,
 			   uint8_t* _Firmware /*= nullptr*/,
 			   uint32_t _FirmwareSize /*= 0*/,
 			   ESignalState::Type _CE /*= ESignalState::High*/,
 			   ESignalState::Type _OE /*= ESignalState::High*/)
 	: FDevice(FName(DEVICE_NAME(_Type)), EName::EPROM, EDeviceType::Memory)
+	, Type(_Type)
 	, ChipEnable(_CE)
 	, OutputEnable(_OE)
-	, Type(_Type)
+	, PlacementAddress(_PlacementAddress)
 {
 	if (_Firmware != 0 && _FirmwareSize != 0)
 	{
@@ -90,4 +95,53 @@ void FEPROM::Tick()
 				SB->SetDataOnDataBus(Value);
 			});
 	}
+}
+
+void FEPROM::Snapshot(FMemorySnapshot& OutMemorySnaphot)
+{
+	FDataBlock DB
+	{
+		.DeviceName = DeviceName,
+		.BlockName = "Test ROM",
+		.State = EDataBlockState::Actived,
+		.PlacementAddress = PlacementAddress,
+		.Data = Firmware,
+	};
+	OutMemorySnaphot.AddDataBlock(DB);
+}
+
+void FEPROM::Load(const std::filesystem::path& FilePath)
+{
+	if (!std::filesystem::exists(FilePath))
+	{
+		LOG_CONSOLE("File does not exist: %s", FilePath.string().c_str());
+		return;
+	}
+
+	std::ifstream File(FilePath, std::ios::in | std::ios::binary);
+	if (!File.is_open())
+	{
+		LOG_CONSOLE("Could not open the file: %s", FilePath.string().c_str());
+		return;
+	}
+
+	// Stop eating new lines in binary mode
+	File.unsetf(std::ios::skipws);
+
+	// get its size
+	std::streampos FileSize;
+	File.seekg(0, std::ios::end);
+	FileSize = File.tellg();
+	File.seekg(0, std::ios::beg);
+
+	// reserve capacity
+	Firmware.reserve(FileSize);
+
+	// read the data
+	Firmware.insert(Firmware.begin(), std::istream_iterator<BYTE>(File), std::istream_iterator<BYTE>());
+
+	//
+	std::memcpy(Firmware.data(), Firmware.data() + 0xC000, 0x4000);
+
+	File.close();
 }
