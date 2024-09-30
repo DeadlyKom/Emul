@@ -1,5 +1,6 @@
 #pragma once
 
+// UnrealEngine\Engine\Source\Runtime\Core\Public\GenericPlatform.h
 namespace Math
 {
 	// Returns true if a flag is set
@@ -45,5 +46,23 @@ namespace Math
 	static inline ImVec2 Abs(ImVec2 v)
 	{
 		return ImVec2(ImAbs(v.x), ImAbs(v.y));
+	}
+
+	template< class T >
+	static inline T Max(const T A, const T B)
+	{
+		return (B < A) ? A : B;
+	}
+
+	template< class T >
+	static inline T Min(const T A, const T B)
+	{
+		return (A < B) ? A : B;
+	}
+
+	template< class T >
+	static inline T Clamp(const T X, const T MinValue, const T MaxValue)
+	{
+		return Max(Min(X, MaxValue), MinValue);
 	}
 }

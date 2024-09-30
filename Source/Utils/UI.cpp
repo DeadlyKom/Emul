@@ -65,10 +65,10 @@ int32_t UI::GetVisibleLines(EFont::Type FontName)
 		return INDEX_NONE;
 	}
 
-	return int32_t((ImGui::GetWindowSize().y - ImGui::GetCursorPosY()) / FoundFont->ConfigData->SizePixels);
+	return int32_t(((ImGui::GetWindowSize().y - ImGui::GetCursorPosY()) / FoundFont->ConfigData->SizePixels) * (1.0 / FoundFont->Scale));
 }
 
-void UI::TextAligned(const char* Text, const ImVec2& Aligment)
+void UI::TextAligned(const char* Text, const ImVec2& Aligment, const ImVec2* _Padding /*= nullptr*/)
 {
 	const ImVec2 SizeArg = ImVec2(-FLT_MIN, 0.0f);
 
@@ -78,22 +78,31 @@ void UI::TextAligned(const char* Text, const ImVec2& Aligment)
 		return;
 	}
 
-	ImGuiContext& Context = *GImGui;
-	ImGuiStyle& Style = Context.Style;
+	ImVec2 Padding;
+	if (_Padding == nullptr)
+	{
+		ImGuiContext& Context = *GImGui;
+		ImGuiStyle& Style = Context.Style;
+		Padding = Style.FramePadding;
+	}
+	else
+	{
+		Padding = *_Padding;
+	}
 
 	const ImGuiID GuiID = Window->GetID(Text);
 	const ImVec2 LabelSize = ImGui::CalcTextSize(Text, NULL, true);
 
 	const ImVec2 Position = Window->DC.CursorPos;
-	const ImVec2 Size = ImGui::CalcItemSize(SizeArg, LabelSize.x + Style.FramePadding.x * 2.0f, LabelSize.y + Style.FramePadding.y * 2.0f);
+	const ImVec2 Size = ImGui::CalcItemSize(SizeArg, LabelSize.x + Padding.x * 2.0f, LabelSize.y + Padding.y * 2.0f);
 
 	const ImRect bb(Position, Position + Size);
-	ImGui::ItemSize(Size, Style.FramePadding.y);
+	ImGui::ItemSize(Size, Padding.y);
 
 	if (!ImGui::ItemAdd(bb, GuiID))
 	{
 		return;
 	}
 
-	ImGui::RenderTextClipped(bb.Min + Style.FramePadding, bb.Max - Style.FramePadding, Text, NULL, &LabelSize, Aligment, &bb);
+	ImGui::RenderTextClipped(bb.Min + Padding, bb.Max - Padding, Text, NULL, &LabelSize, Aligment, &bb);
 }

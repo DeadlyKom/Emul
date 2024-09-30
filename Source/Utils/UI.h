@@ -88,5 +88,5 @@ namespace EColor
 	void DrawProperty(const char* PropertyName, const char* Value,const char* Tooltip = nullptr, const ImVec4& Color = Colors[COLOR_WHITE]);
 
 	int32_t GetVisibleLines(EFont::Type FontName);
-	void TextAligned(const char* Text, const ImVec2& Aligment = { 1.0f, 0.5f });
+	void TextAligned(const char* Text, const ImVec2& Aligment, const ImVec2* _Padding = nullptr);
 }

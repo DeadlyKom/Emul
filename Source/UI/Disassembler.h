@@ -9,6 +9,7 @@ enum class EThreadStatus;
 
 class SDisassembler : public SWindow
 {
+	using ThisClass = SDisassembler;
 public:
 	SDisassembler(EFont::Type _FontName);
 
@@ -21,16 +22,26 @@ private:
 	void Update_MemorySnapshot();
 
 	void Draw_CodeDisassembler(EThreadStatus Status);
-	void Draw_Breakpoint(uint32_t Address);
-	void Draw_Address(uint32_t Address);
-	uint32_t Draw_Mnemonic(uint32_t& Address);
+	void Draw_Breakpoint(uint16_t Address);
+	void Draw_Address(uint16_t Address);
+	uint32_t Draw_Instruction(uint16_t& Address);
 
 	void Input_HotKeys();
+	void Input_Mouse();
 
 	// visual preferences
 	bool bMemoryArea;
+	bool bShowStatusBar;
 
-	uint32_t CursorAtAddress;
+	// windows ID
+	ImGuiID CodeDisassemblerID;
+	float CodeDisassemblerScale;
+
+	// state
+	float MouseWheel;
+
+	uint16_t PrevCursorAtAddress;
+	uint16_t CursorAtAddress;
 
 	uint64_t LatestClockCounter;
 	FMemorySnapshot Snapshot;
