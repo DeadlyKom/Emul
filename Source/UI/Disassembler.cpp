@@ -20,13 +20,13 @@ namespace
 
 namespace Disassembler
 {
-	static constexpr const char* Registers8[]				= { "B", "C", "D", "E", "H", "L", "(HL)", "A"};
-	static constexpr const char* Registers16[]				= { "BC", "DE", "HL", "SP", "AF"};
+	static constexpr const char* Registers8[]				= { "B", "C", "D", "E", "H", "L", "(HL)", "A" };
+	static constexpr const char* Registers16[]				= { "BC", "DE", "HL", "SP", "AF" };
 	static constexpr const char* Conditions[]				= { "NZ", "Z", "NC", "C", "PO", "PE", "P", "M" };
-	static constexpr const char* ArithmeticLogic[]			= { "ADD A,", "ADC A,", "SUB", "SBC A,", "AND", "XOR", "OR", "CP"};
-	static constexpr const char* RotationShift[]			= { "RLC", "RRC", "RL", "RR", "SLA", "SRA", "SLL", "SRL"};
+	static constexpr const char* ArithmeticLogic[]			= { "ADD A,", "ADC A,", "SUB", "SBC A,", "AND", "XOR", "OR", "CP" };
+	static constexpr const char* RotationShift[]			= { "RLC", "RRC", "RL", "RR", "SLA", "SRA", "SLL", "SRL" };
 	static constexpr const char* InterruptModes[]			= { "0", "0/1", "1", "2", "0", "0/1", "1", "2" };
-	static constexpr const char* BlockInstructions[4][4]	= { { "LDI", "CPI", "INI", "OUTI"},
+	static constexpr const char* BlockInstructions[4][4]	= { { "LDI", "CPI", "INI", "OUTI" },
 															    { "LDD", "CPD", "IND", "OUTD" },
 															    { "LDIR", "CPIR", "INIR", "OTIR" },
 															    { "LDDR", "CPDR", "INDR", "OTDR" } };
@@ -42,325 +42,549 @@ namespace Disassembler
 		None			= INDEX_NONE,
 	};
 
+	enum class EIndexRegisterType
+	{
+		None,
+		IX,
+		IY,
+	};
+
 	#define OCTAL_X(opcode)		((opcode & 0xC0) >> 6)
 	#define OCTAL_Y(opcode)		((opcode & 0x38) >> 3)
 	#define OCTAL_Z(opcode)		((opcode & 0x07) >> 0)
 	#define OCTAL_P(opcode)		((opcode & 0x30) >> 4)
 	#define OCTAL_Q(opcode)		((opcode & 0x08) >> 3)
 
-	uint8_t UnprefixedOpcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction)
+	uint8_t UnprefixedOpcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType IndexRegister = EIndexRegisterType::None)
 	{
+		Counter++;
 		const uint8_t Opcode = RawData[Address++];
 		switch (OCTAL_X(Opcode))
 		{
-		case 0:
-		{
-			switch (OCTAL_Z(Opcode))
-			{
 			case 0:
-			{
-				switch (OCTAL_Y(Opcode))
-				{
-				case 0: Instruction = "NOP";		return 1;
-				case 1:	Instruction = "EX AF, AF'";	return 1;
-				case 2:
-					{
-						const int16_t Value = (signed char)RawData[Address++];
-						Instruction = std::format("DJNZ #${:04X}", uint16_t(Value + Address));
-						return 2;
-					}
-				case 3:
-					{
-						const int16_t Value = (signed char)RawData[Address++];
-						Instruction = std::format("JR #${:04X}", uint16_t(Value + Address));
-						return 2;
-					}
-				case 4:
-				case 5:
-				case 6:
-				case 7:
-					{
-						const int16_t Value = (signed char)RawData[Address++];
-						Instruction = std::format("JR !{}, #${:04X}", Conditions[OCTAL_Y(Opcode) - 4], uint16_t(Value + Address));
-						return 2;
-					}
-				}
-			}
-			case 1:
-			{
-				if (OCTAL_Q(Opcode) == 0)
-				{
-					const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
-					Instruction = std::format("LD {}, #${:04X}", Registers16[OCTAL_P(Opcode)], Value);
-					return 3;
-				}
-				else
-				{
-					Instruction = std::string("ADD HL, ") + Registers16[OCTAL_P(Opcode)];
-					return 1;
-				}
-			}
-			case 2:
-			{
-				if (OCTAL_Q(Opcode) == 0)
-				{
-					switch (OCTAL_P(Opcode))
-					{
-						case 0: Instruction = "LD (BC), A";	return 1;
-						case 1: Instruction = "LD (DE), A";	return 1;
-						case 2:
-						{
-							const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
-							Instruction = std::format("LD (#${:04X}), HL", Value);
-							return 3;
-						}
-						case 3:
-						{
-							const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
-							Instruction = std::format("LD (#${:04X}), A", Value);
-							return 3;
-						}
-					}
-				}
-				else
-				{
-					switch (OCTAL_P(Opcode))
-					{
-						case 0: Instruction = "LD A, (BC)";	return 1;
-						case 1: Instruction = "LD A, (DE)";	return 1;
-						case 2:
-						{
-							const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
-							Instruction = std::format("LD HL, (#${:04X})", Value);
-							return 3;
-						}
-						case 3:
-						{
-							const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
-							Instruction = std::format("LD A, (#${:04X})", Value);
-							return 3;
-						}
-					}
-				}
-			}
-			case 3:
-			{
-				if (OCTAL_Q(Opcode) == 0)
-				{
-					Instruction = std::string("INC ") + Registers16[OCTAL_P(Opcode)];
-				}
-				else
-				{
-					Instruction = std::string("DEC ") + Registers16[OCTAL_P(Opcode)];
-				}
-				return 1;
-			}
-			case 4:
-			{
-				Instruction = std::string("INC ") + Registers8[OCTAL_Y(Opcode)];	return 1;
-			}
-			case 5:
-			{
-				Instruction = std::string("DEC ") + Registers8[OCTAL_Y(Opcode)];	return 1;
-			}
-			case 6:
-			{
-				const uint8_t Value = RawData[Address++];
-				Instruction = std::format("LD {}, #${:02X}", Registers8[OCTAL_Y(Opcode)], Value);
-				return 2;
-			}
-			case 7:
 			{
 				switch (OCTAL_Z(Opcode))
 				{
-				case 0: Instruction = std::string("RLCA");	return 1;
-				case 1: Instruction = std::string("RRCA");	return 1;
-				case 2: Instruction = std::string("RLA");	return 1;
-				case 3: Instruction = std::string("RRA");	return 1;
-				case 4: Instruction = std::string("DDA");	return 1;
-				case 5: Instruction = std::string("CPL");	return 1;
-				case 6: Instruction = std::string("SCF");	return 1;
-				case 7: Instruction = std::string("CCF");	return 1;
-				}
-			}
-			}
-		}
-		case 1:
-		{
-			if (OCTAL_Y(Opcode) == 6 && OCTAL_Z(Opcode) == 6)
-			{
-				Instruction = std::string("HALT");
-			}
-			else
-			{
-				Instruction = std::format("LD {}, {}", Registers8[OCTAL_Y(Opcode)], Registers8[OCTAL_Z(Opcode)]);
-			}
-			return 1;
-		}
-		case 2:
-		{
-			Instruction = std::format("{} {}", ArithmeticLogic[OCTAL_Y(Opcode)], Registers8[OCTAL_Z(Opcode)]);
-			return 1;
-		}
-		case 3:
-		{
-			switch (OCTAL_Z(Opcode))
-			{
-				case 0:
-					Instruction = std::format("RET !{}", Conditions[OCTAL_Y(Opcode)]);
-					return 1;
-				case 1:
-				{
-					if (OCTAL_Q(Opcode) == 0)
+					case 0:
 					{
-						const uint8_t P = OCTAL_P(Opcode);
-						Instruction = std::string("POP ") + Registers16[P == 3 ? P + 1 : P];
-						return 1;
-					}
-					else
-					{
-						switch (OCTAL_P(Opcode))
+						switch (OCTAL_Y(Opcode))
 						{
-						case 0: Instruction = "RET";		return 1;
-						case 1: Instruction = "EXX";		return 1;
-						case 2: Instruction = "JP (HL)";	return 1;
-						case 3: Instruction = "LD SP, HL";	return 1;
+							case 0:
+							{
+								Instruction = "NOP";
+								break;
+							}
+							case 1:
+							{
+								Instruction = "EX AF, AF'";
+								break;
+							}
+							case 2:
+							{
+								const int16_t Value = (signed char)RawData[Address++];
+								Instruction = std::format("DJNZ #${:04X}", uint16_t(Value + Address));
+								Counter++;
+								break;
+							}
+							case 3:
+							{
+								const int16_t Value = (signed char)RawData[Address++];
+								Instruction = std::format("JR #${:04X}", uint16_t(Value + Address));
+								Counter++;
+								break;
+							}
+							case 4:
+							case 5:
+							case 6:
+							case 7:
+							{
+								const int16_t Value = (signed char)RawData[Address++];
+								Instruction = std::format("JR !{}, #${:04X}", Conditions[OCTAL_Y(Opcode) - 4], uint16_t(Value + Address));
+								Counter++;
+								break;
+							}
 						}
+						break;
 					}
-				}
-				case 2:
-				{
-					const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
-					Instruction = std::format("JP !{}, #${:04X}", Conditions[OCTAL_Y(Opcode)], Value);
-					return 3;
-				}
-				case 3:
-				{
-					switch (OCTAL_Y(Opcode))
+					case 1:
 					{
-						case 0:
+						if (OCTAL_Q(Opcode) == 0)
 						{
 							const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
-							Instruction = std::format("JP #${:04X}", Value);
-							return 3;
+							Instruction = std::format("LD {}, #${:04X}", Registers16[OCTAL_P(Opcode)], Value);
+							Counter += 2;
 						}
-						case 1: return 0xCB;
-						case 2:
+						else
 						{
-							const uint8_t Value = RawData[Address++];
-							Instruction = std::format("OUT (#${:02X}), A", Value);
-							return 2;
+							Instruction = std::string("ADD HL, ") + Registers16[OCTAL_P(Opcode)];
 						}
-						case 3:
-						{
-							const uint8_t Value = RawData[Address++];
-							Instruction = std::format("IN A, (#${:02X})", Value);
-							return 2;
-						}
-						case 4:
-							Instruction = "EX (SP), HL";
-							return 1;
-						case 5:
-							Instruction = "EX DE, HL";
-							return 1;
-						case 6:
-							Instruction = "DI";
-							return 1;
-						case 7:
-							Instruction = "EI";
-							return 1;
+						break;
 					}
-				}
-				case 4:
-				{
-					const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
-					Instruction = std::format("CALL !{}, #${:04X}", Conditions[OCTAL_Y(Opcode)], Value);
-					return 3;
-				}
-				case 5:
-				{
-					if (OCTAL_Q(Opcode) == 0)
+					case 2:
 					{
-						const uint8_t P = OCTAL_P(Opcode);
-						Instruction = std::string("PUSH ") + Registers16[P == 3 ? P + 1 : P];
-						return 1;
+						if (OCTAL_Q(Opcode) == 0)
+						{
+							switch (OCTAL_P(Opcode))
+							{
+								case 0:
+								{
+									Instruction = "LD (BC), A";
+									break;
+								}
+								case 1:
+								{
+									Instruction = "LD (DE), A";
+									break;
+								}
+								case 2:
+								{
+									const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+									Instruction = std::format("LD (#${:04X}), HL", Value);
+									Counter += 2;
+									break;
+								}
+								case 3:
+								{
+									const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+									Instruction = std::format("LD (#${:04X}), A", Value);
+									Counter += 2;
+									break;
+								}
+							}
+						}
+						else
+						{
+							switch (OCTAL_P(Opcode))
+							{
+								case 0:
+								{
+									Instruction = "LD A, (BC)";
+									break;
+								}
+								case 1:
+								{
+									Instruction = "LD A, (DE)";
+									break;
+								}
+								case 2:
+								{
+									const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+									Instruction = std::format("LD HL, (#${:04X})", Value);
+									Counter += 2;
+									break;
+								}
+								case 3:
+								{
+									const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+									Instruction = std::format("LD A, (#${:04X})", Value);
+									Counter += 2;
+									break;
+								}
+							}
+						}
+						break;
 					}
-					else
+					case 3:
 					{
-						switch (OCTAL_P(Opcode))
+						if (OCTAL_Q(Opcode) == 0)
 						{
-						case 0:
+							Instruction = std::string("INC ") + Registers16[OCTAL_P(Opcode)];
+						}
+						else
 						{
-							const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
-							Instruction = std::format("CALL #${:04X}", Value);
-							return 3;
+							Instruction = std::string("DEC ") + Registers16[OCTAL_P(Opcode)];
 						}
-						case 1: return 0xDD;
-						case 2: return 0xED;
-						case 3: return 0xFD;
+						break;
+					}
+					case 4:
+					{
+						Instruction = std::string("INC ") + Registers8[OCTAL_Y(Opcode)];
+						break;
+					}
+					case 5:
+					{
+						Instruction = std::string("DEC ") + Registers8[OCTAL_Y(Opcode)];
+						break;
+					}
+					case 6:
+					{
+						const uint8_t Value = RawData[Address++];
+						Instruction = std::format("LD {}, #${:02X}", Registers8[OCTAL_Y(Opcode)], Value);
+						Counter++;
+						break;
+					}
+					case 7:
+					{
+						switch (OCTAL_Z(Opcode))
+						{
+							case 0: Instruction = "RLCA";	break;
+							case 1: Instruction = "RRCA";	break;
+							case 2: Instruction = "RLA";	break;
+							case 3: Instruction = "RRA";	break;
+							case 4: Instruction = "DDA";	break;
+							case 5: Instruction = "CPL";	break;
+							case 6: Instruction = "SCF";	break;
+							case 7: Instruction = "CCF";	break;
 						}
+						break;
 					}
 				}
-				case 6:
+				break;
+			}
+			case 1:
+			{
+				if (OCTAL_Y(Opcode) == 6 && OCTAL_Z(Opcode) == 6)
 				{
-					const uint8_t Value = RawData[Address++];
-					Instruction = std::format("{} #${:02X}", ArithmeticLogic[OCTAL_Y(Opcode)], Value);
-					return 2;
+					Instruction = std::string("HALT");
 				}
-				case 7:
+				else
 				{
-					Instruction = std::format("RST #${:02X}", OCTAL_Y(Opcode) * 8);
-					return 1;
+					Instruction = std::format("LD {}, {}", Registers8[OCTAL_Y(Opcode)], Registers8[OCTAL_Z(Opcode)]);
 				}
+				break;
+			}
+			case 2:
+			{
+				Instruction = std::format("{} {}", ArithmeticLogic[OCTAL_Y(Opcode)], Registers8[OCTAL_Z(Opcode)]);
+				break;
+			}
+			case 3:
+			{
+				switch (OCTAL_Z(Opcode))
+				{
+					case 0:
+					{
+						Instruction = std::format("RET !{}", Conditions[OCTAL_Y(Opcode)]);
+						break;
+					}
+					case 1:
+					{
+						if (OCTAL_Q(Opcode) == 0)
+						{
+							const uint8_t P = OCTAL_P(Opcode);
+							Instruction = std::string("POP ") + Registers16[P == 3 ? P + 1 : P];
+						}
+						else
+						{
+							switch (OCTAL_P(Opcode))
+							{
+							case 0: Instruction = "RET";		break;
+							case 1: Instruction = "EXX";		break;
+							case 2: Instruction = "JP (HL)";	break;
+							case 3: Instruction = "LD SP, HL";	break;
+							}
+						}
+						break;
+					}
+					case 2:
+					{
+						const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+						Instruction = std::format("JP !{}, #${:04X}", Conditions[OCTAL_Y(Opcode)], Value);
+						Counter +=2;
+						break;
+					}
+					case 3:
+					{
+						switch (OCTAL_Y(Opcode))
+						{
+							case 0:
+							{
+								const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+								Instruction = std::format("JP #${:04X}", Value);
+								Counter += 2;
+								break;
+							}
+							case 1: return 0xCB;
+							case 2:
+							{
+								const uint8_t Value = RawData[Address++];
+								Instruction = std::format("OUT (#${:02X}), A", Value);
+								Counter++;
+								break;
+							}
+							case 3:
+							{
+								const uint8_t Value = RawData[Address++];
+								Instruction = std::format("IN A, (#${:02X})", Value);
+								Counter++;
+								break;
+							}
+							case 4:
+							{
+								Instruction = "EX (SP), HL";
+								break;
+							}
+							case 5:
+							{
+								Instruction = "EX DE, HL";
+								break;
+							}
+							case 6:
+							{
+								Instruction = "DI";
+								break;
+							}
+							case 7:
+							{
+								Instruction = "EI";
+								break;
+							}
+						}
+						break;
+					}
+					case 4:
+					{
+						const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+						Instruction = std::format("CALL !{}, #${:04X}", Conditions[OCTAL_Y(Opcode)], Value);
+						Counter += 2;
+						break;
+					}
+					case 5:
+					{
+						if (OCTAL_Q(Opcode) == 0)
+						{
+							const uint8_t P = OCTAL_P(Opcode);
+							Instruction = std::string("PUSH ") + Registers16[P == 3 ? P + 1 : P];
+						}
+						else
+						{
+							switch (OCTAL_P(Opcode))
+							{
+								case 0:
+								{
+									const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+									Instruction = std::format("CALL #${:04X}", Value);
+									Counter += 2;
+									break;
+								}
+								case 1: return 0xDD;
+								case 2: return 0xED;
+								case 3: return 0xFD;
+							}
+						}
+						break;
+					}
+					case 6:
+					{
+						const uint8_t Value = RawData[Address++];
+						Instruction = std::format("{} #${:02X}", ArithmeticLogic[OCTAL_Y(Opcode)], Value);
+						Counter++;
+						break;
+					}
+					case 7:
+					{
+						Instruction = std::format("RST #${:02X}", OCTAL_Y(Opcode) * 8);
+						break;
+					}
+				}
+				break;
 			}
 		}
-		}
-		assert(false);
 		return 0;
 	}
 
-	uint8_t CB_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction)
+	uint8_t CB_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter)
 	{
+		Counter++;
 		const uint8_t Opcode = RawData[Address++];
 		switch (OCTAL_X(Opcode))
 		{
 			case 0:
 			{
 				Instruction = std::format("{} {}", RotationShift[OCTAL_Y(Opcode)], Registers8[OCTAL_Z(Opcode)]);
-				return 2;
+				break;
 			}
 			case 1:
 			{
 				Instruction = std::format("BIT {}, {}", OCTAL_Y(Opcode), Registers8[OCTAL_Z(Opcode)]);
-				return 2;
+				break;
 			}
 			case 2:
 			{
 				Instruction = std::format("RES {}, {}", OCTAL_Y(Opcode), Registers8[OCTAL_Z(Opcode)]);
-				return 2;
+				break;
 			}
 			case 3:
 			{
 				Instruction = std::format("SET {}, {}", OCTAL_Y(Opcode), Registers8[OCTAL_Z(Opcode)]);
-				return 2;
+				break;
 			}
 		}
-		assert(false);
 		return 0;
+	}
+
+	uint8_t ED_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter);
+	uint8_t FD_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter);
+	uint8_t DD_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter)
+	{
+		Counter++;
+		const uint8_t Opcode = RawData[Address++];
+		switch (Opcode)
+		{
+			case 0xDD: DD_Opcodes(Address, RawData, Instruction, Counter);									break;
+			case 0xED: ED_Opcodes(Address, RawData, Instruction, Counter);									break;
+			case 0xFD: FD_Opcodes(Address, RawData, Instruction, Counter);									break;
+			default:   UnprefixedOpcodes(Address, RawData, Instruction, Counter, EIndexRegisterType::IX);	break;
+		}
+		return Counter;
+	}
+
+	uint8_t ED_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter)
+	{
+		bool bNMOS = true;
+		Counter++;
+		const uint8_t Opcode = RawData[Address++];
+		switch (OCTAL_X(Opcode))
+		{
+			case 0:
+			case 3:
+			{
+				Instruction = "NOP*";
+				break;
+			}
+			case 1:
+			{
+				switch (OCTAL_Z(Opcode))
+				{
+					case 0:
+					{
+						if (OCTAL_Y(Opcode) == 6)
+						{
+							Instruction = "IN F, (C)";
+							break;
+						}
+						else
+						{
+							Instruction = std::format("IN {}, (C)",  Registers8[OCTAL_Y(Opcode)]);
+							break;
+						}
+						break;
+					}
+					case 1:
+					{
+						if (OCTAL_Y(Opcode) == 6)
+						{
+							Instruction = std::string("OUT (C), #") + (bNMOS ? "00" : "FF");
+							break;
+						}
+						else
+						{
+							Instruction = std::format("OUT (C), {}", Registers8[OCTAL_Y(Opcode)]);
+							break;
+						}
+						break;
+					}
+					case 2:
+					{
+						if (OCTAL_Q(Opcode) == 0)
+						{
+							Instruction = std::string("SBC HL, ") + Registers16[OCTAL_P(Opcode)];
+						}
+						else
+						{
+							Instruction = std::string("ADC HL, ") + Registers16[OCTAL_P(Opcode)];
+						}
+						break;
+					}
+					case 3:
+					{
+						if (OCTAL_Q(Opcode) == 0)
+						{
+							const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+							Instruction = std::format("LD (#${:04X}), {}", Value, Registers16[OCTAL_P(Opcode)]);
+							Counter += 2;
+						}
+						else
+						{
+							const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+							Instruction = std::format("LD {}, (#${:04X})", Registers16[OCTAL_P(Opcode)], Value);
+							Counter += 2;
+						}
+						break;
+					}
+					case 4:
+					{
+						Instruction = "NEG";
+						break;
+					}
+					case 5:
+					{
+						if (OCTAL_Y(Opcode) == 1)
+						{
+							Instruction = "RETI";
+						}
+						else
+						{
+							Instruction = "RETN";
+						}
+						break;
+					}
+					case 6:
+					{
+						Instruction = std::format("IM {}", InterruptModes[OCTAL_Y(Opcode)]);
+						break;
+					}
+					case 7:
+					{
+						switch (OCTAL_Y(Opcode))
+						{
+							case 0: Instruction = "LD I, A";	break;
+							case 1: Instruction = "LD R, A";	break;
+							case 2: Instruction = "LD A, I";	break;
+							case 3: Instruction = "LD A, R";	break;
+							case 4: Instruction = "RRD";		break;
+							case 5: Instruction = "RLD";		break;
+							case 6: Instruction = "NOP";		break;
+							case 7: Instruction = "NOP";		break;
+						}
+						break;
+					}
+				}
+				break;
+			}
+			case 2:
+			{
+				auto z = OCTAL_Z(Opcode);
+				auto y = OCTAL_Y(Opcode);
+				if ((OCTAL_Z(Opcode) <= 3) && (OCTAL_Y(Opcode) >= 4))
+				{
+					Instruction = BlockInstructions[OCTAL_Y(Opcode) - 4][OCTAL_Z(Opcode)];
+				}
+				else
+				{
+					Instruction = "NOP*";
+				}
+				break;
+			}
+		}
+		return 0;
+	}
+
+	uint8_t FD_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter)
+	{
+		Counter++;
+		const uint8_t Opcode = RawData[Address++];
+		switch (Opcode)
+		{
+		case 0xDD: DD_Opcodes(Address, RawData, Instruction, Counter);									break;
+		case 0xED: ED_Opcodes(Address, RawData, Instruction, Counter);									break;
+		case 0xFD: FD_Opcodes(Address, RawData, Instruction, Counter);									break;
+		default:   UnprefixedOpcodes(Address, RawData, Instruction, Counter, EIndexRegisterType::IY);	break;
+		}
+		return Counter;
 	}
 
 	uint8_t Instruction(std::string& Instruction, uint16_t& Address, const uint8_t* RawData)
 	{
-		uint8_t Result = UnprefixedOpcodes(Address, RawData, Instruction);
-		switch (Result)
+		uint8_t Counter = 0;
+		switch (UnprefixedOpcodes(Address, RawData, Instruction, Counter))
 		{
-		case 0xCB: return CB_Opcodes(Address, RawData, Instruction);
-		case 0xDD:
-		case 0xED:
-		case 0xFD:
-		default:
-			return Result;
+		case 0xCB: CB_Opcodes(Address, RawData, Instruction, Counter); break;
+		case 0xDD: DD_Opcodes(Address, RawData, Instruction, Counter); break;
+		case 0xED: ED_Opcodes(Address, RawData, Instruction, Counter); break;
+		case 0xFD: FD_Opcodes(Address, RawData, Instruction, Counter); break;
 		}
+		return Counter;
 	}
 
 	void StepLine(uint16_t& Address, int32_t Steps, const std::vector<uint8_t>& AddressSpace)
@@ -379,7 +603,7 @@ namespace Disassembler
 			uint8_t InstructionSize, BackStep;
 			for (int32_t i = Steps; i != 0; ++i)
 			{
-				BackStep = 5, InstructionSize = 0;
+				BackStep = 16, InstructionSize = 0;
 				do
 				{
 					TmpAddress = Address - BackStep;
@@ -444,7 +668,8 @@ namespace Disassembler
 				 Symbol == '#' ||
 				 Symbol == '(' ||
 				 Symbol == ')' ||
-				 Symbol == ' '   )
+				 Symbol == ' ' ||
+				 Symbol == '+'   )
 		{
 			SyntacticType = ESyntacticType::Symbol;
 			return std::string(1, Symbol);
@@ -460,6 +685,22 @@ namespace Disassembler
 			std::string Value = CutOutWordPart(String, {")"});
 			SyntacticType = ESyntacticType::Constant;
 			return Value;
+		}
+		else if (Symbol >= '0' && Symbol <= '8')
+		{
+			SyntacticType = ESyntacticType::Constant;
+			return std::string(1, Symbol);
+		}
+		else if (Symbol == '^')
+		{
+			SyntacticType = ESyntacticType::ConstantOffset;
+			std::string Value = CutOutWordPart(String, { ")" });
+			SyntacticType = ESyntacticType::Constant;
+			return Value;
+		}
+		else
+		{
+
 		}
 		
 		return String;
@@ -560,37 +801,51 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 		ImGui::TableSetupColumn("Address", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, ColumnWidth_Address * CodeDisassemblerScale);
 		ImGui::TableSetupColumn("Instruction", ImGuiTableColumnFlags_WidthStretch , ColumnWidth_Instruction * CodeDisassemblerScale);
 
-		// calculate address step
+		const int32_t Lines = UI::GetVisibleLines(FontName);
+		
+		// handler input steps up/down
 		{
 			ImGuiWindow* Window = ImGui::GetCurrentWindow();
 
-			const float MaxStep = Window->InnerRect.GetHeight() * 0.67f;
-			const float ScrollStep = ImTrunc(ImMin(5 * Window->CalcFontSize(), MaxStep));
-			float a = Window->CalcFontSize();
-
-			if (Window->Scroll.y == 0 && MouseWheel > 0)
+			switch (ActionInput)
 			{
-				if (PrevCursorAtAddress == (uint16_t)INDEX_NONE)
+				case EDisassemblerInput::MouseWheelUp:
 				{
 					Disassembler::StepLine(CursorAtAddress, -1, AddressSpace);
+					break;
 				}
-				else
+				case EDisassemblerInput::MouseWheelDown:
 				{
-					CursorAtAddress = PrevCursorAtAddress;
-					PrevCursorAtAddress = INDEX_NONE;
+					Disassembler::StepLine(CursorAtAddress, 1, AddressSpace);
+					Window->Scroll.y = 0;
+					break;
+				}
+				case EDisassemblerInput::PageUpArrow:
+				{
+					Disassembler::StepLine(CursorAtAddress, -1, AddressSpace);
+					break;
+				}
+				case EDisassemblerInput::PageDownArrow:
+				{
+					Disassembler::StepLine(CursorAtAddress, 1, AddressSpace);
+					break;
+				}
+				case EDisassemblerInput::PageUpPressed:
+				{
+					Disassembler::StepLine(CursorAtAddress, -Lines, AddressSpace);
+					break;
+				}
+				case EDisassemblerInput::PageDownPressed:
+				{
+					Disassembler::StepLine(CursorAtAddress, Lines, AddressSpace);
+					break;
 				}
 			}
-			else if (Window->Scroll.y == Window->ScrollMax.y && MouseWheel < 0)
-			{
-				PrevCursorAtAddress = CursorAtAddress;
-				Disassembler::StepLine(CursorAtAddress, 1, AddressSpace);
-				Window->Scroll.y = 0;
-			}
+			ActionInput = EDisassemblerInput::None;
 		}
 
 		uint16_t Address = CursorAtAddress;
-		const int32_t Lines = UI::GetVisibleLines(FontName) + 1;
-		for (int32_t i = 0; i < Lines; ++i)
+		for (int32_t i = 0; i < Lines + 1; ++i)
 		{
 			ImGui::TableNextRow();
 
@@ -703,6 +958,11 @@ void SDisassembler::Input_HotKeys()
 {
 	static std::vector<FHotKey> Hotkeys =
 	{
+		{ ImGuiKey_UpArrow,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_UpArrow, this)					},	// debugger: up arrow
+		{ ImGuiKey_DownArrow,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_DownArrow, this)				},	// debugger: down arrow
+		{ ImGuiKey_PageUp,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageUp, this)					},	// debugger: page up
+		{ ImGuiKey_PageDown,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageDown, this)					},	// debugger: page down
+
 		{ ImGuiKey_F4,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepTo);		}},	// debugger: step into
 		{ ImGuiKey_F7,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepInto);	}},	// debugger: step into
 		{ ImGuiKey_F8,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepOver);	}},	// debugger: step over
@@ -716,6 +976,8 @@ void SDisassembler::Input_Mouse()
 {
 	ImGuiContext& Context = *GImGui;
 	MouseWheel = ImGui::TestKeyOwner(ImGuiKey_MouseWheelY, ImGuiKeyOwner_NoOwner) ? Context.IO.MouseWheel : 0.0f;
+	ActionInput = MouseWheel == 0 ? ActionInput :
+				  MouseWheel > 0  ? EDisassemblerInput::MouseWheelUp : EDisassemblerInput::MouseWheelDown;
 
 	ImGuiWindow* Window = Context.WheelingWindow ? Context.WheelingWindow : Context.HoveredWindow;
 	if (!Window || Window->Collapsed || Window->ID != CodeDisassemblerID)
@@ -727,6 +989,27 @@ void SDisassembler::Input_Mouse()
 	{
 		CodeDisassemblerScale += MouseWheel * 0.0625f;
 		CodeDisassemblerScale = FFonts::Get().SetSize(NAME_DISASSEMBLER_16, CodeDisassemblerScale, 0.5f, 1.5f);
+		ActionInput = EDisassemblerInput::None;
 		MouseWheel = 0.0f; // reset
 	}
+}
+
+void SDisassembler::Input_UpArrow()
+{
+	ActionInput = EDisassemblerInput::PageUpArrow;
+}
+
+void SDisassembler::Input_DownArrow()
+{
+	ActionInput = EDisassemblerInput::PageDownArrow;
+}
+
+void SDisassembler::Input_PageUp()
+{
+	ActionInput = EDisassemblerInput::PageUpPressed;
+}
+
+void SDisassembler::Input_PageDown()
+{
+	ActionInput = EDisassemblerInput::PageDownPressed;
 }

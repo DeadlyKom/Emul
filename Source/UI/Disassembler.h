@@ -7,6 +7,17 @@
 class FMotherboard;
 enum class EThreadStatus;
 
+enum class EDisassemblerInput
+{
+	None,
+	MouseWheelUp,
+	MouseWheelDown,
+	PageUpArrow,
+	PageDownArrow,
+	PageUpPressed,
+	PageDownPressed,
+};
+
 class SDisassembler : public SWindow
 {
 	using ThisClass = SDisassembler;
@@ -28,6 +39,10 @@ private:
 
 	void Input_HotKeys();
 	void Input_Mouse();
+	void Input_UpArrow();
+	void Input_DownArrow();
+	void Input_PageUp();
+	void Input_PageDown();
 
 	// visual preferences
 	bool bMemoryArea;
@@ -39,6 +54,7 @@ private:
 
 	// state
 	float MouseWheel;
+	EDisassemblerInput ActionInput;
 
 	uint16_t PrevCursorAtAddress;
 	uint16_t CursorAtAddress;
