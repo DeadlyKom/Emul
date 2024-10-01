@@ -55,10 +55,15 @@ namespace Disassembler
 	#define OCTAL_P(opcode)		((opcode & 0x30) >> 4)
 	#define OCTAL_Q(opcode)		((opcode & 0x08) >> 3)
 
-	uint8_t UnprefixedOpcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType IndexRegister = EIndexRegisterType::None)
+	uint8_t UnprefixedOpcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister)
 	{
-		Counter++;
-		const uint8_t Opcode = RawData[Address++];
+		const uint8_t Opcode = RawData[Address];
+		if (IndexRegister == EIndexRegisterType::None)
+		{
+			Counter++;
+			Address++;
+		}
+
 		switch (OCTAL_X(Opcode))
 		{
 			case 0:
@@ -110,13 +115,31 @@ namespace Disassembler
 					{
 						if (OCTAL_Q(Opcode) == 0)
 						{
+							
 							const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
-							Instruction = std::format("LD {}, #${:04X}", Registers16[OCTAL_P(Opcode)], Value);
+							if (IndexRegister != EIndexRegisterType::None && OCTAL_P(Opcode) == 2 /*HL*/)
+							{
+								const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+								Instruction = std::format("LD {}, #${:04X}", IndexRegisterPair, Value);
+							}
+							else
+							{
+								Instruction = std::format("LD {}, #${:04X}", Registers16[OCTAL_P(Opcode)], Value);
+							}
 							Counter += 2;
 						}
 						else
 						{
-							Instruction = std::string("ADD HL, ") + Registers16[OCTAL_P(Opcode)];
+							if (IndexRegister != EIndexRegisterType::None)
+							{
+								const std::string IndexRegisterPairA = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+								const std::string IndexRegisterPairB = OCTAL_P(Opcode) == 2 /*HL*/ ? IndexRegisterPairA : Registers16[OCTAL_P(Opcode)];
+								Instruction = std::format("ADD {}, {}", IndexRegisterPairA, IndexRegisterPairB);
+							}
+							else
+							{
+								Instruction = std::string("ADD HL, ") + Registers16[OCTAL_P(Opcode)];
+							}
 						}
 						break;
 					}
@@ -139,7 +162,15 @@ namespace Disassembler
 								case 2:
 								{
 									const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
-									Instruction = std::format("LD (#${:04X}), HL", Value);
+									if (IndexRegister != EIndexRegisterType::None && OCTAL_P(Opcode) == 2 /*HL*/)
+									{
+										const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+										Instruction = std::format("LD (#${:04X}), {}", Value, IndexRegisterPair);
+									}
+									else
+									{
+										Instruction = std::format("LD (#${:04X}), HL", Value);
+									}
 									Counter += 2;
 									break;
 								}
@@ -169,7 +200,15 @@ namespace Disassembler
 								case 2:
 								{
 									const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
-									Instruction = std::format("LD HL, (#${:04X})", Value);
+									if (IndexRegister != EIndexRegisterType::None && OCTAL_P(Opcode) == 2 /*HL*/)
+									{
+										const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+										Instruction = std::format("LD {}, (#${:04X})", IndexRegisterPair, Value);
+									}
+									else
+									{
+										Instruction = std::format("LD HL, (#${:04X})", Value);
+									}
 									Counter += 2;
 									break;
 								}
@@ -188,29 +227,99 @@ namespace Disassembler
 					{
 						if (OCTAL_Q(Opcode) == 0)
 						{
-							Instruction = std::string("INC ") + Registers16[OCTAL_P(Opcode)];
+							if (IndexRegister != EIndexRegisterType::None && OCTAL_P(Opcode) == 2 /*HL*/)
+							{
+								const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+								Instruction = std::string("INC ") + IndexRegisterPair;
+							}
+							else
+							{
+								Instruction = std::string("INC ") + Registers16[OCTAL_P(Opcode)];
+							}
 						}
 						else
 						{
-							Instruction = std::string("DEC ") + Registers16[OCTAL_P(Opcode)];
+							if (IndexRegister != EIndexRegisterType::None && OCTAL_P(Opcode) == 2 /*HL*/)
+							{
+								const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+								Instruction = std::string("DEC ") + IndexRegisterPair;
+							}
+							else
+							{
+								Instruction = std::string("DEC ") + Registers16[OCTAL_P(Opcode)];
+							}
 						}
 						break;
 					}
 					case 4:
 					{
-						Instruction = std::string("INC ") + Registers8[OCTAL_Y(Opcode)];
+						const uint8_t Y = OCTAL_Y(Opcode);
+						if (IndexRegister != EIndexRegisterType::None && Y >= 4 /*H, L, (HL)*/ && Y <= 6)
+						{
+							const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+							if (Y != 6)
+							{
+								Instruction = std::string("INC ") + IndexRegisterPair + Registers8[Y];
+							}
+							else // (HL)
+							{
+								const uint8_t Offset = RawData[Address++];
+								Instruction = std::format("INC ({} + #${:02X})", IndexRegisterPair, Offset);
+								Counter++;
+							}
+						}
+						else
+						{
+							Instruction = std::string("INC ") + Registers8[Y];
+						}
 						break;
 					}
 					case 5:
 					{
-						Instruction = std::string("DEC ") + Registers8[OCTAL_Y(Opcode)];
+						const uint8_t Y = OCTAL_Y(Opcode);
+						if (IndexRegister != EIndexRegisterType::None && Y >= 4 /*H, L, (HL)*/ && Y <= 6)
+						{
+							const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+							if (Y != 6)
+							{
+								Instruction = std::string("DEC ") + IndexRegisterPair + Registers8[Y];
+							}
+							else // (HL)
+							{
+								const uint8_t Offset = RawData[Address++];
+								Instruction = std::format("DEC ({} + #${:02X})", IndexRegisterPair, Offset);
+								Counter++;
+							}
+						}
+						else
+						{
+							Instruction = std::string("DEC ") + Registers8[Y];
+						}
 						break;
 					}
 					case 6:
 					{
+						const uint8_t Y = OCTAL_Y(Opcode);
 						const uint8_t Value = RawData[Address++];
-						Instruction = std::format("LD {}, #${:02X}", Registers8[OCTAL_Y(Opcode)], Value);
 						Counter++;
+						if (IndexRegister != EIndexRegisterType::None && Y >= 4 /*H, L, (HL)*/ && Y <= 6)
+						{
+							const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+							if (Y != 6)
+							{
+								Instruction = std::format("LD {}{}, #${:02X}", IndexRegisterPair, Registers8[Y], Value);
+							}
+							else // (HL)
+							{
+								const uint8_t Offset = RawData[Address++];
+								Counter++;
+								Instruction = std::format("LD ({} + #${:02X}), #${:02X}", IndexRegisterPair, Offset, Value);
+							}
+						}
+						else
+						{
+							Instruction = std::format("LD {}, #${:02X}", Registers8[Y], Value);
+						}
 						break;
 					}
 					case 7:
@@ -233,19 +342,63 @@ namespace Disassembler
 			}
 			case 1:
 			{
-				if (OCTAL_Y(Opcode) == 6 && OCTAL_Z(Opcode) == 6)
+				const uint8_t Y = OCTAL_Y(Opcode);
+				const uint8_t Z = OCTAL_Z(Opcode);
+				if (Y == 6 && Z == 6)
 				{
 					Instruction = std::string("HALT");
 				}
 				else
 				{
-					Instruction = std::format("LD {}, {}", Registers8[OCTAL_Y(Opcode)], Registers8[OCTAL_Z(Opcode)]);
+					if (IndexRegister != EIndexRegisterType::None && Y >= 4 /*H, L, (HL)*/ && Y <= 6)
+					{
+						const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+						if (Y != 6)
+						{
+							Instruction = std::format("LD {}{}, {}{}", IndexRegisterPair, Registers8[Y], IndexRegisterPair, Registers8[Z]);
+						}
+						else // (HL)
+						{
+							const uint8_t Offset = RawData[Address++];
+							Counter++;
+
+							const std::string StringOffset = std::format("({} + #${:02X})", IndexRegisterPair, Offset);
+							const char* Lhs = Y == 6 ? StringOffset.c_str() : Registers8[Y];
+							const char* Rhs = Z == 6 ? StringOffset.c_str() : Registers8[Z];
+							Instruction = std::format("LD {}, {}", Lhs, Rhs);
+						}
+					}
+					else
+					{
+						Instruction = std::format("LD {}, {}", Registers8[Y], Registers8[Z]);
+					}
 				}
 				break;
 			}
 			case 2:
 			{
-				Instruction = std::format("{} {}", ArithmeticLogic[OCTAL_Y(Opcode)], Registers8[OCTAL_Z(Opcode)]);
+				const uint8_t Y = OCTAL_Y(Opcode);
+				const uint8_t Z = OCTAL_Z(Opcode);
+				const uint8_t Value = RawData[Address++];
+				Counter++;
+				if (IndexRegister != EIndexRegisterType::None && Y >= 4 /*H, L, (HL)*/ && Y <= 6)
+				{
+					const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+					if (Y != 6)
+					{
+						Instruction = std::format("{} {}{}", ArithmeticLogic[OCTAL_Y(Opcode)], IndexRegisterPair, Registers8[Z]);
+					}
+					else // (HL)
+					{
+						const uint8_t Offset = RawData[Address++];
+						Counter++;
+						Instruction = std::format("{} ({} + #${:02X})", ArithmeticLogic[OCTAL_Y(Opcode)], IndexRegisterPair, Offset);
+					}
+				}
+				else
+				{
+					Instruction = std::format("{} {}", ArithmeticLogic[OCTAL_Y(Opcode)], Registers8[Z]);
+				}
 				break;
 			}
 			case 3:
@@ -262,16 +415,56 @@ namespace Disassembler
 						if (OCTAL_Q(Opcode) == 0)
 						{
 							const uint8_t P = OCTAL_P(Opcode);
-							Instruction = std::string("POP ") + Registers16[P == 3 ? P + 1 : P];
+							if (IndexRegister != EIndexRegisterType::None && P == 2 /*HL*/)
+							{
+								const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+								Instruction = std::string("POP ") + IndexRegisterPair;
+							}
+							else
+							{
+								Instruction = std::string("POP ") + Registers16[P == 3 ? P + 1 : P];
+							}
 						}
 						else
 						{
 							switch (OCTAL_P(Opcode))
 							{
-							case 0: Instruction = "RET";		break;
-							case 1: Instruction = "EXX";		break;
-							case 2: Instruction = "JP (HL)";	break;
-							case 3: Instruction = "LD SP, HL";	break;
+								case 0:
+								{
+									Instruction = "RET";
+									break;
+								}
+								case 1:
+								{
+									Instruction = "EXX";
+									break;
+								}
+								case 2:
+								{
+									if (IndexRegister != EIndexRegisterType::None)
+									{
+										const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+										Instruction = std::format("JP ({})", IndexRegisterPair);
+									}
+									else
+									{
+										Instruction = "JP (HL)";
+									}
+									break;
+								}
+								case 3:
+								{
+									if (IndexRegister != EIndexRegisterType::None)
+									{
+										const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+										Instruction = std::format("LD SP, {}", IndexRegisterPair);
+									}
+									else
+									{
+										Instruction = "LD SP, HL";
+									}
+									break;
+								}
 							}
 						}
 						break;
@@ -311,7 +504,15 @@ namespace Disassembler
 							}
 							case 4:
 							{
-								Instruction = "EX (SP), HL";
+								if (IndexRegister != EIndexRegisterType::None)
+								{
+									const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+									Instruction = std::format("EX (SP), {}", IndexRegisterPair);
+								}
+								else
+								{
+									Instruction = "EX (SP), HL";
+								}
 								break;
 							}
 							case 5:
@@ -344,7 +545,15 @@ namespace Disassembler
 						if (OCTAL_Q(Opcode) == 0)
 						{
 							const uint8_t P = OCTAL_P(Opcode);
-							Instruction = std::string("PUSH ") + Registers16[P == 3 ? P + 1 : P];
+							if (IndexRegister != EIndexRegisterType::None && P == 2 /*HL*/)
+							{
+								const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+								Instruction = std::string("PUSH ") + IndexRegisterPair;
+							}
+							else
+							{
+								Instruction = std::string("PUSH ") + Registers16[P == 3 ? P + 1 : P];
+							}
 						}
 						else
 						{
@@ -383,30 +592,97 @@ namespace Disassembler
 		return 0;
 	}
 
-	uint8_t CB_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter)
+	uint8_t CB_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister)
 	{
-		Counter++;
+		uint8_t Offset;
+		if (IndexRegister != EIndexRegisterType::None)
+		{
+			Offset = RawData[Address++];
+			Counter++;
+		}
 		const uint8_t Opcode = RawData[Address++];
+		Counter++;
 		switch (OCTAL_X(Opcode))
 		{
 			case 0:
 			{
-				Instruction = std::format("{} {}", RotationShift[OCTAL_Y(Opcode)], Registers8[OCTAL_Z(Opcode)]);
+				const uint8_t Y = OCTAL_Y(Opcode);
+				const uint8_t Z = OCTAL_Z(Opcode);
+				if (IndexRegister != EIndexRegisterType::None)
+				{
+					const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+					if (Y != 6)
+					{
+						Instruction = std::format("{} ({} + #${:02X}), {}", RotationShift[Y], IndexRegisterPair, Offset, Registers8[Z]);
+					}
+					else // (HL)
+					{
+						Instruction = std::format("{} ({} + #${:02X})", RotationShift[Y], IndexRegisterPair, Offset);
+					}
+				}
+				else
+				{
+					Instruction = std::format("{} {}", RotationShift[Y], Registers8[Z]);
+				}
 				break;
 			}
 			case 1:
 			{
-				Instruction = std::format("BIT {}, {}", OCTAL_Y(Opcode), Registers8[OCTAL_Z(Opcode)]);
+				const uint8_t Y = OCTAL_Y(Opcode);
+				const uint8_t Z = OCTAL_Z(Opcode);
+				if (IndexRegister != EIndexRegisterType::None)
+				{
+					const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+					Instruction = std::format("BIT {}, ({} + #${:02X})", Y, IndexRegisterPair, Offset);
+				}
+				else
+				{
+					Instruction = std::format("BIT {}, {}", Y, Registers8[Z]);
+				}
 				break;
 			}
 			case 2:
 			{
-				Instruction = std::format("RES {}, {}", OCTAL_Y(Opcode), Registers8[OCTAL_Z(Opcode)]);
+				const uint8_t Y = OCTAL_Y(Opcode);
+				const uint8_t Z = OCTAL_Z(Opcode);
+				if (IndexRegister != EIndexRegisterType::None)
+				{
+					const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+					if (Y != 6)
+					{
+						Instruction = std::format("RES {}, ({} + #${:02X}), {}", Y, IndexRegisterPair, Offset, Registers8[Z]);
+					}
+					else // (HL)
+					{
+						Instruction = std::format("RES {}, ({} + #${:02X})", Y, IndexRegisterPair, Offset);
+					}
+				}
+				else
+				{
+					Instruction = std::format("RES {}, {}", Y, Registers8[Z]);
+				}
 				break;
 			}
 			case 3:
 			{
-				Instruction = std::format("SET {}, {}", OCTAL_Y(Opcode), Registers8[OCTAL_Z(Opcode)]);
+				const uint8_t Y = OCTAL_Y(Opcode);
+				const uint8_t Z = OCTAL_Z(Opcode);
+				if (IndexRegister != EIndexRegisterType::None)
+				{
+					const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
+					if (Y != 6)
+					{
+						Instruction = std::format("SET {}, ({} + #${:02X}), {}", Y, IndexRegisterPair, Offset, Registers8[Z]);
+					}
+					else // (HL)
+					{
+						Instruction = std::format("RES {}, ({} + #${:02X})", Y, IndexRegisterPair, Offset);
+					}
+				}
+				else
+				{
+					Instruction = std::format("RES {}, {}", Y, Registers8[Z]);
+				}
 				break;
 			}
 		}
@@ -414,19 +690,22 @@ namespace Disassembler
 	}
 
 	uint8_t ED_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter);
-	uint8_t FD_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter);
-	uint8_t DD_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter)
+	uint8_t FD_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister);
+	uint8_t DD_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister)
 	{
 		Counter++;
 		const uint8_t Opcode = RawData[Address++];
 		switch (Opcode)
 		{
-			case 0xDD: DD_Opcodes(Address, RawData, Instruction, Counter);									break;
-			case 0xED: ED_Opcodes(Address, RawData, Instruction, Counter);									break;
-			case 0xFD: FD_Opcodes(Address, RawData, Instruction, Counter);									break;
-			default:   UnprefixedOpcodes(Address, RawData, Instruction, Counter, EIndexRegisterType::IX);	break;
+			case 0xDD: return DD_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
+			case 0xED:		  ED_Opcodes(Address, RawData, Instruction, Counter);					return 0;
+			case 0xFD: return FD_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
+			default:
+			{
+				IndexRegister = EIndexRegisterType::IX;
+				return UnprefixedOpcodes(Address, RawData, Instruction, Counter, IndexRegister);
+			}
 		}
-		return Counter;
 	}
 
 	uint8_t ED_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter)
@@ -560,30 +839,39 @@ namespace Disassembler
 		return 0;
 	}
 
-	uint8_t FD_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter)
+	uint8_t FD_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister)
 	{
 		Counter++;
 		const uint8_t Opcode = RawData[Address++];
 		switch (Opcode)
 		{
-		case 0xDD: DD_Opcodes(Address, RawData, Instruction, Counter);									break;
-		case 0xED: ED_Opcodes(Address, RawData, Instruction, Counter);									break;
-		case 0xFD: FD_Opcodes(Address, RawData, Instruction, Counter);									break;
-		default:   UnprefixedOpcodes(Address, RawData, Instruction, Counter, EIndexRegisterType::IY);	break;
+			case 0xDD: return DD_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
+			case 0xED:		  ED_Opcodes(Address, RawData, Instruction, Counter);					return 0;
+			case 0xFD: return FD_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
+			default:
+			{
+				IndexRegister = EIndexRegisterType::IY;
+				return UnprefixedOpcodes(Address, RawData, Instruction, Counter, IndexRegister);
+			}
 		}
-		return Counter;
 	}
 
 	uint8_t Instruction(std::string& Instruction, uint16_t& Address, const uint8_t* RawData)
 	{
 		uint8_t Counter = 0;
-		switch (UnprefixedOpcodes(Address, RawData, Instruction, Counter))
+		EIndexRegisterType IndexRegister = EIndexRegisterType::None;
+
+		uint8_t Opcode = UnprefixedOpcodes(Address, RawData, Instruction, Counter, IndexRegister);
+		do
 		{
-		case 0xCB: CB_Opcodes(Address, RawData, Instruction, Counter); break;
-		case 0xDD: DD_Opcodes(Address, RawData, Instruction, Counter); break;
-		case 0xED: ED_Opcodes(Address, RawData, Instruction, Counter); break;
-		case 0xFD: FD_Opcodes(Address, RawData, Instruction, Counter); break;
-		}
+			switch (Opcode)
+			{
+				case 0xCB: Opcode = CB_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
+				case 0xDD: Opcode = DD_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
+				case 0xED: Opcode = ED_Opcodes(Address, RawData, Instruction, Counter);					break;
+				case 0xFD: Opcode = FD_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
+			}
+		} while (Opcode != 0);
 		return Counter;
 	}
 
