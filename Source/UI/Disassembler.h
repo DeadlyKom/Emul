@@ -51,7 +51,8 @@ private:
 	void Draw_CodeDisassembler(EThreadStatus Status);
 	void Draw_Breakpoint(uint16_t Address);
 	void Draw_Address(uint16_t Address, int32_t CurrentLine);
-	uint32_t Draw_Instruction(uint16_t& Address);
+	void Draw_OpcodeInstruction(uint16_t Address, const std::string& Opcodes, int32_t CurrentLine);
+	void Draw_Instruction(uint16_t Address, const std::string& Command, int32_t CurrentLine);
 
 	void Input_HotKeys();
 	void Input_Mouse();
@@ -64,6 +65,7 @@ private:
 	// visual preferences
 	bool bMemoryArea;
 	bool bShowStatusBar;
+	bool bShowOpcode;
 	bool bAddressUpperCaseHex;			// display hexadecimal values as "FF" instead of "ff"
 	bool bInstructionUpperCaseHex;		// display hexadecimal values as "FF" instead of "ff"
 
@@ -73,8 +75,10 @@ private:
 
 	// state
 	bool bAddressEditingTakeFocus;
+	bool bInstructionEditingTakeFocus;
 	char AddressInputBuffer[9];
 	int32_t AddressEditing;
+	int32_t InstructionEditing;
 
 	FDisassemblerInput InputActionEvent;
 

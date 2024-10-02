@@ -15,7 +15,11 @@ namespace
 	static constexpr float ColumnWidth_Breakpoint = 2;
 	static constexpr float ColumnWidth_PrefixAddress = 10.0f;
 	static constexpr float ColumnWidth_Address = 50.0f;
+	static constexpr float ColumnWidth_Opcode = 70.0f;
 	static constexpr float ColumnWidth_Instruction = 200.0f;
+
+	#define FORMAT_ADDRESS(upper)		(upper ? "%04X" : "%04x")
+	#define FORMAT_OPCODE(upper)		(upper ? "{:02X}" : "{:02x}")
 }
 
 namespace Disassembler
@@ -55,13 +59,17 @@ namespace Disassembler
 	#define OCTAL_P(opcode)		((opcode & 0x30) >> 4)
 	#define OCTAL_Q(opcode)		((opcode & 0x08) >> 3)
 
-	uint8_t UnprefixedOpcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister)
+	#define LOW(value)			((value >> 0) & 0xFF)
+	#define HIGH(value)			((value >> 8) & 0xFF)
+
+	uint8_t UnprefixedOpcodes(uint16_t& Address, std::string& Opcodes, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister)
 	{
-		const uint8_t Opcode = RawData[Address];
+		const uint8_t Opcode = RawData[Address++];
 		if (IndexRegister == EIndexRegisterType::None)
 		{
+			Opcodes += std::format(FORMAT_OPCODE(true), Opcode);
 			Counter++;
-			Address++;
+			//Address++;
 		}
 
 		switch (OCTAL_X(Opcode))
@@ -87,6 +95,7 @@ namespace Disassembler
 							case 2:
 							{
 								const int16_t Value = (signed char)RawData[Address++];
+								Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
 								Instruction = std::format("DJNZ #${:04X}", uint16_t(Value + Address));
 								Counter++;
 								break;
@@ -94,6 +103,7 @@ namespace Disassembler
 							case 3:
 							{
 								const int16_t Value = (signed char)RawData[Address++];
+								Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
 								Instruction = std::format("JR #${:04X}", uint16_t(Value + Address));
 								Counter++;
 								break;
@@ -104,6 +114,7 @@ namespace Disassembler
 							case 7:
 							{
 								const int16_t Value = (signed char)RawData[Address++];
+								Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
 								Instruction = std::format("JR !{}, #${:04X}", Conditions[OCTAL_Y(Opcode) - 4], uint16_t(Value + Address));
 								Counter++;
 								break;
@@ -117,6 +128,8 @@ namespace Disassembler
 						{
 							
 							const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+							Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
+							Opcodes += std::format(FORMAT_OPCODE(true), HIGH(Value));
 							if (IndexRegister != EIndexRegisterType::None && OCTAL_P(Opcode) == 2 /*HL*/)
 							{
 								const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
@@ -162,6 +175,8 @@ namespace Disassembler
 								case 2:
 								{
 									const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+									Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
+									Opcodes += std::format(FORMAT_OPCODE(true), HIGH(Value));
 									if (IndexRegister != EIndexRegisterType::None && OCTAL_P(Opcode) == 2 /*HL*/)
 									{
 										const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
@@ -177,6 +192,8 @@ namespace Disassembler
 								case 3:
 								{
 									const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+									Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
+									Opcodes += std::format(FORMAT_OPCODE(true), HIGH(Value));
 									Instruction = std::format("LD (#${:04X}), A", Value);
 									Counter += 2;
 									break;
@@ -200,6 +217,8 @@ namespace Disassembler
 								case 2:
 								{
 									const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+									Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
+									Opcodes += std::format(FORMAT_OPCODE(true), HIGH(Value));
 									if (IndexRegister != EIndexRegisterType::None && OCTAL_P(Opcode) == 2 /*HL*/)
 									{
 										const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
@@ -215,6 +234,8 @@ namespace Disassembler
 								case 3:
 								{
 									const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+									Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
+									Opcodes += std::format(FORMAT_OPCODE(true), HIGH(Value));
 									Instruction = std::format("LD A, (#${:04X})", Value);
 									Counter += 2;
 									break;
@@ -264,7 +285,8 @@ namespace Disassembler
 							else // (HL)
 							{
 								const uint8_t Offset = RawData[Address++];
-								Instruction = std::format("INC ({} + #${:02X})", IndexRegisterPair, Offset);
+								Opcodes += std::format(FORMAT_OPCODE(true), Offset);
+								Instruction = std::format("INC ({}+#^{:02X})", IndexRegisterPair, Offset);
 								Counter++;
 							}
 						}
@@ -287,7 +309,8 @@ namespace Disassembler
 							else // (HL)
 							{
 								const uint8_t Offset = RawData[Address++];
-								Instruction = std::format("DEC ({} + #${:02X})", IndexRegisterPair, Offset);
+								Opcodes += std::format(FORMAT_OPCODE(true), Offset);
+								Instruction = std::format("DEC ({}+#^{:02X})", IndexRegisterPair, Offset);
 								Counter++;
 							}
 						}
@@ -301,6 +324,7 @@ namespace Disassembler
 					{
 						const uint8_t Y = OCTAL_Y(Opcode);
 						const uint8_t Value = RawData[Address++];
+						Opcodes += std::format(FORMAT_OPCODE(true), Value);
 						Counter++;
 						if (IndexRegister != EIndexRegisterType::None && Y >= 4 /*H, L, (HL)*/ && Y <= 6)
 						{
@@ -312,8 +336,9 @@ namespace Disassembler
 							else // (HL)
 							{
 								const uint8_t Offset = RawData[Address++];
+								Opcodes += std::format(FORMAT_OPCODE(true), Offset);
 								Counter++;
-								Instruction = std::format("LD ({} + #${:02X}), #${:02X}", IndexRegisterPair, Offset, Value);
+								Instruction = std::format("LD ({}+#^{:02X}), #${:02X}", IndexRegisterPair, Offset, Value);
 							}
 						}
 						else
@@ -360,9 +385,10 @@ namespace Disassembler
 						else // (HL)
 						{
 							const uint8_t Offset = RawData[Address++];
+							Opcodes += std::format(FORMAT_OPCODE(true), Offset);
 							Counter++;
 
-							const std::string StringOffset = std::format("({} + #${:02X})", IndexRegisterPair, Offset);
+							const std::string StringOffset = std::format("({}+#^{:02X})", IndexRegisterPair, Offset);
 							const char* Lhs = Y == 6 ? StringOffset.c_str() : Registers8[Y];
 							const char* Rhs = Z == 6 ? StringOffset.c_str() : Registers8[Z];
 							Instruction = std::format("LD {}, {}", Lhs, Rhs);
@@ -379,10 +405,12 @@ namespace Disassembler
 			{
 				const uint8_t Y = OCTAL_Y(Opcode);
 				const uint8_t Z = OCTAL_Z(Opcode);
-				const uint8_t Value = RawData[Address++];
-				Counter++;
 				if (IndexRegister != EIndexRegisterType::None && Y >= 4 /*H, L, (HL)*/ && Y <= 6)
 				{
+					const uint8_t Value = RawData[Address++];
+					Opcodes += std::format(FORMAT_OPCODE(true), Value);
+					Counter++;
+
 					const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
 					if (Y != 6)
 					{
@@ -391,8 +419,9 @@ namespace Disassembler
 					else // (HL)
 					{
 						const uint8_t Offset = RawData[Address++];
+						Opcodes += std::format(FORMAT_OPCODE(true), Offset);
 						Counter++;
-						Instruction = std::format("{} ({} + #${:02X})", ArithmeticLogic[OCTAL_Y(Opcode)], IndexRegisterPair, Offset);
+						Instruction = std::format("{} ({}+#^{:02X})", ArithmeticLogic[OCTAL_Y(Opcode)], IndexRegisterPair, Offset);
 					}
 				}
 				else
@@ -472,6 +501,8 @@ namespace Disassembler
 					case 2:
 					{
 						const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+						Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
+						Opcodes += std::format(FORMAT_OPCODE(true), HIGH(Value));
 						Instruction = std::format("JP !{}, #${:04X}", Conditions[OCTAL_Y(Opcode)], Value);
 						Counter +=2;
 						break;
@@ -483,6 +514,8 @@ namespace Disassembler
 							case 0:
 							{
 								const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+								Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
+								Opcodes += std::format(FORMAT_OPCODE(true), HIGH(Value));
 								Instruction = std::format("JP #${:04X}", Value);
 								Counter += 2;
 								break;
@@ -491,6 +524,7 @@ namespace Disassembler
 							case 2:
 							{
 								const uint8_t Value = RawData[Address++];
+								Opcodes += std::format(FORMAT_OPCODE(true), Value);
 								Instruction = std::format("OUT (#${:02X}), A", Value);
 								Counter++;
 								break;
@@ -498,6 +532,7 @@ namespace Disassembler
 							case 3:
 							{
 								const uint8_t Value = RawData[Address++];
+								Opcodes += std::format(FORMAT_OPCODE(true), Value);
 								Instruction = std::format("IN A, (#${:02X})", Value);
 								Counter++;
 								break;
@@ -536,6 +571,8 @@ namespace Disassembler
 					case 4:
 					{
 						const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+						Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
+						Opcodes += std::format(FORMAT_OPCODE(true), HIGH(Value));
 						Instruction = std::format("CALL !{}, #${:04X}", Conditions[OCTAL_Y(Opcode)], Value);
 						Counter += 2;
 						break;
@@ -562,6 +599,8 @@ namespace Disassembler
 								case 0:
 								{
 									const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+									Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
+									Opcodes += std::format(FORMAT_OPCODE(true), HIGH(Value));
 									Instruction = std::format("CALL #${:04X}", Value);
 									Counter += 2;
 									break;
@@ -576,6 +615,7 @@ namespace Disassembler
 					case 6:
 					{
 						const uint8_t Value = RawData[Address++];
+						Opcodes += std::format(FORMAT_OPCODE(true), Value);
 						Instruction = std::format("{} #${:02X}", ArithmeticLogic[OCTAL_Y(Opcode)], Value);
 						Counter++;
 						break;
@@ -592,15 +632,17 @@ namespace Disassembler
 		return 0;
 	}
 
-	uint8_t CB_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister)
+	uint8_t CB_Opcodes(uint16_t& Address, std::string& Opcodes, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister)
 	{
 		uint8_t Offset;
 		if (IndexRegister != EIndexRegisterType::None)
 		{
 			Offset = RawData[Address++];
+			Opcodes += std::format(FORMAT_OPCODE(true), Offset);
 			Counter++;
 		}
 		const uint8_t Opcode = RawData[Address++];
+		Opcodes += std::format(FORMAT_OPCODE(true), Opcode);
 		Counter++;
 		switch (OCTAL_X(Opcode))
 		{
@@ -613,11 +655,11 @@ namespace Disassembler
 					const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
 					if (Y != 6)
 					{
-						Instruction = std::format("{} ({} + #${:02X}), {}", RotationShift[Y], IndexRegisterPair, Offset, Registers8[Z]);
+						Instruction = std::format("{} ({}+#^{:02X}), {}", RotationShift[Y], IndexRegisterPair, Offset, Registers8[Z]);
 					}
 					else // (HL)
 					{
-						Instruction = std::format("{} ({} + #${:02X})", RotationShift[Y], IndexRegisterPair, Offset);
+						Instruction = std::format("{} ({}+#^{:02X})", RotationShift[Y], IndexRegisterPair, Offset);
 					}
 				}
 				else
@@ -633,7 +675,7 @@ namespace Disassembler
 				if (IndexRegister != EIndexRegisterType::None)
 				{
 					const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
-					Instruction = std::format("BIT {}, ({} + #${:02X})", Y, IndexRegisterPair, Offset);
+					Instruction = std::format("BIT {}, ({}+#^{:02X})", Y, IndexRegisterPair, Offset);
 				}
 				else
 				{
@@ -650,11 +692,11 @@ namespace Disassembler
 					const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
 					if (Y != 6)
 					{
-						Instruction = std::format("RES {}, ({} + #${:02X}), {}", Y, IndexRegisterPair, Offset, Registers8[Z]);
+						Instruction = std::format("RES {}, ({}+#^{:02X}), {}", Y, IndexRegisterPair, Offset, Registers8[Z]);
 					}
 					else // (HL)
 					{
-						Instruction = std::format("RES {}, ({} + #${:02X})", Y, IndexRegisterPair, Offset);
+						Instruction = std::format("RES {}, ({}+#^{:02X})", Y, IndexRegisterPair, Offset);
 					}
 				}
 				else
@@ -672,11 +714,11 @@ namespace Disassembler
 					const std::string IndexRegisterPair = IndexRegister == EIndexRegisterType::IX ? "IX" : "IY";
 					if (Y != 6)
 					{
-						Instruction = std::format("SET {}, ({} + #${:02X}), {}", Y, IndexRegisterPair, Offset, Registers8[Z]);
+						Instruction = std::format("SET {}, ({}+#^{:02X}), {}", Y, IndexRegisterPair, Offset, Registers8[Z]);
 					}
 					else // (HL)
 					{
-						Instruction = std::format("RES {}, ({} + #${:02X})", Y, IndexRegisterPair, Offset);
+						Instruction = std::format("RES {}, ({}+#^{:02X})", Y, IndexRegisterPair, Offset);
 					}
 				}
 				else
@@ -689,30 +731,32 @@ namespace Disassembler
 		return 0;
 	}
 
-	uint8_t ED_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter);
-	uint8_t FD_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister);
-	uint8_t DD_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister)
+	uint8_t ED_Opcodes(uint16_t& Address, std::string& Opcodes, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter);
+	uint8_t FD_Opcodes(uint16_t& Address, std::string& Opcodes, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister);
+	uint8_t DD_Opcodes(uint16_t& Address, std::string& Opcodes, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister)
 	{
 		Counter++;
 		const uint8_t Opcode = RawData[Address++];
+		Opcodes += std::format(FORMAT_OPCODE(true), Opcode);
 		switch (Opcode)
 		{
-			case 0xDD: return DD_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
-			case 0xED:		  ED_Opcodes(Address, RawData, Instruction, Counter);					return 0;
-			case 0xFD: return FD_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
+			case 0xDD: return DD_Opcodes(Address, Opcodes, RawData, Instruction, Counter, IndexRegister);	break;
+			case 0xED:		  ED_Opcodes(Address, Opcodes, RawData, Instruction, Counter);					return 0;
+			case 0xFD: return FD_Opcodes(Address, Opcodes, RawData, Instruction, Counter, IndexRegister);	break;
 			default:
 			{
 				IndexRegister = EIndexRegisterType::IX;
-				return UnprefixedOpcodes(Address, RawData, Instruction, Counter, IndexRegister);
+				return UnprefixedOpcodes(--Address, Opcodes, RawData, Instruction, Counter, IndexRegister);
 			}
 		}
 	}
 
-	uint8_t ED_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter)
+	uint8_t ED_Opcodes(uint16_t& Address, std::string& Opcodes, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter)
 	{
 		bool bNMOS = true;
 		Counter++;
 		const uint8_t Opcode = RawData[Address++];
+		Opcodes += std::format(FORMAT_OPCODE(true), Opcode);
 		switch (OCTAL_X(Opcode))
 		{
 			case 0:
@@ -770,12 +814,16 @@ namespace Disassembler
 						if (OCTAL_Q(Opcode) == 0)
 						{
 							const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+							Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
+							Opcodes += std::format(FORMAT_OPCODE(true), HIGH(Value));
 							Instruction = std::format("LD (#${:04X}), {}", Value, Registers16[OCTAL_P(Opcode)]);
 							Counter += 2;
 						}
 						else
 						{
 							const uint16_t Value = *reinterpret_cast<const uint16_t*>(RawData + Address); Address += 2;
+							Opcodes += std::format(FORMAT_OPCODE(true), LOW(Value));
+							Opcodes += std::format(FORMAT_OPCODE(true), HIGH(Value));
 							Instruction = std::format("LD {}, (#${:04X})", Registers16[OCTAL_P(Opcode)], Value);
 							Counter += 2;
 						}
@@ -839,37 +887,39 @@ namespace Disassembler
 		return 0;
 	}
 
-	uint8_t FD_Opcodes(uint16_t& Address, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister)
+	uint8_t FD_Opcodes(uint16_t& Address, std::string& Opcodes, const uint8_t* RawData, std::string& Instruction, uint8_t& Counter, EIndexRegisterType& IndexRegister)
 	{
 		Counter++;
 		const uint8_t Opcode = RawData[Address++];
+		Opcodes += std::format(FORMAT_OPCODE(true), Opcode);
 		switch (Opcode)
 		{
-			case 0xDD: return DD_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
-			case 0xED:		  ED_Opcodes(Address, RawData, Instruction, Counter);					return 0;
-			case 0xFD: return FD_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
+			case 0xDD: return DD_Opcodes(Address, Opcodes, RawData, Instruction, Counter, IndexRegister);	break;
+			case 0xED:		  ED_Opcodes(Address, Opcodes, RawData, Instruction, Counter);					return 0;
+			case 0xFD: return FD_Opcodes(Address, Opcodes, RawData, Instruction, Counter, IndexRegister);	break;
 			default:
 			{
 				IndexRegister = EIndexRegisterType::IY;
-				return UnprefixedOpcodes(Address, RawData, Instruction, Counter, IndexRegister);
+				return UnprefixedOpcodes(--Address, Opcodes, RawData, Instruction, Counter, IndexRegister);
 			}
 		}
 	}
 
-	uint8_t Instruction(std::string& Instruction, uint16_t& Address, const uint8_t* RawData)
+	uint8_t Instruction(std::string& Instruction, std::string& Opcodes, uint16_t& Address, const uint8_t* RawData)
 	{
 		uint8_t Counter = 0;
+		Opcodes.clear();
 		EIndexRegisterType IndexRegister = EIndexRegisterType::None;
 
-		uint8_t Opcode = UnprefixedOpcodes(Address, RawData, Instruction, Counter, IndexRegister);
+		uint8_t Opcode = UnprefixedOpcodes(Address, Opcodes, RawData, Instruction, Counter, IndexRegister);
 		do
 		{
 			switch (Opcode)
 			{
-				case 0xCB: Opcode = CB_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
-				case 0xDD: Opcode = DD_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
-				case 0xED: Opcode = ED_Opcodes(Address, RawData, Instruction, Counter);					break;
-				case 0xFD: Opcode = FD_Opcodes(Address, RawData, Instruction, Counter, IndexRegister);	break;
+				case 0xCB: Opcode = CB_Opcodes(Address, Opcodes, RawData, Instruction, Counter, IndexRegister);	break;
+				case 0xDD: Opcode = DD_Opcodes(Address, Opcodes, RawData, Instruction, Counter, IndexRegister);	break;
+				case 0xED: Opcode = ED_Opcodes(Address, Opcodes, RawData, Instruction, Counter);				break;
+				case 0xFD: Opcode = FD_Opcodes(Address, Opcodes, RawData, Instruction, Counter, IndexRegister);	break;
 			}
 		} while (Opcode != 0);
 		return Counter;
@@ -877,12 +927,12 @@ namespace Disassembler
 
 	void StepLine(uint16_t& Address, int32_t Steps, const std::vector<uint8_t>& AddressSpace)
 	{
-		std::string Command;
+		std::string Command, Opcodes;
 		if (Steps > 0)
 		{
 			for (int32_t i = 0; i < Steps; ++i)
 			{
-				Instruction(Command, Address, AddressSpace.data());
+				Instruction(Command, Opcodes, Address, AddressSpace.data());
 			}
 		}
 		else
@@ -893,7 +943,7 @@ namespace Disassembler
 				for (BackStep = 16; BackStep > 0; --BackStep)
 				{
 					uint16_t TmpAddress = Address - BackStep;
-					if (Instruction(Command, TmpAddress, AddressSpace.data()) == BackStep)
+					if (Instruction(Command, Opcodes, TmpAddress, AddressSpace.data()) == BackStep)
 					{
 						Address = Address - BackStep;
 						break;
@@ -953,7 +1003,7 @@ namespace Disassembler
 
 		if (Symbol >= 'A' && Symbol <= 'Z')
 		{
-			std::string Register = Symbol + CutOutWordPart(String, {", ", " "});
+			std::string Register = Symbol + CutOutWordPart(String, {"+", " ", ", "});
 			SyntacticType = ESyntacticType::Register;
 			return Register;
 		}
@@ -988,7 +1038,6 @@ namespace Disassembler
 		{
 			SyntacticType = ESyntacticType::ConstantOffset;
 			std::string Value = CutOutWordPart(String, { ")" });
-			SyntacticType = ESyntacticType::Constant;
 			return Value;
 		}
 		else
@@ -1004,11 +1053,14 @@ SDisassembler::SDisassembler(EFont::Type _FontName)
 	: SWindow(ThisWindowName, _FontName, true)
 	, bMemoryArea(false)
 	, bShowStatusBar(true)
+	, bShowOpcode(true)
 	, bAddressUpperCaseHex(true)
 	, bInstructionUpperCaseHex(false)
 	, CodeDisassemblerScale(1.0f)
 	, bAddressEditingTakeFocus(false)
+	, bInstructionEditingTakeFocus(false)
 	, AddressEditing(INDEX_NONE)
+	, InstructionEditing(INDEX_NONE)
 	, CursorAtAddress(INDEX_NONE)
 	, LatestClockCounter(INDEX_NONE)
 {}
@@ -1084,7 +1136,8 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 
 	CodeDisassemblerID = ImGui::GetCurrentWindow()->ID;
 
-	if (ImGui::BeginTable("##Disassembler", bMemoryArea ? 4 : 3,
+	const int32_t ColumnsNum = 3 + bMemoryArea + bShowOpcode;
+	if (ImGui::BeginTable("##Disassembler", ColumnsNum,
 		ImGuiTableFlags_NoPadOuterX |
 		ImGuiTableFlags_NoClip |
 		ImGuiTableFlags_NoBordersInBodyUntilResize |
@@ -1094,6 +1147,7 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 		ImGui::TableSetupColumn("Breakpoint", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, ColumnWidth_Breakpoint * CodeDisassemblerScale);
 		if (bMemoryArea) ImGui::TableSetupColumn("PrefixAddress", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, ColumnWidth_PrefixAddress * CodeDisassemblerScale);
 		ImGui::TableSetupColumn("Address", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, ColumnWidth_Address * CodeDisassemblerScale);
+		if (bShowOpcode) ImGui::TableSetupColumn("Opcode", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, ColumnWidth_Opcode * CodeDisassemblerScale);
 		ImGui::TableSetupColumn("Instruction", ImGuiTableColumnFlags_WidthStretch , ColumnWidth_Instruction * CodeDisassemblerScale);
 
 		const int32_t Lines = UI::GetVisibleLines(FontName);
@@ -1164,14 +1218,22 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 
 		// draw disassembler
 		{
+			std::string Opcodes;
+			std::string Command;
 			uint16_t Address = CursorAtAddress;
 			for (int32_t i = 0; i < Lines + 1; ++i)
 			{
+				const uint32_t Length = Disassembler::Instruction(Command, Opcodes, Address, AddressSpace.data());
+
 				ImGui::TableNextRow();
 
 				Draw_Breakpoint(Address);
 				Draw_Address(Address, i);
-				Draw_Instruction(Address);
+				if (bShowOpcode)
+				{
+					Draw_OpcodeInstruction(Address, Opcodes, i);
+				}
+				Draw_Instruction(Address, Command, i);
 			}
 		}
 		ImGui::EndTable();
@@ -1206,8 +1268,6 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 		ImGui::PopStyleColor();
 	}
 
-	const char* FormatAddress = bAddressUpperCaseHex ? "%04X" : "%04x";
-
 	ImGui::TableNextColumn();
 	ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, COL_CONST32(UI::COLOR_DISASM_BG_ADDRESS));
 
@@ -1216,7 +1276,7 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 	{
 		ImGui::Text("#");
 		ImGui::SameLine(0.0f, 0.0f);
-		ImGui::Text(FormatAddress, Address);
+		ImGui::Text(FORMAT_ADDRESS(bAddressUpperCaseHex), Address);
 
 		if ((InputActionEvent.Type == EDisassemblerInput::InputGoToAddress && CurrentLine == 0) || (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0)))
 		{
@@ -1230,7 +1290,7 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 		if (bAddressEditingTakeFocus)
 		{
 			ImGui::SetKeyboardFocusHere(0);
-			std::sprintf(AddressInputBuffer, FormatAddress, Address);
+			std::sprintf(AddressInputBuffer, FORMAT_ADDRESS(bAddressUpperCaseHex), Address);
 		}
 
 		const ImVec2 StringSize = ImGui::CalcTextSize(AddressInputBuffer, nullptr, true);
@@ -1298,71 +1358,117 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 	ImGui::PopStyleColor();
 }
 
-uint32_t SDisassembler::Draw_Instruction(uint16_t& Address)
+void SDisassembler::Draw_OpcodeInstruction(uint16_t Address, const std::string& Opcodes, int32_t CurrentLine)
 {
-	std::string Command;
-	std::vector<std::string> Instruction;
-	const uint32_t Length = Disassembler::Instruction(Command, Address, AddressSpace.data());
-
 	ImGui::TableNextColumn();
-	ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, COL_CONST32(UI::COLOR_DISASM_BG_MNEMONIC));
-	static const float Offset[] = { 10, 100, 150 };
-	static const ImVec4 Color[] = { COL_CONST(UI::COLOR_DISASM_INSTRUCTION), COL_CONST(UI::COLOR_DISASM_MNEMONIC), COL_CONST(UI::COLOR_DISASM_MNEMONIC) };
+	ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, COL_CONST32(UI::COLOR_DISASM_BG_OPCODE_ADDRESS));
 
+	ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_DISASM_ADDRESS));
 	ImGuiWindow* Window = ImGui::GetCurrentWindow();
 	if (!Window->SkipItems)
 	{
-		const float FirstPadding = 10.0f;
-		const float SecondPadding = FirstPadding + 80.0f;
 		const ImVec2 Padding = { 0.0f, 0.0f };
 		const ImVec2 Aligment = { 0.0f, 0.0f };
 		const ImVec2 Position = Window->DC.CursorPos;
 
-		ImGuiContext& Context = *GImGui;
-		ImGuiStyle& Style = Context.Style;
-
-		// draw mnemonic
-		ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_DISASM_INSTRUCTION));
-
-		std::string Operation = Disassembler::Operation(Command);
-
-		const ImVec2 StringSize = ImGui::CalcTextSize(Operation.c_str(), nullptr, true);
+		const ImVec2 StringSize = ImGui::CalcTextSize(Opcodes.c_str(), nullptr, true);
 		const ImVec2 Size = ImGui::CalcItemSize(ImVec2(-FLT_MIN, 0.0f), StringSize.x + Padding.x * 2.0f, StringSize.y + Padding.y * 2.0f);
 		const ImRect bb(Position, Position + Size);
-		ImGui::RenderTextClipped(bb.Min + Padding + ImVec2(FirstPadding, 0.0f) * CodeDisassemblerScale, bb.Max - Padding, Operation.c_str(), nullptr, &StringSize, Aligment, &bb);
+		ImGui::RenderTextClipped(bb.Min + Padding, bb.Max - Padding, Opcodes.c_str(), nullptr, &StringSize, Aligment, &bb);
+	}
+	ImGui::PopStyleColor();
+}
 
-		ImGui::PopStyleColor();
+void SDisassembler::Draw_Instruction(uint16_t Address, const std::string& _Command, int32_t CurrentLine)
+{
+	std::string Command = _Command;
+	std::vector<std::string> Instruction;
 
-		// draw remaining part of command
-		float TextOffset = 0;
-		Disassembler::ESyntacticType Type = Disassembler::ESyntacticType::NotInit;
-		while (true)
+	ImGui::TableNextColumn();
+	ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, COL_CONST32(UI::COLOR_DISASM_BG_MNEMONIC));
+
+	if (InstructionEditing != Address)
+	{
+		ImGuiWindow* Window = ImGui::GetCurrentWindow();
+		if (!Window->SkipItems)
 		{
-			std::string Part = Disassembler::SyntacticParse(Command, Type);
-			if (Type == Disassembler::ESyntacticType::None)
+			const float FirstPadding = 10.0f;
+			const float SecondPadding = FirstPadding + 80.0f;
+			const ImVec2 Padding = { 0.0f, 0.0f };
+			const ImVec2 Aligment = { 0.0f, 0.0f };
+			const ImVec2 Position = Window->DC.CursorPos;
+
+			// interaction rectangle
 			{
-				break;
+				const ImVec2 StringSize = ImGui::CalcTextSize(Command.c_str(), nullptr, true);
+				const ImVec2 Size = ImGui::CalcItemSize(ImVec2(-FLT_MIN, 0.0f), StringSize.x + Padding.x * 2.0f, StringSize.y + Padding.y * 2.0f);
+				const ImRect bb(Position, Position + Size);
+
+				std::string UniqueID_Instructon = std::format("#{:04X}_{}", Address, Command);
+				const ImGuiID GuiID = Window->GetID(UniqueID_Instructon.c_str());
+				if (!ImGui::ItemAdd(bb, GuiID))
+				{
+					return;
+				}
 			}
-			if (Part.compare(" ") == 0)
+
+			// draw mnemonic
 			{
-				TextOffset += Style.FramePadding.x * 2.0f;
-				continue;
+				ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_DISASM_INSTRUCTION));
+
+				std::string Operation = Disassembler::Operation(Command);
+
+				const ImVec2 StringSize = ImGui::CalcTextSize(Operation.c_str(), nullptr, true);
+				const ImVec2 Size = ImGui::CalcItemSize(ImVec2(-FLT_MIN, 0.0f), StringSize.x + Padding.x * 2.0f, StringSize.y + Padding.y * 2.0f);
+				const ImRect bb(Position, Position + Size);
+				ImGui::RenderTextClipped(bb.Min + Padding + ImVec2(FirstPadding, 0.0f) * CodeDisassemblerScale, bb.Max - Padding, Operation.c_str(), nullptr, &StringSize, Aligment, &bb);
+
+				ImGui::PopStyleColor();
 			}
 
-			ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST((int32_t)Type));
+			// draw remaining part of command
+			{
+				float TextOffset = 0;
+				ImGuiStyle& Style = GImGui->Style;
+				Disassembler::ESyntacticType Type = Disassembler::ESyntacticType::NotInit;
+				while (true)
+				{
+					std::string Part = Disassembler::SyntacticParse(Command, Type);
+					if (Type == Disassembler::ESyntacticType::None)
+					{
+						break;
+					}
+					if (Part.compare(" ") == 0)
+					{
+						TextOffset += Style.FramePadding.x * 2.0f;
+						continue;
+					}
 
-			const ImVec2 StringSize = ImGui::CalcTextSize(Part.c_str(), nullptr, true);
-			const ImVec2 Size = ImGui::CalcItemSize(ImVec2(-FLT_MIN, 0.0f), StringSize.x + Padding.x * 2.0f, StringSize.y + Padding.y * 2.0f);
-			const ImRect bb(Position, Position + Size);
-			ImGui::RenderTextClipped(bb.Min + Padding + ImVec2(SecondPadding * CodeDisassemblerScale + TextOffset, 0.0f), bb.Max - Padding, Part.c_str(), nullptr, &StringSize, Aligment, &bb);
+					ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST((int32_t)Type));
 
-			TextOffset += StringSize.x;
+					const ImVec2 StringSize = ImGui::CalcTextSize(Part.c_str(), nullptr, true);
+					const ImVec2 Size = ImGui::CalcItemSize(ImVec2(-FLT_MIN, 0.0f), StringSize.x + Padding.x * 2.0f, StringSize.y + Padding.y * 2.0f);
+					const ImRect bb(Position, Position + Size);
 
-			ImGui::PopStyleColor();
+					ImGui::RenderTextClipped(bb.Min + Padding + ImVec2(SecondPadding * CodeDisassemblerScale + TextOffset, 0.0f), bb.Max - Padding, Part.c_str(), nullptr, &StringSize, Aligment, &bb);
+
+					TextOffset += StringSize.x;
+
+					ImGui::PopStyleColor();
+				}
+			}
 		}
-	}	
 
-	return Length;
+		if ((ImGui::IsItemHovered() && ImGui::IsMouseClicked(0)))
+		{
+			bInstructionEditingTakeFocus = true;
+			InstructionEditing = Address;
+		}
+	}
+	else
+	{
+
+	}
 }
 
 void SDisassembler::Input_HotKeys()
