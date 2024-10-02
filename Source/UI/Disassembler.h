@@ -16,6 +16,22 @@ enum class EDisassemblerInput
 	PageDownArrow,
 	PageUpPressed,
 	PageDownPressed,
+
+	InputGoToAddress,
+	GoToAddress,
+};
+
+enum class EDisassemblerInputValue
+{
+	ScrollingLines,
+	GoTo_Address,
+	GoTo_Line,
+};
+
+struct FDisassemblerInput
+{
+	EDisassemblerInput Type;
+	std::map<EDisassemblerInputValue, std::any> Value;
 };
 
 class SDisassembler : public SWindow
@@ -34,7 +50,7 @@ private:
 
 	void Draw_CodeDisassembler(EThreadStatus Status);
 	void Draw_Breakpoint(uint16_t Address);
-	void Draw_Address(uint16_t Address);
+	void Draw_Address(uint16_t Address, int32_t CurrentLine);
 	uint32_t Draw_Instruction(uint16_t& Address);
 
 	void Input_HotKeys();
@@ -43,20 +59,25 @@ private:
 	void Input_DownArrow();
 	void Input_PageUp();
 	void Input_PageDown();
+	void Input_GoToAddress();
 
 	// visual preferences
 	bool bMemoryArea;
 	bool bShowStatusBar;
+	bool bAddressUpperCaseHex;			// display hexadecimal values as "FF" instead of "ff"
+	bool bInstructionUpperCaseHex;		// display hexadecimal values as "FF" instead of "ff"
 
 	// windows ID
 	ImGuiID CodeDisassemblerID;
 	float CodeDisassemblerScale;
 
 	// state
-	float MouseWheel;
-	EDisassemblerInput ActionInput;
+	bool bAddressEditingTakeFocus;
+	char AddressInputBuffer[9];
+	int32_t AddressEditing;
 
-	uint16_t PrevCursorAtAddress;
+	FDisassemblerInput InputActionEvent;
+
 	uint16_t CursorAtAddress;
 
 	uint64_t LatestClockCounter;

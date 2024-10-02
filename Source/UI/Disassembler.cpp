@@ -887,11 +887,12 @@ namespace Disassembler
 		}
 		else
 		{
+			// ToDo fixme
 			uint16_t TmpAddress;
 			uint8_t InstructionSize, BackStep;
 			for (int32_t i = Steps; i != 0; ++i)
 			{
-				BackStep = 16, InstructionSize = 0;
+				BackStep = 1, InstructionSize = 0;
 				do
 				{
 					TmpAddress = Address - BackStep;
@@ -999,8 +1000,12 @@ SDisassembler::SDisassembler(EFont::Type _FontName)
 	: SWindow(ThisWindowName, _FontName, true)
 	, bMemoryArea(false)
 	, bShowStatusBar(true)
+	, bAddressUpperCaseHex(true)
+	, bInstructionUpperCaseHex(false)
 	, CodeDisassemblerScale(1.0f)
-	, PrevCursorAtAddress(INDEX_NONE)
+	, bAddressEditingTakeFocus(false)
+	, AddressEditing(INDEX_NONE)
+	, GoTo_CurrentLine(INDEX_NONE)
 	, CursorAtAddress(INDEX_NONE)
 	, LatestClockCounter(INDEX_NONE)
 {}
@@ -1051,7 +1056,6 @@ void SDisassembler::Update_MemorySnapshot()
 		// ToDo read program counter from CPU
 		CursorAtAddress = 0;
 	}
-	PrevCursorAtAddress = INDEX_NONE;
 }
 
 void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
@@ -1072,7 +1076,7 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 
 	ImGui::BeginChild("##Scrolling", ImVec2(0, -FooterHeight), false, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration);
 	ImGui::PushFont(FFonts::Get().GetFont(NAME_DISASSEMBLER_16));
-	ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, { 5, 0 });
+	ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, { 5.0f, 0.0f });
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
 
 	CodeDisassemblerID = ImGui::GetCurrentWindow()->ID;
@@ -1095,51 +1099,63 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 		{
 			ImGuiWindow* Window = ImGui::GetCurrentWindow();
 
-			switch (ActionInput)
+			if (GoTo_CurrentLine != INDEX_NONE)
 			{
-				case EDisassemblerInput::MouseWheelUp:
-				{
-					Disassembler::StepLine(CursorAtAddress, -1, AddressSpace);
-					break;
-				}
-				case EDisassemblerInput::MouseWheelDown:
-				{
-					Disassembler::StepLine(CursorAtAddress, 1, AddressSpace);
-					Window->Scroll.y = 0;
-					break;
-				}
-				case EDisassemblerInput::PageUpArrow:
-				{
-					Disassembler::StepLine(CursorAtAddress, -1, AddressSpace);
-					break;
-				}
-				case EDisassemblerInput::PageDownArrow:
-				{
-					Disassembler::StepLine(CursorAtAddress, 1, AddressSpace);
-					break;
-				}
-				case EDisassemblerInput::PageUpPressed:
-				{
-					Disassembler::StepLine(CursorAtAddress, -Lines, AddressSpace);
-					break;
-				}
-				case EDisassemblerInput::PageDownPressed:
-				{
-					Disassembler::StepLine(CursorAtAddress, Lines, AddressSpace);
-					break;
-				}
+				CursorAtAddress = GoTo_Address;
+				//Disassembler::StepLine(CursorAtAddress, -GoTo_CurrentLine, AddressSpace);
+				GoTo_CurrentLine = INDEX_NONE;
 			}
-			ActionInput = EDisassemblerInput::None;
+			else
+			{
+				switch (ActionInput)
+				{
+					case EDisassemblerInput::MouseWheelUp:
+					{
+						Disassembler::StepLine(CursorAtAddress, -1, AddressSpace);
+						break;
+					}
+					case EDisassemblerInput::MouseWheelDown:
+					{
+						Disassembler::StepLine(CursorAtAddress, 1, AddressSpace);
+						Window->Scroll.y = 0;
+						break;
+					}
+					case EDisassemblerInput::PageUpArrow:
+					{
+						Disassembler::StepLine(CursorAtAddress, -1, AddressSpace);
+						break;
+					}
+					case EDisassemblerInput::PageDownArrow:
+					{
+						Disassembler::StepLine(CursorAtAddress, 1, AddressSpace);
+						break;
+					}
+					case EDisassemblerInput::PageUpPressed:
+					{
+						Disassembler::StepLine(CursorAtAddress, -Lines, AddressSpace);
+						break;
+					}
+					case EDisassemblerInput::PageDownPressed:
+					{
+						Disassembler::StepLine(CursorAtAddress, Lines, AddressSpace);
+						break;
+					}
+				}
+				ActionInput = EDisassemblerInput::None;
+			}
 		}
 
-		uint16_t Address = CursorAtAddress;
-		for (int32_t i = 0; i < Lines + 1; ++i)
+		// draw disassembler
 		{
-			ImGui::TableNextRow();
+			uint16_t Address = CursorAtAddress;
+			for (int32_t i = 0; i < Lines + 1; ++i)
+			{
+				ImGui::TableNextRow();
 
-			Draw_Breakpoint(Address);
-			Draw_Address(Address);
-			Draw_Instruction(Address);
+				Draw_Breakpoint(Address);
+				Draw_Address(Address, i);
+				Draw_Instruction(Address);
+			}
 		}
 		ImGui::EndTable();
 	}
@@ -1161,18 +1177,106 @@ void SDisassembler::Draw_Breakpoint(uint16_t Address)
 	//ImGui::TextColored(COL_CONST(UI::COLOR_REGISTERS), "");
 }
 
-void SDisassembler::Draw_Address(uint16_t Address)
+void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 {
 	if (bMemoryArea)
 	{
 		ImGui::TableNextColumn();
 		ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, COL_CONST32(UI::COLOR_DISASM_BG_PREFIX_ADDRESS));
-		ImGui::TextColored(COL_CONST(UI::COLOR_DISASM_ADDRESS), "00");
+
+		ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_DISASM_ADDRESS));
+		ImGui::Text("00");
+		ImGui::PopStyleColor();
 	}
-	
+
+	const char* FormatAddress = bAddressUpperCaseHex ? "%04X" : "%04x";
+
 	ImGui::TableNextColumn();
 	ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, COL_CONST32(UI::COLOR_DISASM_BG_ADDRESS));
-	ImGui::TextColored(COL_CONST(UI::COLOR_DISASM_ADDRESS), "#%.4X", Address);
+
+	ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_DISASM_ADDRESS));
+	if (AddressEditing != Address)
+	{
+		ImGui::Text("#");
+		ImGui::SameLine(0.0f, 0.0f);
+		ImGui::Text(FormatAddress, Address);
+
+		if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0))
+		{
+			bAddressEditingTakeFocus = true;
+			AddressEditing = Address;
+		}
+	}
+	else
+	{
+		if (bAddressEditingTakeFocus)
+		{
+			ImGui::SetKeyboardFocusHere(0);
+			std::sprintf(AddressInputBuffer, FormatAddress, Address);
+		}
+
+		const ImVec2 StringSize = ImGui::CalcTextSize(AddressInputBuffer, nullptr, true);
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+		ImGui::Text("#");
+		ImGui::SameLine(0.0f, 0.0f);
+
+		struct FUserData
+		{
+			static int Callback(ImGuiInputTextCallbackData* Data)
+			{
+				FUserData* UserData = (FUserData*)Data->UserData;
+				if (!Data->HasSelection())
+				{
+					UserData->CursorPos = Data->CursorPos;
+				}
+				return 0;
+			}
+			char   CurrentBufOverwrite[5];  // Input
+			int    CursorPos;               // Output
+		} UserData;
+
+		UserData.CursorPos = -1;
+		memcpy(&UserData.CurrentBufOverwrite[0], AddressInputBuffer, 5);
+
+		bool AddressWrite = false;
+		static const ImGuiInputTextFlags Flags = ImGuiInputTextFlags_CharsHexadecimal |
+												 ImGuiInputTextFlags_CharsUppercase |
+												 ImGuiInputTextFlags_EnterReturnsTrue | 
+												 ImGuiInputTextFlags_AutoSelectAll | 
+												 ImGuiInputTextFlags_NoHorizontalScroll | 
+												 ImGuiInputTextFlags_CallbackAlways |
+												 ImGuiInputTextFlags_AlwaysOverwrite;
+
+		if (ImGui::InputTextEx("##address", NULL, AddressInputBuffer, 5, StringSize, Flags, FUserData::Callback, &UserData))
+		{
+			AddressWrite = true;
+		}
+		else if (!bAddressEditingTakeFocus && !ImGui::IsItemActive())
+		{
+			AddressEditing = INDEX_NONE;
+		}
+
+		bAddressEditingTakeFocus = false;
+		if (UserData.CursorPos >= 4)
+		{
+			AddressWrite = true;
+		}
+
+		uint32_t AddressInputValue = 0;
+		if (AddressWrite && std::sscanf(AddressInputBuffer, "%X", &AddressInputValue) == 1)
+		{
+			AddressWrite = false;
+			AddressEditing = INDEX_NONE;
+
+			GoTo_Address = AddressInputValue;
+			GoTo_CurrentLine = CurrentLine;
+		}
+
+		ImGui::PopStyleVar(2);
+	}
+
+	ImGui::PopStyleColor();
 }
 
 uint32_t SDisassembler::Draw_Instruction(uint16_t& Address)
