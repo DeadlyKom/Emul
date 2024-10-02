@@ -887,18 +887,22 @@ namespace Disassembler
 		}
 		else
 		{
-			// ToDo fixme
-			uint16_t TmpAddress;
-			uint8_t InstructionSize, BackStep;
-			for (int32_t i = Steps; i != 0; ++i)
+			uint16_t BackStep;
+			for (int32_t s = Steps; s != 0; ++s)
 			{
-				BackStep = 1, InstructionSize = 0;
-				do
+				for (BackStep = 16; BackStep > 0; --BackStep)
 				{
-					TmpAddress = Address - BackStep;
-					InstructionSize = Instruction(Command, TmpAddress, AddressSpace.data());
-				} while (--BackStep && TmpAddress != Address);
-				Address -= InstructionSize;
+					uint16_t TmpAddress = Address - BackStep;
+					if (Instruction(Command, TmpAddress, AddressSpace.data()) == BackStep)
+					{
+						Address = Address - BackStep;
+						break;
+					}
+				}
+				if (BackStep == 0)
+				{
+					Address--;
+				}
 			}
 		}
 	}
@@ -1005,7 +1009,6 @@ SDisassembler::SDisassembler(EFont::Type _FontName)
 	, CodeDisassemblerScale(1.0f)
 	, bAddressEditingTakeFocus(false)
 	, AddressEditing(INDEX_NONE)
-	, GoTo_CurrentLine(INDEX_NONE)
 	, CursorAtAddress(INDEX_NONE)
 	, LatestClockCounter(INDEX_NONE)
 {}
@@ -1098,50 +1101,64 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 		// handler input steps up/down
 		{
 			ImGuiWindow* Window = ImGui::GetCurrentWindow();
-
-			if (GoTo_CurrentLine != INDEX_NONE)
 			{
-				CursorAtAddress = GoTo_Address;
-				//Disassembler::StepLine(CursorAtAddress, -GoTo_CurrentLine, AddressSpace);
-				GoTo_CurrentLine = INDEX_NONE;
-			}
-			else
-			{
-				switch (ActionInput)
+				switch (InputActionEvent.Type)
 				{
 					case EDisassemblerInput::MouseWheelUp:
 					{
 						Disassembler::StepLine(CursorAtAddress, -1, AddressSpace);
+						InputActionEvent.Type = EDisassemblerInput::None;
 						break;
 					}
 					case EDisassemblerInput::MouseWheelDown:
 					{
 						Disassembler::StepLine(CursorAtAddress, 1, AddressSpace);
 						Window->Scroll.y = 0;
+						InputActionEvent.Type = EDisassemblerInput::None;
 						break;
 					}
 					case EDisassemblerInput::PageUpArrow:
 					{
 						Disassembler::StepLine(CursorAtAddress, -1, AddressSpace);
+						InputActionEvent.Type = EDisassemblerInput::None;
 						break;
 					}
 					case EDisassemblerInput::PageDownArrow:
 					{
 						Disassembler::StepLine(CursorAtAddress, 1, AddressSpace);
+						InputActionEvent.Type = EDisassemblerInput::None;
 						break;
 					}
 					case EDisassemblerInput::PageUpPressed:
 					{
 						Disassembler::StepLine(CursorAtAddress, -Lines, AddressSpace);
+						InputActionEvent.Type = EDisassemblerInput::None;
 						break;
 					}
 					case EDisassemblerInput::PageDownPressed:
 					{
 						Disassembler::StepLine(CursorAtAddress, Lines, AddressSpace);
+						InputActionEvent.Type = EDisassemblerInput::None;
+						break;
+					}
+					case EDisassemblerInput::GoToAddress:
+					{
+						int32_t GoTo_CurrentLine = 0;
+						try
+						{
+							CursorAtAddress = std::any_cast<uint32_t>(InputActionEvent.Value[EDisassemblerInputValue::GoTo_Address]);
+							GoTo_CurrentLine = std::any_cast<int32_t>(InputActionEvent.Value[EDisassemblerInputValue::GoTo_Line]);
+						}
+						catch (const std::bad_any_cast& e)
+						{
+							std::cout << "Error: " << e.what() << std::endl;
+
+						}
+						Disassembler::StepLine(CursorAtAddress, -GoTo_CurrentLine, AddressSpace);
+						InputActionEvent.Type = EDisassemblerInput::None;
 						break;
 					}
 				}
-				ActionInput = EDisassemblerInput::None;
 			}
 		}
 
@@ -1201,8 +1218,9 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 		ImGui::SameLine(0.0f, 0.0f);
 		ImGui::Text(FormatAddress, Address);
 
-		if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0))
+		if ((InputActionEvent.Type == EDisassemblerInput::InputGoToAddress && CurrentLine == 0) || (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0)))
 		{
+			InputActionEvent.Type = EDisassemblerInput::None;
 			bAddressEditingTakeFocus = true;
 			AddressEditing = Address;
 		}
@@ -1269,8 +1287,9 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 			AddressWrite = false;
 			AddressEditing = INDEX_NONE;
 
-			GoTo_Address = AddressInputValue;
-			GoTo_CurrentLine = CurrentLine;
+			InputActionEvent.Type = EDisassemblerInput::GoToAddress;
+			InputActionEvent.Value.insert_or_assign(EDisassemblerInputValue::GoTo_Address, AddressInputValue);
+			InputActionEvent.Value.insert_or_assign(EDisassemblerInputValue::GoTo_Line, CurrentLine);
 		}
 
 		ImGui::PopStyleVar(2);
@@ -1355,6 +1374,8 @@ void SDisassembler::Input_HotKeys()
 		{ ImGuiKey_PageUp,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageUp, this)					},	// debugger: page up
 		{ ImGuiKey_PageDown,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageDown, this)					},	// debugger: page down
 
+		{ ImGuiMod_Ctrl | ImGuiKey_G,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_GoToAddress, this)		},	// debugger: go to address
+
 		{ ImGuiKey_F4,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepTo);		}},	// debugger: step into
 		{ ImGuiKey_F7,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepInto);	}},	// debugger: step into
 		{ ImGuiKey_F8,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepOver);	}},	// debugger: step over
@@ -1367,9 +1388,7 @@ void SDisassembler::Input_HotKeys()
 void SDisassembler::Input_Mouse()
 {
 	ImGuiContext& Context = *GImGui;
-	MouseWheel = ImGui::TestKeyOwner(ImGuiKey_MouseWheelY, ImGuiKeyOwner_NoOwner) ? Context.IO.MouseWheel : 0.0f;
-	ActionInput = MouseWheel == 0 ? ActionInput :
-				  MouseWheel > 0  ? EDisassemblerInput::MouseWheelUp : EDisassemblerInput::MouseWheelDown;
+	const float MouseWheel = ImGui::TestKeyOwner(ImGuiKey_MouseWheelY, ImGuiKeyOwner_NoOwner) ? Context.IO.MouseWheel : 0.0f;
 
 	ImGuiWindow* Window = Context.WheelingWindow ? Context.WheelingWindow : Context.HoveredWindow;
 	if (!Window || Window->Collapsed || Window->ID != CodeDisassemblerID)
@@ -1381,27 +1400,36 @@ void SDisassembler::Input_Mouse()
 	{
 		CodeDisassemblerScale += MouseWheel * 0.0625f;
 		CodeDisassemblerScale = FFonts::Get().SetSize(NAME_DISASSEMBLER_16, CodeDisassemblerScale, 0.5f, 1.5f);
-		ActionInput = EDisassemblerInput::None;
-		MouseWheel = 0.0f; // reset
+		InputActionEvent.Type = EDisassemblerInput::None;
+	}
+	else if (MouseWheel != 0)
+	{
+		InputActionEvent.Type = MouseWheel > 0 ? EDisassemblerInput::MouseWheelUp : EDisassemblerInput::MouseWheelDown;
+		InputActionEvent.Value.insert_or_assign(EDisassemblerInputValue::ScrollingLines, 1);
 	}
 }
 
 void SDisassembler::Input_UpArrow()
 {
-	ActionInput = EDisassemblerInput::PageUpArrow;
+	InputActionEvent.Type = EDisassemblerInput::PageUpArrow;
 }
 
 void SDisassembler::Input_DownArrow()
 {
-	ActionInput = EDisassemblerInput::PageDownArrow;
+	InputActionEvent.Type = EDisassemblerInput::PageDownArrow;
 }
 
 void SDisassembler::Input_PageUp()
 {
-	ActionInput = EDisassemblerInput::PageUpPressed;
+	InputActionEvent.Type = EDisassemblerInput::PageUpPressed;
 }
 
 void SDisassembler::Input_PageDown()
 {
-	ActionInput = EDisassemblerInput::PageDownPressed;
+	InputActionEvent.Type = EDisassemblerInput::PageDownPressed;
+}
+
+void SDisassembler::Input_GoToAddress()
+{
+	InputActionEvent.Type = EDisassemblerInput::InputGoToAddress;
 }
