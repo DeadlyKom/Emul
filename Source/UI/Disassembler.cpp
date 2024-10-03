@@ -1201,90 +1201,88 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 		ImGui::TableSetupColumn("Instruction", ImGuiTableColumnFlags_WidthStretch , ColumnWidth_Instruction * CodeDisassemblerScale);
 
 		const int32_t Lines = UI::GetVisibleLines(FontName);
+		ImGuiWindow* Window = ImGui::GetCurrentWindow();
 
 		// handler input steps up/down
 		{
-			ImGuiWindow* Window = ImGui::GetCurrentWindow();
+			switch (InputActionEvent.Type)
 			{
-				switch (InputActionEvent.Type)
+				case EDisassemblerInput::MouseWheelUp:
 				{
-					case EDisassemblerInput::MouseWheelUp:
+					Disassembler::StepLine(TopCursorAtAddress, -1, AddressSpace);
+					InputActionEvent.Type = EDisassemblerInput::None;
+					break;
+				}
+				case EDisassemblerInput::MouseWheelDown:
+				{
+					Disassembler::StepLine(TopCursorAtAddress, 1, AddressSpace);
+					Window->Scroll.y = 0;
+					InputActionEvent.Type = EDisassemblerInput::None;
+					break;
+				}
+				case EDisassemblerInput::Input_UpArrow:
+				{
+					if (UserCursorAtLine <= 0)
 					{
 						Disassembler::StepLine(TopCursorAtAddress, -1, AddressSpace);
-						InputActionEvent.Type = EDisassemblerInput::None;
-						break;
+						UserCursorAtAddress = TopCursorAtAddress;
 					}
-					case EDisassemblerInput::MouseWheelDown:
+					else
+					{
+						Disassembler::StepLine(UserCursorAtAddress, -1, AddressSpace);
+						UserCursorAtLine--;
+					}
+					InputActionEvent.Type = EDisassemblerInput::None;
+					break;
+				}
+				case EDisassemblerInput::Input_DownArrow:
+				{
+					if (UserCursorAtLine >= Lines)
 					{
 						Disassembler::StepLine(TopCursorAtAddress, 1, AddressSpace);
-						Window->Scroll.y = 0;
-						InputActionEvent.Type = EDisassemblerInput::None;
-						break;
-					}
-					case EDisassemblerInput::Input_UpArrow:
-					{
-						if (UserCursorAtLine <= 0)
-						{
-							Disassembler::StepLine(TopCursorAtAddress, -1, AddressSpace);
-							UserCursorAtAddress = TopCursorAtAddress;
-						}
-						else
-						{
-							Disassembler::StepLine(UserCursorAtAddress, -1, AddressSpace);
-							UserCursorAtLine--;
-						}
-						InputActionEvent.Type = EDisassemblerInput::None;
-						break;
-					}
-					case EDisassemblerInput::Input_DownArrow:
-					{
-						if (UserCursorAtLine >= Lines)
-						{
-							Disassembler::StepLine(TopCursorAtAddress, 1, AddressSpace);
-							UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, Lines, AddressSpace);
-						}
-						else
-						{
-							Disassembler::StepLine(UserCursorAtAddress, 1, AddressSpace);
-							UserCursorAtLine++;
-						}
-						InputActionEvent.Type = EDisassemblerInput::None;
-						break;
-					}
-					case EDisassemblerInput::PageUpPressed:
-					{
-						Disassembler::StepLine(TopCursorAtAddress, -Lines, AddressSpace);
-						UserCursorAtAddress = TopCursorAtAddress;
-						UserCursorAtLine = 0;
-						InputActionEvent.Type = EDisassemblerInput::None;
-						break;
-					}
-					case EDisassemblerInput::PageDownPressed:
-					{
-						Disassembler::StepLine(TopCursorAtAddress, Lines, AddressSpace);
 						UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, Lines, AddressSpace);
-						UserCursorAtLine = Lines;
-						InputActionEvent.Type = EDisassemblerInput::None;
-						break;
 					}
-					case EDisassemblerInput::GoToAddress:
+					else
 					{
-						int32_t GoTo_CurrentLine = 0;
-						try
-						{
-							TopCursorAtAddress = std::any_cast<uint32_t>(InputActionEvent.Value[EDisassemblerInputValue::GoTo_Address]);
-							GoTo_CurrentLine = std::any_cast<int32_t>(InputActionEvent.Value[EDisassemblerInputValue::GoTo_Line]);
-						}
-						catch (const std::bad_any_cast& e)
-						{
-							std::cout << "Error: " << e.what() << std::endl;
-
-						}
-						UserCursorAtAddress = TopCursorAtAddress;
-						Disassembler::StepLine(TopCursorAtAddress, -GoTo_CurrentLine, AddressSpace);
-						InputActionEvent.Type = EDisassemblerInput::None;
-						break;
+						Disassembler::StepLine(UserCursorAtAddress, 1, AddressSpace);
+						UserCursorAtLine++;
 					}
+					InputActionEvent.Type = EDisassemblerInput::None;
+					break;
+				}
+				case EDisassemblerInput::PageUpPressed:
+				{
+					Disassembler::StepLine(TopCursorAtAddress, -Lines, AddressSpace);
+					UserCursorAtAddress = TopCursorAtAddress;
+					UserCursorAtLine = 0;
+					InputActionEvent.Type = EDisassemblerInput::None;
+					break;
+				}
+				case EDisassemblerInput::PageDownPressed:
+				{
+					Disassembler::StepLine(TopCursorAtAddress, Lines, AddressSpace);
+					UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, Lines, AddressSpace);
+					UserCursorAtLine = Lines;
+					InputActionEvent.Type = EDisassemblerInput::None;
+					break;
+				}
+				case EDisassemblerInput::GoToAddress:
+				{
+					int32_t GoTo_CurrentLine = 0;
+					try
+					{
+						TopCursorAtAddress = std::any_cast<uint32_t>(InputActionEvent.Value[EDisassemblerInputValue::GoTo_Address]);
+						GoTo_CurrentLine = std::any_cast<int32_t>(InputActionEvent.Value[EDisassemblerInputValue::GoTo_Line]);
+					}
+					catch (const std::bad_any_cast& e)
+					{
+						std::cout << "Error: " << e.what() << std::endl;
+
+					}
+					UserCursorAtAddress = TopCursorAtAddress;
+					Disassembler::StepLine(TopCursorAtAddress, -GoTo_CurrentLine, AddressSpace);
+					InputActionEvent.Type = EDisassemblerInput::None;
+					break;
 				}
 			}
 		}
@@ -1313,6 +1311,21 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 					Draw_OpcodeInstruction(StartAddress, Opcodes, i);
 				}
 				Draw_Instruction(StartAddress, Command, i);
+
+				// any interaction rectangle cursore
+				{
+					const ImVec2 Start = ImVec2(ScreenPos.x + ColumnWidth_PrefixAddress, ScreenPos.y + TextHeight * i);
+					const ImVec2 End = ImVec2(Start.x + ContentSize.x - ColumnWidth_PrefixAddress, Start.y + TextHeight);
+					const ImRect bb(Start, End);
+
+					std::string UniqueID_Instructon = std::format("#{:04X}_{}", Address, Command);
+					const ImGuiID GuiID = Window->GetID(UniqueID_Instructon.c_str());
+					if (ImGui::ItemAdd(bb, GuiID) && (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0, true)))
+					{
+						UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, i, AddressSpace);
+						UserCursorAtLine = i;
+					}
+				}
 
 				// highlight the line
 				if (StartAddress == UserCursorAtAddress)
