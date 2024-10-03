@@ -937,24 +937,70 @@ namespace Disassembler
 		}
 		else
 		{
-			uint16_t BackStep;
+			//uint16_t BackStep;
+			//for (int32_t s = Steps; s != 0; ++s)
+			//{
+			//	for (BackStep = 16; BackStep > 0; --BackStep)
+			//	{
+			//		uint16_t TmpAddress = Address - BackStep;
+			//		if (Instruction(Command, Opcodes, TmpAddress, AddressSpace.data()) == BackStep)
+			//		{
+			//			Address = Address - BackStep;
+			//			break;
+			//		}
+			//	}
+			//	if (BackStep == 0)
+			//	{
+			//		Address--;
+			//	}
+			//}
+
+			std::unordered_map<uint16_t, uint16_t> InstructionCounters;
 			for (int32_t s = Steps; s != 0; ++s)
 			{
-				for (BackStep = 16; BackStep > 0; --BackStep)
+				uint16_t TryCount = 16, CurrentOffset, InstructionLength;
+				do
 				{
-					uint16_t TmpAddress = Address - BackStep;
-					if (Instruction(Command, Opcodes, TmpAddress, AddressSpace.data()) == BackStep)
+					int16_t CurrentOffset = TryCount;
+					do
 					{
-						Address = Address - BackStep;
-						break;
+						uint16_t TmpAddress = Address - CurrentOffset;
+						InstructionLength = Instruction(Command, Opcodes, TmpAddress, AddressSpace.data());
+						CurrentOffset -= InstructionLength;
+
+						if (TmpAddress == Address)
+						{
+							InstructionCounters[InstructionLength]++;
+						}
+					} while (CurrentOffset > 0);
+
+				} while (--TryCount);
+
+				uint16_t BestLength = 0, BestCount = 0;
+				for (auto& [Length, Count] : InstructionCounters)
+				{
+					if (Count > BestCount)
+					{
+						BestCount = Count;
+						BestLength = Length;
 					}
 				}
-				if (BackStep == 0)
+
+				if (BestLength == 0)
 				{
-					Address--;
+					BestLength++;
 				}
+
+				Address -= BestLength;
+				InstructionCounters.clear();
 			}
 		}
+	}
+
+	uint16_t GetAddressToLine(uint16_t Address, int32_t Steps, const std::vector<uint8_t>& AddressSpace)
+	{
+		StepLine(Address, Steps, AddressSpace);
+		return Address;
 	}
 
 	std::string Operation(std::string& String, const std::string& Delimiter = " ")
@@ -1061,7 +1107,9 @@ SDisassembler::SDisassembler(EFont::Type _FontName)
 	, bInstructionEditingTakeFocus(false)
 	, AddressEditing(INDEX_NONE)
 	, InstructionEditing(INDEX_NONE)
-	, CursorAtAddress(INDEX_NONE)
+	, TopCursorAtAddress(INDEX_NONE)
+	, UserCursorAtAddress(INDEX_NONE)
+	, UserCursorAtLine(INDEX_NONE)
 	, LatestClockCounter(INDEX_NONE)
 {}
 
@@ -1106,10 +1154,12 @@ void SDisassembler::Update_MemorySnapshot()
 {
 	Snapshot = GetMotherboard().GetState<FMemorySnapshot>(NAME_MainBoard, NAME_Memory);
 	Memory::ToAddressSpace(Snapshot, AddressSpace);
-	if (CursorAtAddress = INDEX_NONE)
+	if (TopCursorAtAddress = INDEX_NONE)
 	{
 		// ToDo read program counter from CPU
-		CursorAtAddress = 0;
+		TopCursorAtAddress = 0;
+		UserCursorAtAddress = 0;
+		UserCursorAtLine = 0;
 	}
 }
 
@@ -1151,7 +1201,7 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 		ImGui::TableSetupColumn("Instruction", ImGuiTableColumnFlags_WidthStretch , ColumnWidth_Instruction * CodeDisassemblerScale);
 
 		const int32_t Lines = UI::GetVisibleLines(FontName);
-		
+
 		// handler input steps up/down
 		{
 			ImGuiWindow* Window = ImGui::GetCurrentWindow();
@@ -1160,38 +1210,60 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 				{
 					case EDisassemblerInput::MouseWheelUp:
 					{
-						Disassembler::StepLine(CursorAtAddress, -1, AddressSpace);
+						Disassembler::StepLine(TopCursorAtAddress, -1, AddressSpace);
 						InputActionEvent.Type = EDisassemblerInput::None;
 						break;
 					}
 					case EDisassemblerInput::MouseWheelDown:
 					{
-						Disassembler::StepLine(CursorAtAddress, 1, AddressSpace);
+						Disassembler::StepLine(TopCursorAtAddress, 1, AddressSpace);
 						Window->Scroll.y = 0;
 						InputActionEvent.Type = EDisassemblerInput::None;
 						break;
 					}
-					case EDisassemblerInput::PageUpArrow:
+					case EDisassemblerInput::Input_UpArrow:
 					{
-						Disassembler::StepLine(CursorAtAddress, -1, AddressSpace);
+						if (UserCursorAtLine <= 0)
+						{
+							Disassembler::StepLine(TopCursorAtAddress, -1, AddressSpace);
+							UserCursorAtAddress = TopCursorAtAddress;
+						}
+						else
+						{
+							Disassembler::StepLine(UserCursorAtAddress, -1, AddressSpace);
+							UserCursorAtLine--;
+						}
 						InputActionEvent.Type = EDisassemblerInput::None;
 						break;
 					}
-					case EDisassemblerInput::PageDownArrow:
+					case EDisassemblerInput::Input_DownArrow:
 					{
-						Disassembler::StepLine(CursorAtAddress, 1, AddressSpace);
+						if (UserCursorAtLine >= Lines)
+						{
+							Disassembler::StepLine(TopCursorAtAddress, 1, AddressSpace);
+							UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, Lines, AddressSpace);
+						}
+						else
+						{
+							Disassembler::StepLine(UserCursorAtAddress, 1, AddressSpace);
+							UserCursorAtLine++;
+						}
 						InputActionEvent.Type = EDisassemblerInput::None;
 						break;
 					}
 					case EDisassemblerInput::PageUpPressed:
 					{
-						Disassembler::StepLine(CursorAtAddress, -Lines, AddressSpace);
+						Disassembler::StepLine(TopCursorAtAddress, -Lines, AddressSpace);
+						UserCursorAtAddress = TopCursorAtAddress;
+						UserCursorAtLine = 0;
 						InputActionEvent.Type = EDisassemblerInput::None;
 						break;
 					}
 					case EDisassemblerInput::PageDownPressed:
 					{
-						Disassembler::StepLine(CursorAtAddress, Lines, AddressSpace);
+						Disassembler::StepLine(TopCursorAtAddress, Lines, AddressSpace);
+						UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, Lines, AddressSpace);
+						UserCursorAtLine = Lines;
 						InputActionEvent.Type = EDisassemblerInput::None;
 						break;
 					}
@@ -1200,7 +1272,7 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 						int32_t GoTo_CurrentLine = 0;
 						try
 						{
-							CursorAtAddress = std::any_cast<uint32_t>(InputActionEvent.Value[EDisassemblerInputValue::GoTo_Address]);
+							TopCursorAtAddress = std::any_cast<uint32_t>(InputActionEvent.Value[EDisassemblerInputValue::GoTo_Address]);
 							GoTo_CurrentLine = std::any_cast<int32_t>(InputActionEvent.Value[EDisassemblerInputValue::GoTo_Line]);
 						}
 						catch (const std::bad_any_cast& e)
@@ -1208,7 +1280,8 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 							std::cout << "Error: " << e.what() << std::endl;
 
 						}
-						Disassembler::StepLine(CursorAtAddress, -GoTo_CurrentLine, AddressSpace);
+						UserCursorAtAddress = TopCursorAtAddress;
+						Disassembler::StepLine(TopCursorAtAddress, -GoTo_CurrentLine, AddressSpace);
 						InputActionEvent.Type = EDisassemblerInput::None;
 						break;
 					}
@@ -1218,23 +1291,39 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 
 		// draw disassembler
 		{
+			const ImVec2 ContentSize = ImGui::GetWindowContentRegionMax();
+			const ImVec2 ScreenPos = ImGui::GetCursorScreenPos();
+			const float TextHeight = ImGui::GetTextLineHeight();
+			ImDrawList* DrawList = ImGui::GetWindowDrawList();
+
 			std::string Opcodes;
 			std::string Command;
-			uint16_t Address = CursorAtAddress;
+			uint16_t Address = TopCursorAtAddress;
 			for (int32_t i = 0; i < Lines + 1; ++i)
 			{
+				const uint16_t StartAddress = Address;
 				const uint32_t Length = Disassembler::Instruction(Command, Opcodes, Address, AddressSpace.data());
 
 				ImGui::TableNextRow();
 
-				Draw_Breakpoint(Address);
-				Draw_Address(Address, i);
+				Draw_Breakpoint(StartAddress);
+				Draw_Address(StartAddress, i);
 				if (bShowOpcode)
 				{
-					Draw_OpcodeInstruction(Address, Opcodes, i);
+					Draw_OpcodeInstruction(StartAddress, Opcodes, i);
 				}
-				Draw_Instruction(Address, Command, i);
+				Draw_Instruction(StartAddress, Command, i);
+
+				// highlight the line
+				if (StartAddress == UserCursorAtAddress)
+				{
+					const ImVec2 Start = ImVec2(ScreenPos.x + ColumnWidth_PrefixAddress, ScreenPos.y + TextHeight * i);
+					const ImVec2 End = ImVec2(Start.x + ContentSize.x - ColumnWidth_PrefixAddress, Start.y + TextHeight);
+					DrawList->AddRectFilled(Start, End, false ? 0x40000000 : 0x40808080);
+					DrawList->AddRect(Start, End, 0x40A0A0A0, 1.0f);
+				}
 			}
+
 		}
 		ImGui::EndTable();
 	}
@@ -1278,9 +1367,16 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 		ImGui::SameLine(0.0f, 0.0f);
 		ImGui::Text(FORMAT_ADDRESS(bAddressUpperCaseHex), Address);
 
-		if ((InputActionEvent.Type == EDisassemblerInput::InputGoToAddress && CurrentLine == 0) || (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0)))
+		if ((InputActionEvent.Type == EDisassemblerInput::Input_GoToAddress && CurrentLine == 0) || (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0)))
 		{
-			InputActionEvent.Type = EDisassemblerInput::None;
+			if (InputActionEvent.Type == EDisassemblerInput::Input_GoToAddress)
+			{
+				InputActionEvent.Type = EDisassemblerInput::None;
+			}
+			else
+			{
+				UserCursorAtAddress = Address;
+			}
 			bAddressEditingTakeFocus = true;
 			AddressEditing = Address;
 		}
@@ -1348,8 +1444,8 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 			AddressEditing = INDEX_NONE;
 
 			InputActionEvent.Type = EDisassemblerInput::GoToAddress;
-			InputActionEvent.Value.insert_or_assign(EDisassemblerInputValue::GoTo_Address, AddressInputValue);
-			InputActionEvent.Value.insert_or_assign(EDisassemblerInputValue::GoTo_Line, CurrentLine);
+			InputActionEvent.Value[EDisassemblerInputValue::GoTo_Address] = AddressInputValue;
+			InputActionEvent.Value[EDisassemblerInputValue::GoTo_Line] = CurrentLine;
 		}
 
 		ImGui::PopStyleVar(2);
@@ -1463,6 +1559,7 @@ void SDisassembler::Draw_Instruction(uint16_t Address, const std::string& _Comma
 		{
 			bInstructionEditingTakeFocus = true;
 			InstructionEditing = Address;
+			UserCursorAtAddress = Address;
 		}
 	}
 	else
@@ -1511,18 +1608,18 @@ void SDisassembler::Input_Mouse()
 	else if (MouseWheel != 0)
 	{
 		InputActionEvent.Type = MouseWheel > 0 ? EDisassemblerInput::MouseWheelUp : EDisassemblerInput::MouseWheelDown;
-		InputActionEvent.Value.insert_or_assign(EDisassemblerInputValue::ScrollingLines, 1);
+		InputActionEvent.Value[EDisassemblerInputValue::ScrollingLines] = 1;
 	}
 }
 
 void SDisassembler::Input_UpArrow()
 {
-	InputActionEvent.Type = EDisassemblerInput::PageUpArrow;
+	InputActionEvent.Type = EDisassemblerInput::Input_UpArrow;
 }
 
 void SDisassembler::Input_DownArrow()
 {
-	InputActionEvent.Type = EDisassemblerInput::PageDownArrow;
+	InputActionEvent.Type = EDisassemblerInput::Input_DownArrow;
 }
 
 void SDisassembler::Input_PageUp()
@@ -1537,5 +1634,5 @@ void SDisassembler::Input_PageDown()
 
 void SDisassembler::Input_GoToAddress()
 {
-	InputActionEvent.Type = EDisassemblerInput::InputGoToAddress;
+	InputActionEvent.Type = EDisassemblerInput::Input_GoToAddress;
 }

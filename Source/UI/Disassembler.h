@@ -12,12 +12,14 @@ enum class EDisassemblerInput
 	None,
 	MouseWheelUp,
 	MouseWheelDown,
-	PageUpArrow,
-	PageDownArrow,
+	//PageUpArrow,
+	//PageDownArrow,
 	PageUpPressed,
 	PageDownPressed,
 
-	InputGoToAddress,
+	Input_UpArrow,
+	Input_DownArrow,
+	Input_GoToAddress,
 	GoToAddress,
 };
 
@@ -82,7 +84,9 @@ private:
 
 	FDisassemblerInput InputActionEvent;
 
-	uint16_t CursorAtAddress;
+	uint16_t TopCursorAtAddress;
+	uint16_t UserCursorAtAddress;
+	int32_t UserCursorAtLine;
 
 	uint64_t LatestClockCounter;
 	FMemorySnapshot Snapshot;
