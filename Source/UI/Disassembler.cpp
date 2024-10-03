@@ -958,7 +958,7 @@ namespace Disassembler
 			std::unordered_map<uint16_t, uint16_t> InstructionCounters;
 			for (int32_t s = Steps; s != 0; ++s)
 			{
-				uint16_t TryCount = 16, CurrentOffset, InstructionLength;
+				uint16_t TryCount = 16, InstructionLength;
 				do
 				{
 					int16_t CurrentOffset = TryCount;
@@ -1104,9 +1104,11 @@ SDisassembler::SDisassembler(EFont::Type _FontName)
 	, bInstructionUpperCaseHex(false)
 	, CodeDisassemblerScale(1.0f)
 	, bAddressEditingTakeFocus(false)
+	, bOpcodeInstructionEditingTakeFocus(false)
 	, bInstructionEditingTakeFocus(false)
 	, AddressEditing(INDEX_NONE)
 	, InstructionEditing(INDEX_NONE)
+	, OpcodeInstructionEditing(INDEX_NONE)
 	, TopCursorAtAddress(INDEX_NONE)
 	, UserCursorAtAddress(INDEX_NONE)
 	, UserCursorAtLine(INDEX_NONE)
@@ -1402,7 +1404,6 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 			std::sprintf(AddressInputBuffer, FORMAT_ADDRESS(bAddressUpperCaseHex), Address);
 		}
 
-		const ImVec2 StringSize = ImGui::CalcTextSize(AddressInputBuffer, nullptr, true);
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
 		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
 		ImGui::Text("#");
@@ -1424,7 +1425,7 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 		} UserData;
 
 		UserData.CursorPos = -1;
-		memcpy(&UserData.CurrentBufOverwrite[0], AddressInputBuffer, 5);
+		memcpy(&UserData.CurrentBufOverwrite, AddressInputBuffer, 5);
 
 		bool AddressWrite = false;
 		static const ImGuiInputTextFlags Flags = ImGuiInputTextFlags_CharsHexadecimal |
@@ -1435,6 +1436,7 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 												 ImGuiInputTextFlags_CallbackAlways |
 												 ImGuiInputTextFlags_AlwaysOverwrite;
 
+		const ImVec2 StringSize = ImGui::CalcTextSize(AddressInputBuffer, nullptr, true);
 		if (ImGui::InputTextEx("##address", NULL, AddressInputBuffer, 5, StringSize, Flags, FUserData::Callback, &UserData))
 		{
 			AddressWrite = true;
@@ -1469,12 +1471,18 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 
 void SDisassembler::Draw_OpcodeInstruction(uint16_t Address, const std::string& Opcodes, int32_t CurrentLine)
 {
+
 	ImGui::TableNextColumn();
 	ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, COL_CONST32(UI::COLOR_DISASM_BG_OPCODE_ADDRESS));
 
 	ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_DISASM_ADDRESS));
+	ON_SCOPE_EXIT
+	{
+		ImGui::PopStyleColor();;
+	};
+
 	ImGuiWindow* Window = ImGui::GetCurrentWindow();
-	if (!Window->SkipItems)
+	if (OpcodeInstructionEditing != Address)
 	{
 		const ImVec2 Padding = { 0.0f, 0.0f };
 		const ImVec2 Aligment = { 0.0f, 0.0f };
@@ -1483,9 +1491,91 @@ void SDisassembler::Draw_OpcodeInstruction(uint16_t Address, const std::string& 
 		const ImVec2 StringSize = ImGui::CalcTextSize(Opcodes.c_str(), nullptr, true);
 		const ImVec2 Size = ImGui::CalcItemSize(ImVec2(-FLT_MIN, 0.0f), StringSize.x + Padding.x * 2.0f, StringSize.y + Padding.y * 2.0f);
 		const ImRect bb(Position, Position + Size);
+		// interaction rectangle
+		{
+			std::string UniqueID_Instructon = std::format("#{:04X}_{}", Address, Opcodes);
+			const ImGuiID GuiID = Window->GetID(UniqueID_Instructon.c_str());
+			if (!ImGui::ItemAdd(bb, GuiID))
+			{
+				return;
+			}
+		}
+
 		ImGui::RenderTextClipped(bb.Min + Padding, bb.Max - Padding, Opcodes.c_str(), nullptr, &StringSize, Aligment, &bb);
+
+		if ((ImGui::IsItemHovered() && ImGui::IsMouseClicked(0)))
+		{
+			bOpcodeInstructionEditingTakeFocus = true;
+			OpcodeInstructionEditing = Address;
+			UserCursorAtAddress = Address;
+		}
 	}
-	ImGui::PopStyleColor();
+	else
+	{
+		if (bOpcodeInstructionEditingTakeFocus)
+		{
+			ImGui::SetKeyboardFocusHere(0);
+			assert(Opcodes.size() < 256);
+			std::memcpy(OpcodeInstructioBuffer, Opcodes.data(), Math::Min<size_t>(Opcodes.size() + 1, 256));
+		}
+
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0, 0));
+
+		struct FUserData
+		{
+			static int Callback(ImGuiInputTextCallbackData* Data)
+			{
+				FUserData* UserData = (FUserData*)Data->UserData;
+				if (!Data->HasSelection())
+				{
+					UserData->CursorPos = Data->CursorPos;
+				}
+				return 0;
+			}
+			char   CurrentBufOverwrite[256];// Input
+			int    CursorPos;               // Output
+		} UserData;
+
+		UserData.CursorPos = -1;
+		memcpy(&UserData.CurrentBufOverwrite, OpcodeInstructioBuffer, 256);
+
+		static const ImGuiInputTextFlags Flags = 
+			ImGuiInputTextFlags_CharsHexadecimal |
+			ImGuiInputTextFlags_CharsUppercase |
+			ImGuiInputTextFlags_EnterReturnsTrue |
+			ImGuiInputTextFlags_AutoSelectAll |
+			ImGuiInputTextFlags_CallbackAlways |
+			ImGuiInputTextFlags_AlwaysOverwrite;
+
+		const float TextHeight = ImGui::GetTextLineHeight();
+		const ImVec2 Size = ImGui::CalcItemSize(ImVec2(-FLT_MIN, 0.0f), ColumnWidth_Opcode, TextHeight);
+		if (ImGui::InputTextEx("##opcode", NULL, OpcodeInstructioBuffer, 256, Size, Flags, FUserData::Callback, &UserData))
+		{
+			uint8_t TmpNumber;
+			std::vector<uint8_t> Opcodes;
+			for (size_t i = 0; i < strlen(OpcodeInstructioBuffer); i += 2)
+			{
+				if (i + 2 <= strlen(OpcodeInstructioBuffer) && std::sscanf(OpcodeInstructioBuffer + i, "%2hhX", &TmpNumber) == 1)
+				{
+					Opcodes.push_back(TmpNumber);
+				}
+			}
+			if (Address + Opcodes.size() <= AddressSpace.size())
+			{
+				std::ranges::copy(Opcodes.begin(), Opcodes.end(), AddressSpace.begin() + Address);
+			}
+		}
+		else if (!bOpcodeInstructionEditingTakeFocus && !ImGui::IsItemActive())
+		{
+			OpcodeInstructionEditing = INDEX_NONE;
+		}
+		bOpcodeInstructionEditingTakeFocus = false;
+
+
+		ImGui::PopStyleVar(2);
+	}
+	
 }
 
 void SDisassembler::Draw_Instruction(uint16_t Address, const std::string& _Command, int32_t CurrentLine)
@@ -1496,75 +1586,73 @@ void SDisassembler::Draw_Instruction(uint16_t Address, const std::string& _Comma
 	ImGui::TableNextColumn();
 	ImGui::TableSetBgColor(ImGuiTableBgTarget_CellBg, COL_CONST32(UI::COLOR_DISASM_BG_MNEMONIC));
 
-	if (InstructionEditing != Address)
+	if (/*InstructionEditing != Address*/true)
 	{
 		ImGuiWindow* Window = ImGui::GetCurrentWindow();
-		if (!Window->SkipItems)
+
+		const float FirstPadding = 10.0f;
+		const float SecondPadding = FirstPadding + 80.0f;
+		const ImVec2 Padding = { 0.0f, 0.0f };
+		const ImVec2 Aligment = { 0.0f, 0.0f };
+		const ImVec2 Position = Window->DC.CursorPos;
+
+		// interaction rectangle
 		{
-			const float FirstPadding = 10.0f;
-			const float SecondPadding = FirstPadding + 80.0f;
-			const ImVec2 Padding = { 0.0f, 0.0f };
-			const ImVec2 Aligment = { 0.0f, 0.0f };
-			const ImVec2 Position = Window->DC.CursorPos;
+			const ImVec2 StringSize = ImGui::CalcTextSize(Command.c_str(), nullptr, true);
+			const ImVec2 Size = ImGui::CalcItemSize(ImVec2(-FLT_MIN, 0.0f), StringSize.x + Padding.x * 2.0f, StringSize.y + Padding.y * 2.0f);
+			const ImRect bb(Position, Position + Size);
 
-			// interaction rectangle
+			std::string UniqueID_Instructon = std::format("#{:04X}_{}", Address, Command);
+			const ImGuiID GuiID = Window->GetID(UniqueID_Instructon.c_str());
+			if (!ImGui::ItemAdd(bb, GuiID))
 			{
-				const ImVec2 StringSize = ImGui::CalcTextSize(Command.c_str(), nullptr, true);
-				const ImVec2 Size = ImGui::CalcItemSize(ImVec2(-FLT_MIN, 0.0f), StringSize.x + Padding.x * 2.0f, StringSize.y + Padding.y * 2.0f);
-				const ImRect bb(Position, Position + Size);
-
-				std::string UniqueID_Instructon = std::format("#{:04X}_{}", Address, Command);
-				const ImGuiID GuiID = Window->GetID(UniqueID_Instructon.c_str());
-				if (!ImGui::ItemAdd(bb, GuiID))
-				{
-					return;
-				}
+				return;
 			}
+		}
 
-			// draw mnemonic
+		// draw mnemonic
+		{
+			ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_DISASM_INSTRUCTION));
+
+			std::string Operation = Disassembler::Operation(Command);
+
+			const ImVec2 StringSize = ImGui::CalcTextSize(Operation.c_str(), nullptr, true);
+			const ImVec2 Size = ImGui::CalcItemSize(ImVec2(-FLT_MIN, 0.0f), StringSize.x + Padding.x * 2.0f, StringSize.y + Padding.y * 2.0f);
+			const ImRect bb(Position, Position + Size);
+			ImGui::RenderTextClipped(bb.Min + Padding + ImVec2(FirstPadding, 0.0f) * CodeDisassemblerScale, bb.Max - Padding, Operation.c_str(), nullptr, &StringSize, Aligment, &bb);
+
+			ImGui::PopStyleColor();
+		}
+
+		// draw remaining part of command
+		{
+			float TextOffset = 0;
+			ImGuiStyle& Style = GImGui->Style;
+			Disassembler::ESyntacticType Type = Disassembler::ESyntacticType::NotInit;
+			while (true)
 			{
-				ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_DISASM_INSTRUCTION));
+				std::string Part = Disassembler::SyntacticParse(Command, Type);
+				if (Type == Disassembler::ESyntacticType::None)
+				{
+					break;
+				}
+				if (Part.compare(" ") == 0)
+				{
+					TextOffset += Style.FramePadding.x * 2.0f;
+					continue;
+				}
 
-				std::string Operation = Disassembler::Operation(Command);
+				ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST((int32_t)Type));
 
-				const ImVec2 StringSize = ImGui::CalcTextSize(Operation.c_str(), nullptr, true);
+				const ImVec2 StringSize = ImGui::CalcTextSize(Part.c_str(), nullptr, true);
 				const ImVec2 Size = ImGui::CalcItemSize(ImVec2(-FLT_MIN, 0.0f), StringSize.x + Padding.x * 2.0f, StringSize.y + Padding.y * 2.0f);
 				const ImRect bb(Position, Position + Size);
-				ImGui::RenderTextClipped(bb.Min + Padding + ImVec2(FirstPadding, 0.0f) * CodeDisassemblerScale, bb.Max - Padding, Operation.c_str(), nullptr, &StringSize, Aligment, &bb);
+
+				ImGui::RenderTextClipped(bb.Min + Padding + ImVec2(SecondPadding * CodeDisassemblerScale + TextOffset, 0.0f), bb.Max - Padding, Part.c_str(), nullptr, &StringSize, Aligment, &bb);
+
+				TextOffset += StringSize.x;
 
 				ImGui::PopStyleColor();
-			}
-
-			// draw remaining part of command
-			{
-				float TextOffset = 0;
-				ImGuiStyle& Style = GImGui->Style;
-				Disassembler::ESyntacticType Type = Disassembler::ESyntacticType::NotInit;
-				while (true)
-				{
-					std::string Part = Disassembler::SyntacticParse(Command, Type);
-					if (Type == Disassembler::ESyntacticType::None)
-					{
-						break;
-					}
-					if (Part.compare(" ") == 0)
-					{
-						TextOffset += Style.FramePadding.x * 2.0f;
-						continue;
-					}
-
-					ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST((int32_t)Type));
-
-					const ImVec2 StringSize = ImGui::CalcTextSize(Part.c_str(), nullptr, true);
-					const ImVec2 Size = ImGui::CalcItemSize(ImVec2(-FLT_MIN, 0.0f), StringSize.x + Padding.x * 2.0f, StringSize.y + Padding.y * 2.0f);
-					const ImRect bb(Position, Position + Size);
-
-					ImGui::RenderTextClipped(bb.Min + Padding + ImVec2(SecondPadding * CodeDisassemblerScale + TextOffset, 0.0f), bb.Max - Padding, Part.c_str(), nullptr, &StringSize, Aligment, &bb);
-
-					TextOffset += StringSize.x;
-
-					ImGui::PopStyleColor();
-				}
 			}
 		}
 

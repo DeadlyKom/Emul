@@ -257,6 +257,7 @@
     <ClInclude Include="UI\Viewer.h" />
     <ClInclude Include="Utils\CommandPipeline.h" />
     <ClInclude Include="Utils\Memory.h" />
+    <ClInclude Include="Utils\ScopeExit.h" />
     <ClInclude Include="Utils\SignalsBus.h" />
     <ClInclude Include="Utils\Char.h" />
     <ClInclude Include="Utils\Delegates.h" />

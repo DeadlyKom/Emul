@@ -246,6 +246,9 @@
     <ClInclude Include="Utils\Memory.h">
       <Filter>Source\Utils</Filter>
     </ClInclude>
+    <ClInclude Include="Utils\ScopeExit.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Resource\Icons\ICONE.ico">

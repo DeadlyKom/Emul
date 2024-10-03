@@ -35,6 +35,7 @@
 #include "Utils/Char.h"
 #include "Utils/Math_.h"
 #include "Utils/Delegates.h"
+#include "Utils/ScopeExit.h"
 
 namespace Debugger
 {

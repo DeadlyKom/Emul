@@ -12,8 +12,6 @@ enum class EDisassemblerInput
 	None,
 	MouseWheelUp,
 	MouseWheelDown,
-	//PageUpArrow,
-	//PageDownArrow,
 	PageUpPressed,
 	PageDownPressed,
 
@@ -77,9 +75,12 @@ private:
 
 	// state
 	bool bAddressEditingTakeFocus;
+	bool bOpcodeInstructionEditingTakeFocus;
 	bool bInstructionEditingTakeFocus;
 	char AddressInputBuffer[9];
+	char OpcodeInstructioBuffer[256];
 	int32_t AddressEditing;
+	int32_t OpcodeInstructionEditing;
 	int32_t InstructionEditing;
 
 	FDisassemblerInput InputActionEvent;
