@@ -6,15 +6,15 @@ namespace EFont { enum Type; }
 
 namespace UI
 {
-#define COLOR_32_R_MASK     0xFF000000
-#define COLOR_32_G_MASK     0x00FF0000
-#define COLOR_32_B_MASK     0x0000FF00
-#define COLOR_32_A_MASK     0x000000FF
+	#define COLOR_32_R_MASK     0xFF000000
+	#define COLOR_32_G_MASK     0x00FF0000
+	#define COLOR_32_B_MASK     0x0000FF00
+	#define COLOR_32_A_MASK     0x000000FF
 
-#define COLOR_32_R_SHIFT    24
-#define COLOR_32_G_SHIFT    16
-#define COLOR_32_B_SHIFT    8
-#define COLOR_32_A_SHIFT    0
+	#define COLOR_32_R_SHIFT    24
+	#define COLOR_32_G_SHIFT    16
+	#define COLOR_32_B_SHIFT    8
+	#define COLOR_32_A_SHIFT    0
 
 	// 0xRRGGBBAA to Vec4(r,g,b,a)
 	static constexpr ImVec4 ToVec4(const uint32_t Color)
@@ -45,34 +45,31 @@ namespace UI
 	}
 
 	// Define a message as an enumeration.
-#define REGISTER_COLOR(num,name,color) name = num,
-namespace EColor
-{
-	enum Type : int32_t
+	#define REGISTER_COLOR(num,name,color) name = num,
+	namespace EColor
 	{
-		// Include all the hard-coded names
-		#include "UI_DefaultColor.inl"
+		enum Type : int32_t
+		{
+			// Include all the hard-coded names
+			#include "UI_DefaultColor.inl"
+		};
+	}
+	#undef REGISTER_COLOR
 
-		// Special constant for the last hard-coded name index
-		MaxHardcodedIndex,
-	};
-}
-#undef REGISTER_COLOR
-
-#define REGISTER_COLOR(num,name,color) { color },
-	static constexpr ImVec4 Colors[EColor::MaxHardcodedIndex] =
+	#define REGISTER_COLOR(num,name,color) { num,color },
+	static const std::unordered_map<int32_t, ImVec4> Colors =
 	{
 		#include "UI_DefaultColor.inl"
 	};
-#undef REGISTER_COLOR
+	#undef REGISTER_COLOR
 
-#define REGISTER_COLOR(num,name,color) inline constexpr EColor::Type COLOR_##name = EColor::name;
-#include "UI_DefaultColor.inl"
-#undef REGISTER_COLOR
+	#define REGISTER_COLOR(num,name,color) inline constexpr int32_t COLOR_##name = EColor::name;
+	#include "UI_DefaultColor.inl"
+	#undef REGISTER_COLOR
 
-#define COL_REF(color)		(&UI::Colors[color])
-#define COL_CONST(color)	(UI::Colors[color])
-#define COL_CONST32(color)	(UI::ColorToU32(UI::Colors[color]))
+	#define COL_REF(color)		(&UI::Colors.at(color))
+	#define COL_CONST(color)	(UI::Colors.at(color))
+	#define COL_CONST32(color)	(UI::ColorToU32(UI::Colors.at(color)))
 
 	struct FColumn
 	{
@@ -85,7 +82,7 @@ namespace EColor
 
 	void DrawTable(const char* TableID, ImGuiTableFlags Flags, bool bEnabled, const std::vector<UI::FColumn>& Columns);
 	void DrawTooltip(const char* Text);
-	void DrawProperty(const char* PropertyName, const char* Value,const char* Tooltip = nullptr, const ImVec4& Color = Colors[COLOR_WHITE]);
+	void DrawProperty(const char* PropertyName, const char* Value,const char* Tooltip = nullptr, const ImVec4& Color = COL_CONST(COLOR_WHITE));
 
 	int32_t GetVisibleLines(EFont::Type FontName);
 	void TextAligned(const char* Text, const ImVec2& Aligment, const ImVec2* _Padding = nullptr);
