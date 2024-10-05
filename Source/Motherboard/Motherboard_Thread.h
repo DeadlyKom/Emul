@@ -70,7 +70,8 @@ private:
 	std::vector<std::shared_ptr<FDevice>> Device_GetByType(EDeviceType Type);
 
 	void Thread_Request(EThreadTypeRequest TypeRequest, Callback&& Task = nullptr);
-	std::any Thread_ThreadRequestResult(EName::Type DeviceID, const std::type_index& Type);
+	void Device_ThreadRequest(EName::Type DeviceID, const std::type_index& Type, std::any Value);
+	std::any Device_ThreadRequestResult(EName::Type DeviceID, const std::type_index& Type);
 	void Thread_Execution();
 	void Thread_RequestHandling();
 
@@ -83,12 +84,14 @@ private:
 	void ThreadRequest_LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath);
 
 	void GetState_RequestHandler(EName::Type DeviceID, const std::type_index& Type);
+	void SetState_RequestHandler(EName::Type DeviceID, const std::type_index& Type, const std::any& Value);
 
 	void LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath);
+
 	template<typename T>
 	T GetState(EName::Type DeviceID)
 	{
-		std::any Result = Thread_ThreadRequestResult(DeviceID, std::type_index(typeid(T)));
+		std::any Result = Device_ThreadRequestResult(DeviceID, std::type_index(typeid(T)));
 		try
 		{
 			return std::any_cast<T>(Result);
@@ -98,6 +101,12 @@ private:
 			std::cout << "Error: " << e.what() << std::endl;
 			return T();
 		}
+	}
+	
+	template<typename T>
+	void SetState(EName::Type DeviceID, const std::any& Value)
+	{
+		Device_ThreadRequest(DeviceID, std::type_index(typeid(T)), Value);
 	}
 
 	FName ThreadName;

@@ -1,10 +1,12 @@
 #pragma once
 
 #include <CoreMinimal.h>
-#include "Window.h"
+#include "Viewer.h"
 
-class SCallStack : public SWindow
+class SCallStack : public SViewerChild
 {
+	using Super = SViewerChild;
+	using ThisClass = SCallStack;
 public:
 	SCallStack(EFont::Type _FontName);
 

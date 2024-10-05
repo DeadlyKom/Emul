@@ -12,21 +12,57 @@ struct FNativeDataInitialize
 	ID3D11DeviceContext* DeviceContext = nullptr;
 };
 
+struct FWindowInitializer
+{
+	bool bOpen = true;
+	std::string Name;
+	EFont::Type FontName;
+	bool bIncludeInWindows = false;
+	uint32_t Width = -1;
+	uint32_t Height = -1;
+
+	FWindowInitializer& SetName(const std::string& _Name)
+	{
+		Name = _Name;
+		return *this;
+	}
+	FWindowInitializer& SetFontName(EFont::Type _FontName)
+	{
+		FontName = _FontName;
+		return *this;
+	}
+	FWindowInitializer& SetIncludeInWindows(bool _bIncludeInWindows)
+	{
+		bIncludeInWindows = _bIncludeInWindows;
+		return *this;
+	}
+	FWindowInitializer& SetWidth(uint32_t _Width)
+	{
+		Width = _Width;
+		return *this;
+	}
+	FWindowInitializer& SetHeight(uint32_t _Height)
+	{
+		Height = _Height;
+		return *this;
+	}
+};
+
 class SWindow : public std::enable_shared_from_this<SWindow>
 {
 public:
-	SWindow(std::string _Name, EFont::Type _FontName, bool _bIncludeInWindows = false, uint32_t _Width = -1, uint32_t _Height = -1)
-		: bOpen(true)
-		, bIncludeInWindows(_bIncludeInWindows)
-		, DefaultWidth(_Width)
-		, DefaultHeight(_Height)
-		, Name(_Name)
-		, FontName(_FontName)
+	SWindow(FWindowInitializer& WindowInitializer)
+		: bOpen(WindowInitializer.bOpen)
+		, bIncludeInWindows(WindowInitializer.bIncludeInWindows)
+		, DefaultWidth(WindowInitializer.Width)
+		, DefaultHeight(WindowInitializer.Height)
+		, Name(WindowInitializer.Name)
+		, FontName(WindowInitializer.FontName)
 	{}
 
 	virtual void NativeInitialize(const FNativeDataInitialize& _Data)
 	{
-		Data = Data;
+		Data = _Data;
 		Initialize();
 	}
 	virtual void Initialize() {}

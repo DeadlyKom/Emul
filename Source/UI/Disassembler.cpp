@@ -5,6 +5,7 @@
 #include "Utils/Hotkey.h"
 #include "Utils/Memory.h"
 #include "Devices/CPU/Z80.h"
+#include "CPU_State.h"
 #include "Motherboard/Motherboard.h"
 
 namespace
@@ -1095,7 +1096,10 @@ namespace Disassembler
 }
 
 SDisassembler::SDisassembler(EFont::Type _FontName)
-	: SWindow(ThisWindowName, _FontName, true)
+	: Super(FWindowInitializer()
+		.SetName(ThisWindowName)
+		.SetFontName(_FontName)
+		.SetIncludeInWindows(true))
 	, bMemoryArea(false)
 	, bShowStatusBar(true)
 	, bShowOpcode(true)
@@ -1117,7 +1121,37 @@ SDisassembler::SDisassembler(EFont::Type _FontName)
 {}
 
 void SDisassembler::Initialize()
-{}
+{
+
+}
+
+void SDisassembler::Tick(float DeltaTime)
+{
+	Status = GetMotherboard().GetState<EThreadStatus>(NAME_MainBoard, NAME_None);
+	if (Status == EThreadStatus::Stop)
+	{
+		const uint64_t ClockCounter = GetMotherboard().GetState<uint64_t>(NAME_MainBoard, NAME_None);
+		if (ClockCounter != LatestClockCounter || ClockCounter == -1)
+		{
+			Load_MemorySnapshot();
+			LatestClockCounter = ClockCounter;
+		}
+	}
+
+	if (TopCursorAtAddress == INDEX_NONE)
+	{
+		std::shared_ptr<SCPU_State> CPU_State = GetWindow<SCPU_State>(EWindowsType::CPU_State);
+		if (CPU_State == nullptr)
+		{
+			LOG_CONSOLE("unable to get processor state.")
+				return;
+		}
+
+		TopCursorAtAddress = CPU_State->GetLatestRegistersState().PC.Get();
+		UserCursorAtAddress = TopCursorAtAddress;
+		UserCursorAtLine = TopCursorAtAddress;
+	}
+}
 
 void SDisassembler::Render()
 {
@@ -1131,18 +1165,6 @@ void SDisassembler::Render()
 	{
 		Input_HotKeys();
 		Input_Mouse();
-
-		const EThreadStatus Status = GetMotherboard().GetState<EThreadStatus>(NAME_MainBoard, NAME_None);
-		if (Status == EThreadStatus::Stop)
-		{
-			const uint64_t ClockCounter = GetMotherboard().GetState<uint64_t>(NAME_MainBoard, NAME_None);
-			if (ClockCounter != LatestClockCounter || ClockCounter == -1)
-			{
-				Update_MemorySnapshot();
-				LatestClockCounter = ClockCounter;
-			}
-		}
-
 		Draw_CodeDisassembler(Status);
 	}
 	ImGui::End();
@@ -1153,17 +1175,16 @@ FMotherboard& SDisassembler::GetMotherboard() const
 	return *FAppFramework::Get<FAppDebugger>().Motherboard;
 }
 
-void SDisassembler::Update_MemorySnapshot()
+void SDisassembler::Load_MemorySnapshot()
 {
 	Snapshot = GetMotherboard().GetState<FMemorySnapshot>(NAME_MainBoard, NAME_Memory);
 	Memory::ToAddressSpace(Snapshot, AddressSpace);
-	if (TopCursorAtAddress = INDEX_NONE)
-	{
-		// ToDo read program counter from CPU
-		TopCursorAtAddress = 0;
-		UserCursorAtAddress = 0;
-		UserCursorAtLine = 0;
-	}
+}
+
+void SDisassembler::Upload_MemorySnapshot()
+{
+	Memory::ToSnapshot(Snapshot, AddressSpace);
+	GetMotherboard().SetState<FMemorySnapshot>(NAME_MainBoard, NAME_Memory, Snapshot);
 }
 
 void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
@@ -1212,13 +1233,17 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 			{
 				case EDisassemblerInput::MouseWheelUp:
 				{
-					Disassembler::StepLine(TopCursorAtAddress, -1, AddressSpace);
+					uint16_t TmpAddress = TopCursorAtAddress;
+					Disassembler::StepLine(TmpAddress, -1, AddressSpace);
+					TopCursorAtAddress = TmpAddress;
 					InputActionEvent.Type = EDisassemblerInput::None;
 					break;
 				}
 				case EDisassemblerInput::MouseWheelDown:
 				{
-					Disassembler::StepLine(TopCursorAtAddress, 1, AddressSpace);
+					uint16_t TmpAddress = TopCursorAtAddress;
+					Disassembler::StepLine(TmpAddress, 1, AddressSpace);
+					TopCursorAtAddress = TmpAddress;
 					Window->Scroll.y = 0;
 					InputActionEvent.Type = EDisassemblerInput::None;
 					break;
@@ -1269,7 +1294,9 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 				}
 				case EDisassemblerInput::PageUpPressed:
 				{
-					Disassembler::StepLine(TopCursorAtAddress, -Lines, AddressSpace);
+					uint16_t TmpAddress = TopCursorAtAddress;
+					Disassembler::StepLine(TmpAddress, -Lines, AddressSpace);
+					TopCursorAtAddress = TmpAddress;
 					UserCursorAtAddress = TopCursorAtAddress;
 					UserCursorAtLine = 0;
 					InputActionEvent.Type = EDisassemblerInput::None;
@@ -1277,7 +1304,9 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 				}
 				case EDisassemblerInput::PageDownPressed:
 				{
-					Disassembler::StepLine(TopCursorAtAddress, Lines, AddressSpace);
+					uint16_t TmpAddress = TopCursorAtAddress;
+					Disassembler::StepLine(TmpAddress, Lines, AddressSpace);
+					TopCursorAtAddress = TmpAddress;
 					UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, Lines, AddressSpace);
 					UserCursorAtLine = Lines;
 					InputActionEvent.Type = EDisassemblerInput::None;
@@ -1296,7 +1325,10 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 						std::cout << "Error: " << e.what() << std::endl;
 
 					}
-					Disassembler::StepLine(TopCursorAtAddress, -GoTo_CurrentLine, AddressSpace);
+
+					uint16_t TmpAddress = TopCursorAtAddress;
+					Disassembler::StepLine(TmpAddress, -GoTo_CurrentLine, AddressSpace);
+					TopCursorAtAddress = TmpAddress;
 					UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, GoTo_CurrentLine, AddressSpace);
 					InputActionEvent.Type = EDisassemblerInput::None;
 					break;
@@ -1750,14 +1782,18 @@ void SDisassembler::Reset_EditColumn()
 
 void SDisassembler::Prev_EditRow(bool bCtrl /*= false*/)
 {
+	uint16_t TmpAddress;
 	if (UserCursorAtLine <= 0)
 	{
-		Disassembler::StepLine(TopCursorAtAddress, -1, AddressSpace);
-		UserCursorAtAddress = TopCursorAtAddress;
+		TmpAddress = TopCursorAtAddress;
+		Disassembler::StepLine(TmpAddress, -1, AddressSpace);
+		UserCursorAtAddress = TopCursorAtAddress = TmpAddress;
 	}
 	else
 	{
-		Disassembler::StepLine(UserCursorAtAddress, -1, AddressSpace);
+		TmpAddress = UserCursorAtAddress;
+		Disassembler::StepLine(TmpAddress, -1, AddressSpace);
+		UserCursorAtAddress = TmpAddress;
 		UserCursorAtLine--;
 	}
 
@@ -1790,14 +1826,19 @@ void SDisassembler::Prev_EditRow(bool bCtrl /*= false*/)
 
 void SDisassembler::Next_EditRow(int32_t MaxLines, bool bCtrl /*= false*/)
 {
+	uint16_t TmpAddress;
 	if (UserCursorAtLine >= MaxLines)
 	{
-		Disassembler::StepLine(TopCursorAtAddress, 1, AddressSpace);
+		TmpAddress = TopCursorAtAddress;
+		Disassembler::StepLine(TmpAddress, 1, AddressSpace);
+		TopCursorAtAddress = TmpAddress;
 		UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, MaxLines, AddressSpace);
 	}
 	else
 	{
-		Disassembler::StepLine(UserCursorAtAddress, 1, AddressSpace);
+		TmpAddress = UserCursorAtAddress;
+		Disassembler::StepLine(TmpAddress, 1, AddressSpace);
+		UserCursorAtAddress = TmpAddress;
 		UserCursorAtLine++;
 	}
 

@@ -10,7 +10,10 @@ namespace
 }
 
 SCPU_State::SCPU_State(EFont::Type _FontName)
-	: SWindow(ThisWindowName, _FontName, true)
+	: Super(FWindowInitializer()
+		.SetName(ThisWindowName)
+		.SetFontName(FontName)
+		.SetIncludeInWindows(true))
 {}
 
 void SCPU_State::Initialize()
@@ -45,6 +48,20 @@ void SCPU_State::Initialize()
 	};
 }
 
+void SCPU_State::Tick(float DeltaTime)
+{
+	Status = GetMotherboard().GetState<EThreadStatus>(NAME_MainBoard, NAME_None);
+	if (Status == EThreadStatus::Stop)
+	{
+		const uint64_t ClockCounter = GetMotherboard().GetState<uint64_t>(NAME_MainBoard, NAME_None);
+		if (ClockCounter != LatestClockCounter)
+		{
+			Update_Registers();
+			LatestClockCounter = ClockCounter;
+		}
+	}
+}
+
 void SCPU_State::Render()
 {
 	if (!IsOpen())
@@ -56,16 +73,6 @@ void SCPU_State::Render()
 	ImGui::Begin(ThisWindowName, &bOpen);
 	{
 		Input_HotKeys();
-		const EThreadStatus Status = GetMotherboard().GetState<EThreadStatus>(NAME_MainBoard, NAME_None);
-		if (Status == EThreadStatus::Stop)
-		{
-			const uint64_t ClockCounter = GetMotherboard().GetState<uint64_t>(NAME_MainBoard, NAME_None);
-			if (ClockCounter != LatestClockCounter)
-			{
-				Update_Registers();
-				LatestClockCounter = ClockCounter;
-			}
-		}
 		Draw_States(Status == EThreadStatus::Stop);
 	}
 	ImGui::End();

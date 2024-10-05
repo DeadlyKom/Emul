@@ -17,7 +17,12 @@ namespace
 }
 
 SViewer::SViewer(EFont::Type _FontName, uint32_t _Width, uint32_t _Height)
-	: SWindow(ThisWindowName, _FontName, false, _Width, _Height)
+	: Super(FWindowInitializer()
+		.SetName(ThisWindowName)
+		.SetFontName(FontName)
+		.SetIncludeInWindows(false)
+		.SetWidth(_Width)
+		.SetHeight(_Height))
 {}
 
 void SViewer::NativeInitialize(const FNativeDataInitialize& _Data)

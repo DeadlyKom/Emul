@@ -1,10 +1,12 @@
 #pragma once
 
 #include <CoreMinimal.h>
-#include "Window.h"
+#include "Viewer.h"
 
-class SMemoryDump : public SWindow
+class SMemoryDump : public SViewerChild
 {
+	using Super = SViewerChild;
+	using ThisClass = SMemoryDump;
 public:
 	SMemoryDump(EFont::Type _FontName);
 

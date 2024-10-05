@@ -1,7 +1,7 @@
 #pragma once
 
 #include <CoreMinimal.h>
-#include "Window.h"
+#include "Viewer.h"
 #include "Devices/Memory/Interface_Memory.h"
 
 class FMotherboard;
@@ -51,19 +51,22 @@ struct FDisassemblerInput
 	std::map<EDisassemblerInputValue, std::any> Value;
 };
 
-class SDisassembler : public SWindow
+class SDisassembler : public SViewerChild
 {
+	using Super = SViewerChild;
 	using ThisClass = SDisassembler;
 public:
 	SDisassembler(EFont::Type _FontName);
 
 	virtual void Initialize() override;
+	virtual void Tick(float DeltaTime) override;
 	virtual void Render() override;
 
 private:
 	FORCEINLINE FMotherboard& GetMotherboard() const;
 
-	void Update_MemorySnapshot();
+	void Load_MemorySnapshot();
+	void Upload_MemorySnapshot();
 
 	void Draw_CodeDisassembler(EThreadStatus Status);
 	void Draw_Breakpoint(uint16_t Address);
@@ -115,12 +118,13 @@ private:
 
 	FDisassemblerInput InputActionEvent;
 
-	uint16_t TopCursorAtAddress;
-	uint16_t UserCursorAtAddress;
+	int32_t TopCursorAtAddress;
+	int32_t UserCursorAtAddress;
 	int32_t UserCursorAtLine;
 	int32_t UserCursorAtColumn;
 
 	uint64_t LatestClockCounter;
+	EThreadStatus Status;
 	FMemorySnapshot Snapshot;
 	std::vector<uint8_t> AddressSpace;
 };

@@ -6,7 +6,10 @@ namespace
 }
 
 SCallStack::SCallStack(EFont::Type _FontName)
-	: SWindow(ThisWindowName, _FontName, true)
+	: Super(FWindowInitializer()
+		.SetName(ThisWindowName)
+		.SetFontName(FontName)
+		.SetIncludeInWindows(true))
 {}
 
 void SCallStack::Initialize()

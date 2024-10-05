@@ -8,6 +8,12 @@ enum class EDataBlockState
 	Actived,
 };
 
+enum class EMemoryOperationType
+{
+	Read,
+	Write
+};
+
 struct FDataBlock
 {
 	FName DeviceName;
@@ -34,6 +40,6 @@ struct FMemorySnapshot
 class IMemory
 {
 public:
-	virtual void Snapshot(FMemorySnapshot& OutMemorySnaphot) = 0;
+	virtual void Snapshot(FMemorySnapshot& InOutMemorySnaphot, EMemoryOperationType Type) = 0;
 	virtual void Load(const std::filesystem::path& FilePath) = 0;
 };

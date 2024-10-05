@@ -128,7 +128,16 @@ void FThread::Thread_Request(EThreadTypeRequest TypeRequest, Callback&& Task/* =
 	ThreadRequest.Push({ TypeRequest, std::move(Task) });
 }
 
-std::any FThread::Thread_ThreadRequestResult(EName::Type DeviceID, const std::type_index& Type)
+void FThread::Device_ThreadRequest(EName::Type DeviceID, const std::type_index& Type, std::any Value)
+{
+	Thread_Request(EThreadTypeRequest::ExecuteTask,
+		[=]()
+		{
+			SetState_RequestHandler(DeviceID, Type, Value);
+		});
+}
+
+std::any FThread::Device_ThreadRequestResult(EName::Type DeviceID, const std::type_index& Type)
 {
 	Thread_Request(EThreadTypeRequest::ExecuteTask,
 		[=]()
@@ -290,51 +299,101 @@ void FThread::ThreadRequest_LoadRawData(EName::Type DeviceID, std::filesystem::p
 
 void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_index& Type)
 {
-	if (DeviceID == EName::None)
+	switch (DeviceID)
 	{
-		// get thread status
-		if (Type == typeid(EThreadStatus))
+		case EName::None:
 		{
-			const EThreadStatus Status = ThreadStatus;
-			return ThreadRequestResult.Push(Status);
-		}
-		else if (Type == typeid(uint64_t))
-		{
-			return ThreadRequestResult.Push(CG.GetClockCounter());
-		}
-	}
-	else if (DeviceID == EName::Memory)
-	{
-		FMemorySnapshot MS(CG.GetClockCounter());
-		for (std::shared_ptr<FDevice>& Device : Devices)
-		{
-			if (Device->GetType() == EDeviceType::Memory)
+			// get thread status
+			if (Type == typeid(EThreadStatus))
 			{
-				if (std::shared_ptr<IMemory> Memory = std::dynamic_pointer_cast<IMemory>(Device))
+				const EThreadStatus Status = ThreadStatus;
+				return ThreadRequestResult.Push(Status);
+			}
+			else if (Type == typeid(uint64_t))
+			{
+				return ThreadRequestResult.Push(CG.GetClockCounter());
+			}
+			break;
+		}
+		case EName::Memory:
+		{
+			FMemorySnapshot MS(CG.GetClockCounter());
+			for (std::shared_ptr<FDevice>& Device : Devices)
+			{
+				if (Device->GetType() == EDeviceType::Memory)
 				{
-					Memory->Snapshot(MS);
+					if (std::shared_ptr<IMemory> Memory = std::dynamic_pointer_cast<IMemory>(Device))
+					{
+						Memory->Snapshot(MS, EMemoryOperationType::Read);
+					}
 				}
 			}
+			return ThreadRequestResult.Push(MS);
 		}
-		return ThreadRequestResult.Push(MS);
-	}
-	else
-	{
-		for (std::shared_ptr<FDevice>& Device : Devices)
+		default:
 		{
-			if (Device->UniqueDeviceID != DeviceID)
+			for (std::shared_ptr<FDevice>& Device : Devices)
 			{
-				continue;
-			}
+				if (Device->UniqueDeviceID != DeviceID)
+				{
+					continue;
+				}
 
-			if (Type == typeid(FRegisters))
-			{
-				// ToDo need an interface to receive data from the CPU
-				if (std::shared_ptr<FCPU_Z80> CPU = std::dynamic_pointer_cast<FCPU_Z80>(Device))
+				if (Type == typeid(FRegisters))
 				{
-					return ThreadRequestResult.Push(CPU->Registers);
+					// ToDo need an interface to receive data from the CPU
+					if (std::shared_ptr<FCPU_Z80> CPU = std::dynamic_pointer_cast<FCPU_Z80>(Device))
+					{
+						return ThreadRequestResult.Push(CPU->Registers);
+					}
 				}
 			}
+			break;
+		}
+	}
+	assert(false);
+}
+
+void FThread::SetState_RequestHandler(EName::Type DeviceID, const std::type_index& Type, const std::any& Value)
+{
+	switch (DeviceID)
+	{
+		case EName::None:
+		{
+			break;
+		}
+		case EName::Memory:
+		{
+			if (Type == typeid(FMemorySnapshot))
+			{
+				FMemorySnapshot MS;
+				try
+				{
+					MS = std::any_cast<FMemorySnapshot>(Value);
+				}
+				catch (const std::bad_any_cast& e)
+				{
+					std::cout << "Error: " << e.what() << std::endl;
+					break;
+				}
+
+				for (std::shared_ptr<FDevice>& Device : Devices)
+				{
+					if (Device->GetType() == EDeviceType::Memory)
+					{
+						if (std::shared_ptr<IMemory> Memory = std::dynamic_pointer_cast<IMemory>(Device))
+						{
+							Memory->Snapshot(MS, EMemoryOperationType::Write);
+						}
+					}
+				}
+				return;
+			}
+			break;
+		}
+		default:
+		{
+			break;
 		}
 	}
 	assert(false);

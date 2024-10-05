@@ -23,6 +23,7 @@ public:
 	void Input_Step(FCPU_StepType::Type Type);
 
 	void LoadRawData(EName::Type BoardID, EName::Type DeviceID, std::filesystem::path FilePath);
+	
 	template<typename T>
 	T GetState(EName::Type BoardID, EName::Type DeviceID)
 	{
@@ -35,6 +36,19 @@ public:
 			return Board->GetState<T>(DeviceID);
 		}
 		return T();
+	}
+
+	template<typename T>
+	void SetState(EName::Type BoardID, EName::Type DeviceID, const std::any& Value)
+	{
+		for (auto& [Name, Board] : Boards)
+		{
+			if (Board->UniqueBoardID != BoardID)
+			{
+				continue;
+			}
+			Board->SetState<T>(DeviceID, Value);
+		}
 	}
 
 	// external signals

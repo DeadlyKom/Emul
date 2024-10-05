@@ -2,10 +2,11 @@
 
 #include <CoreMinimal.h>
 #include "Utils/UI.h"
-#include "Window.h"
+#include "Viewer.h"
 #include "Devices/CPU/Z80.h"
 
 class FMotherboard;
+enum class EThreadStatus;
 
 struct FRegisterVisual
 {
@@ -16,14 +17,18 @@ struct FRegisterVisual
 	bool bWord;
 };
 
-class SCPU_State : public SWindow
+class SCPU_State : public SViewerChild
 {
+	using Super = SViewerChild;
 	using ThisClass = SCPU_State;
 public:
 	SCPU_State(EFont::Type _FontName);
 
 	virtual void Initialize() override;
+	virtual void Tick(float DeltaTime) override;
 	virtual void Render() override;
+
+	const FRegisters& GetLatestRegistersState() const { return LatestRegistersState; }
 
 private:
 	FORCEINLINE FMotherboard& GetMotherboard() const;
@@ -37,6 +42,7 @@ private:
 	void Input_HotKeys();
 
 	uint64_t LatestClockCounter;
+	EThreadStatus Status;
 	FRegisters LatestRegistersState;
 	std::vector<std::vector<FRegisterVisual>> HighlightRegisters;
 };

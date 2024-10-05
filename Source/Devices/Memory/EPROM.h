@@ -24,7 +24,7 @@ public:
 
 	static std::string ToString(EEPROM_Type Type);
 	virtual void Tick() override;
-	virtual void Snapshot(FMemorySnapshot& OutMemorySnaphot) override;
+	virtual void Snapshot(FMemorySnapshot& InOutMemorySnaphot, EMemoryOperationType Type) override;
 	virtual void Load(const std::filesystem::path& FilePath) override;
 
 private:

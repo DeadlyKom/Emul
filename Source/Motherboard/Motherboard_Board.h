@@ -41,6 +41,12 @@ private:
 		return Thread->GetState<T>(DeviceID);
 	}
 
+	template<typename T>
+	void SetState(EName::Type DeviceID, const std::any& Value)
+	{
+		Thread->SetState<T>(DeviceID, Value);
+	}
+
 	FName BoardName;
 	EName::Type UniqueBoardID;
 	double Frequency;

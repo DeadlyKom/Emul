@@ -97,17 +97,32 @@ void FEPROM::Tick()
 	}
 }
 
-void FEPROM::Snapshot(FMemorySnapshot& OutMemorySnaphot)
+void FEPROM::Snapshot(FMemorySnapshot& InOutMemorySnaphot, EMemoryOperationType Type)
 {
-	FDataBlock DB
+	if (Type == EMemoryOperationType::Read)
 	{
-		.DeviceName = DeviceName,
-		.BlockName = "Test ROM",
-		.State = EDataBlockState::Actived,
-		.PlacementAddress = PlacementAddress,
-		.Data = Firmware,
-	};
-	OutMemorySnaphot.AddDataBlock(DB);
+		auto a = Firmware.size();
+		FDataBlock DataBlock
+		{
+			.DeviceName = DeviceName,
+			.BlockName = "Test ROM",
+			.State = EDataBlockState::Actived,
+			.PlacementAddress = PlacementAddress,
+			.Data = Firmware,
+		};
+		InOutMemorySnaphot.AddDataBlock(DataBlock);
+	}
+	else if (Type == EMemoryOperationType::Write)
+	{
+		for (FDataBlock& DataBlock : InOutMemorySnaphot.DataBlocks)
+		{
+			if (DataBlock.BlockName != DeviceName)
+			{
+				continue;
+			}
+			std::ranges::copy(DataBlock.Data.begin(), DataBlock.Data.end(), Firmware.begin() + DataBlock.PlacementAddress);
+		}
+	}
 }
 
 void FEPROM::Load(const std::filesystem::path& FilePath)
@@ -135,13 +150,11 @@ void FEPROM::Load(const std::filesystem::path& FilePath)
 	File.seekg(0, std::ios::beg);
 
 	// reserve capacity
+	Firmware.clear();
 	Firmware.reserve(FileSize);
 
 	// read the data
 	Firmware.insert(Firmware.begin(), std::istream_iterator<BYTE>(File), std::istream_iterator<BYTE>());
-
-	//
-	std::memcpy(Firmware.data(), Firmware.data() + 0xC000, 0x4000);
 
 	File.close();
 }
