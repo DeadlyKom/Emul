@@ -69,7 +69,6 @@ namespace Disassembler
 		{
 			Opcodes += std::format(FORMAT_OPCODE(true), Opcode);
 			Counter++;
-			//Address++;
 		}
 
 		switch (OCTAL_X(Opcode))
@@ -1100,6 +1099,7 @@ SDisassembler::SDisassembler(EFont::Type _FontName)
 	, bMemoryArea(false)
 	, bShowStatusBar(true)
 	, bShowOpcode(true)
+	, bEditingTakeFocusReset(false)
 	, bAddressUpperCaseHex(true)
 	, bInstructionUpperCaseHex(false)
 	, CodeDisassemblerScale(1.0f)
@@ -1112,6 +1112,7 @@ SDisassembler::SDisassembler(EFont::Type _FontName)
 	, TopCursorAtAddress(INDEX_NONE)
 	, UserCursorAtAddress(INDEX_NONE)
 	, UserCursorAtLine(INDEX_NONE)
+	, UserCursorAtColumn(DisassemblerColumn::None)
 	, LatestClockCounter(INDEX_NONE)
 {}
 
@@ -1222,33 +1223,47 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 					InputActionEvent.Type = EDisassemblerInput::None;
 					break;
 				}
+				case EDisassemblerInput::Input_Enter:
+				{
+					Enter_EditColumn();
+					InputActionEvent.Type = EDisassemblerInput::None; 
+					break;
+				}
 				case EDisassemblerInput::Input_UpArrow:
 				{
-					if (UserCursorAtLine <= 0)
-					{
-						Disassembler::StepLine(TopCursorAtAddress, -1, AddressSpace);
-						UserCursorAtAddress = TopCursorAtAddress;
-					}
-					else
-					{
-						Disassembler::StepLine(UserCursorAtAddress, -1, AddressSpace);
-						UserCursorAtLine--;
-					}
+					Reset_EditColumn();
+					Prev_EditRow();
 					InputActionEvent.Type = EDisassemblerInput::None;
 					break;
 				}
 				case EDisassemblerInput::Input_DownArrow:
 				{
-					if (UserCursorAtLine >= Lines)
-					{
-						Disassembler::StepLine(TopCursorAtAddress, 1, AddressSpace);
-						UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, Lines, AddressSpace);
-					}
-					else
-					{
-						Disassembler::StepLine(UserCursorAtAddress, 1, AddressSpace);
-						UserCursorAtLine++;
-					}
+					Reset_EditColumn();
+					Next_EditRow(Lines);
+					InputActionEvent.Type = EDisassemblerInput::None;
+					break;
+				}
+				case EDisassemblerInput::Input_CtrlUpArrow:
+				{
+					Prev_EditRow(true);
+					InputActionEvent.Type = EDisassemblerInput::None;
+					break;
+				}
+				case EDisassemblerInput::Input_CtrlDownArrow:
+				{
+					Next_EditRow(Lines, true);
+					InputActionEvent.Type = EDisassemblerInput::None;
+					break;
+				}
+				case EDisassemblerInput::Input_CtrlLeftArrow:
+				{
+					Prev_EditColumn();
+					InputActionEvent.Type = EDisassemblerInput::None;
+					break;
+				}
+				case EDisassemblerInput::Input_CtrlRightArrow:
+				{
+					Next_EditColumn();
 					InputActionEvent.Type = EDisassemblerInput::None;
 					break;
 				}
@@ -1281,8 +1296,8 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 						std::cout << "Error: " << e.what() << std::endl;
 
 					}
-					UserCursorAtAddress = TopCursorAtAddress;
 					Disassembler::StepLine(TopCursorAtAddress, -GoTo_CurrentLine, AddressSpace);
+					UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, GoTo_CurrentLine, AddressSpace);
 					InputActionEvent.Type = EDisassemblerInput::None;
 					break;
 				}
@@ -1382,7 +1397,8 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 		ImGui::SameLine(0.0f, 0.0f);
 		ImGui::Text(FORMAT_ADDRESS(bAddressUpperCaseHex), Address);
 
-		if ((InputActionEvent.Type == EDisassemblerInput::Input_GoToAddress && CurrentLine == 0) || (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0)))
+		if ((InputActionEvent.Type == EDisassemblerInput::Input_GoToAddress && CurrentLine == 0) || 
+			(ImGui::IsItemHovered() && ImGui::IsMouseClicked(0)))
 		{
 			if (InputActionEvent.Type == EDisassemblerInput::Input_GoToAddress)
 			{
@@ -1398,10 +1414,22 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 	}
 	else
 	{
-		if (bAddressEditingTakeFocus)
+		if (bAddressEditingTakeFocus || bEditingTakeFocusReset)
 		{
 			ImGui::SetKeyboardFocusHere(0);
 			std::sprintf(AddressInputBuffer, FORMAT_ADDRESS(bAddressUpperCaseHex), Address);
+
+			if (bEditingTakeFocusReset)
+			{
+				ImGuiWindow* window = ImGui::GetCurrentWindow();
+				if (!window->SkipItems)
+				{
+					const ImGuiID id = window->GetID("##address");
+					ImGuiInputTextState* State = ImGui::GetInputTextState(id);
+					State->ReloadUserBufAndSelectAll();
+				}
+				bEditingTakeFocusReset = false;
+			}
 		}
 
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
@@ -1430,9 +1458,8 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 		bool AddressWrite = false;
 		static const ImGuiInputTextFlags Flags = ImGuiInputTextFlags_CharsHexadecimal |
 												 ImGuiInputTextFlags_CharsUppercase |
-												 ImGuiInputTextFlags_EnterReturnsTrue | 
-												 ImGuiInputTextFlags_AutoSelectAll | 
-												 ImGuiInputTextFlags_NoHorizontalScroll | 
+												 ImGuiInputTextFlags_EnterReturnsTrue |
+												 ImGuiInputTextFlags_NoHorizontalScroll |
 												 ImGuiInputTextFlags_CallbackAlways |
 												 ImGuiInputTextFlags_AlwaysOverwrite;
 
@@ -1447,10 +1474,6 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 		}
 
 		bAddressEditingTakeFocus = false;
-		if (UserData.CursorPos >= 4)
-		{
-			AddressWrite = true;
-		}
 
 		uint32_t AddressInputValue = 0;
 		if (AddressWrite && std::sscanf(AddressInputBuffer, "%X", &AddressInputValue) == 1)
@@ -1503,20 +1526,33 @@ void SDisassembler::Draw_OpcodeInstruction(uint16_t Address, const std::string& 
 
 		ImGui::RenderTextClipped(bb.Min + Padding, bb.Max - Padding, Opcodes.c_str(), nullptr, &StringSize, Aligment, &bb);
 
-		if ((ImGui::IsItemHovered() && ImGui::IsMouseClicked(0)))
+		if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0))
 		{
 			bOpcodeInstructionEditingTakeFocus = true;
 			OpcodeInstructionEditing = Address;
 			UserCursorAtAddress = Address;
+			UserCursorAtColumn = DisassemblerColumn::Opcode;
 		}
 	}
 	else
 	{
-		if (bOpcodeInstructionEditingTakeFocus)
+		if (bOpcodeInstructionEditingTakeFocus || bEditingTakeFocusReset)
 		{
 			ImGui::SetKeyboardFocusHere(0);
 			assert(Opcodes.size() < 256);
 			std::memcpy(OpcodeInstructioBuffer, Opcodes.data(), Math::Min<size_t>(Opcodes.size() + 1, 256));
+
+			if (bEditingTakeFocusReset)
+			{
+				ImGuiWindow* window = ImGui::GetCurrentWindow();
+				if (!window->SkipItems)
+				{
+					const ImGuiID id = window->GetID("##opcode");
+					ImGuiInputTextState* State = ImGui::GetInputTextState(id);
+					State->ReloadUserBufAndSelectAll();
+				}
+				bEditingTakeFocusReset = false;
+			}
 		}
 
 		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0, 0));
@@ -1544,7 +1580,6 @@ void SDisassembler::Draw_OpcodeInstruction(uint16_t Address, const std::string& 
 			ImGuiInputTextFlags_CharsHexadecimal |
 			ImGuiInputTextFlags_CharsUppercase |
 			ImGuiInputTextFlags_EnterReturnsTrue |
-			ImGuiInputTextFlags_AutoSelectAll |
 			ImGuiInputTextFlags_CallbackAlways |
 			ImGuiInputTextFlags_AlwaysOverwrite;
 
@@ -1554,9 +1589,9 @@ void SDisassembler::Draw_OpcodeInstruction(uint16_t Address, const std::string& 
 		{
 			uint8_t TmpNumber;
 			std::vector<uint8_t> Opcodes;
-			for (size_t i = 0; i < strlen(OpcodeInstructioBuffer); i += 2)
+			for (size_t i = 0; i < std::strlen(OpcodeInstructioBuffer); i += 2)
 			{
-				if (i + 2 <= strlen(OpcodeInstructioBuffer) && std::sscanf(OpcodeInstructioBuffer + i, "%2hhX", &TmpNumber) == 1)
+				if (i + 2 <= std::strlen(OpcodeInstructioBuffer) && std::sscanf(OpcodeInstructioBuffer + i, "%2hhX", &TmpNumber) == 1)
 				{
 					Opcodes.push_back(TmpNumber);
 				}
@@ -1571,7 +1606,6 @@ void SDisassembler::Draw_OpcodeInstruction(uint16_t Address, const std::string& 
 			OpcodeInstructionEditing = INDEX_NONE;
 		}
 		bOpcodeInstructionEditingTakeFocus = false;
-
 
 		ImGui::PopStyleVar(2);
 	}
@@ -1656,11 +1690,12 @@ void SDisassembler::Draw_Instruction(uint16_t Address, const std::string& _Comma
 			}
 		}
 
-		if ((ImGui::IsItemHovered() && ImGui::IsMouseClicked(0)))
+		if (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0))
 		{
 			bInstructionEditingTakeFocus = true;
 			InstructionEditing = Address;
 			UserCursorAtAddress = Address;
+			//UserCursorAtColumn = DisassemblerColumn::Instruction;
 		}
 	}
 	else
@@ -1669,16 +1704,215 @@ void SDisassembler::Draw_Instruction(uint16_t Address, const std::string& _Comma
 	}
 }
 
+void SDisassembler::Enter_EditColumn()
+{
+	Reset_EditColumn();
+
+	if (UserCursorAtColumn == DisassemblerColumn::None)
+	{
+		UserCursorAtColumn = DisassemblerColumn::Address;
+	}
+
+	switch (UserCursorAtColumn)
+	{
+		case DisassemblerColumn::Address:
+		{
+			bAddressEditingTakeFocus = true;
+			AddressEditing = UserCursorAtAddress;
+			break;
+		}
+		case DisassemblerColumn::Opcode:
+		{
+			
+			bOpcodeInstructionEditingTakeFocus = true;
+			OpcodeInstructionEditing = UserCursorAtAddress;
+			break;
+		}
+		case DisassemblerColumn::Instruction:
+		{
+			bInstructionEditingTakeFocus = true;
+			InstructionEditing = UserCursorAtAddress;
+			break;
+		}
+	}
+}
+
+void SDisassembler::Reset_EditColumn()
+{
+	bAddressEditingTakeFocus = 
+	bOpcodeInstructionEditingTakeFocus =
+	bInstructionEditingTakeFocus = false;
+
+	AddressEditing =
+	OpcodeInstructionEditing =
+	InstructionEditing = INDEX_NONE;
+}
+
+void SDisassembler::Prev_EditRow(bool bCtrl /*= false*/)
+{
+	if (UserCursorAtLine <= 0)
+	{
+		Disassembler::StepLine(TopCursorAtAddress, -1, AddressSpace);
+		UserCursorAtAddress = TopCursorAtAddress;
+	}
+	else
+	{
+		Disassembler::StepLine(UserCursorAtAddress, -1, AddressSpace);
+		UserCursorAtLine--;
+	}
+
+	if (!bCtrl)
+	{
+		return;
+	}
+
+	switch (UserCursorAtColumn)
+	{
+		case DisassemblerColumn::Address:
+		{
+			AddressEditing = UserCursorAtAddress;
+			break;
+		}
+		case DisassemblerColumn::Opcode:
+		{
+			OpcodeInstructionEditing = UserCursorAtAddress;
+			break;
+		}
+		case DisassemblerColumn::Instruction:
+		{
+			InstructionEditing = UserCursorAtAddress;
+			break;
+		}
+	}
+
+	bEditingTakeFocusReset = true;
+}
+
+void SDisassembler::Next_EditRow(int32_t MaxLines, bool bCtrl /*= false*/)
+{
+	if (UserCursorAtLine >= MaxLines)
+	{
+		Disassembler::StepLine(TopCursorAtAddress, 1, AddressSpace);
+		UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, MaxLines, AddressSpace);
+	}
+	else
+	{
+		Disassembler::StepLine(UserCursorAtAddress, 1, AddressSpace);
+		UserCursorAtLine++;
+	}
+
+	if (!bCtrl)
+	{
+		return;
+	}
+
+	switch (UserCursorAtColumn)
+	{
+	case DisassemblerColumn::Address:
+	{
+		AddressEditing = UserCursorAtAddress;
+		break;
+	}
+	case DisassemblerColumn::Opcode:
+	{
+		OpcodeInstructionEditing = UserCursorAtAddress;
+		break;
+	}
+	case DisassemblerColumn::Instruction:
+	{
+		InstructionEditing = UserCursorAtAddress;
+		break;
+	}
+	}
+
+	bEditingTakeFocusReset = true;
+}
+
+void SDisassembler::Prev_EditColumn()
+{
+	if (UserCursorAtColumn == DisassemblerColumn::None)
+	{
+		//UserCursorAtColumn = DisassemblerColumn::Instruction;
+		UserCursorAtColumn = DisassemblerColumn::Opcode;
+		return;
+	}
+
+	switch (UserCursorAtColumn)
+	{
+		//case DisassemblerColumn::Address:
+		//{
+		//	bOpcodeInstructionEditingTakeFocus = true;
+		//	OpcodeInstructionEditing = AddressEditing;
+		//	AddressEditing = INDEX_NONE;
+		//	break;
+		//}
+		case DisassemblerColumn::Opcode:
+		{
+			bAddressEditingTakeFocus = true;
+			AddressEditing = OpcodeInstructionEditing;
+			OpcodeInstructionEditing = INDEX_NONE;
+			break;
+		}
+		case DisassemblerColumn::Instruction:
+		{
+			break;
+		}
+	}
+
+	if (--UserCursorAtColumn <= DisassemblerColumn::Address)
+	{
+		UserCursorAtColumn = DisassemblerColumn::Address;
+	}
+}
+
+void SDisassembler::Next_EditColumn()
+{
+	if (UserCursorAtColumn == DisassemblerColumn::None)
+	{
+		UserCursorAtColumn = DisassemblerColumn::Address;
+		return;
+	}
+
+	switch (UserCursorAtColumn)
+	{
+		case DisassemblerColumn::Address:
+		{
+			bOpcodeInstructionEditingTakeFocus = true;
+			OpcodeInstructionEditing = AddressEditing;
+			AddressEditing = INDEX_NONE;
+			break;
+		}
+		case DisassemblerColumn::Opcode:
+		{
+			break;
+		}
+		case DisassemblerColumn::Instruction:
+		{
+			break;
+		}
+	}
+	
+	if (++UserCursorAtColumn >= DisassemblerColumn::Opcode)
+	{
+		UserCursorAtColumn = DisassemblerColumn::Opcode;
+	}
+}
+
 void SDisassembler::Input_HotKeys()
 {
 	static std::vector<FHotKey> Hotkeys =
 	{
-		{ ImGuiKey_UpArrow,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_UpArrow, this)					},	// debugger: up arrow
-		{ ImGuiKey_DownArrow,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_DownArrow, this)				},	// debugger: down arrow
-		{ ImGuiKey_PageUp,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageUp, this)					},	// debugger: page up
-		{ ImGuiKey_PageDown,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageDown, this)					},	// debugger: page down
+		{ ImGuiKey_Enter,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Enter, this)			},	// debugger: enter
+		{ ImGuiKey_UpArrow,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_UpArrow, this)			},	// debugger: up arrow
+		{ ImGuiKey_DownArrow,					ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_DownArrow, this)		},	// debugger: down arrow
+		{ ImGuiMod_Ctrl | ImGuiKey_UpArrow,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlUpArrow, this)		},	// debugger: ctrl + up arrow
+		{ ImGuiMod_Ctrl | ImGuiKey_DownArrow,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlDownArrow, this)	},	// debugger: ctrl + down arrow
+		{ ImGuiMod_Ctrl | ImGuiKey_LeftArrow,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlLeftArrow, this)	},	// debugger: ctrl + left arrow
+		{ ImGuiMod_Ctrl | ImGuiKey_RightArrow,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlRightArrow, this)	},	// debugger: ctrl + right arrow
+		{ ImGuiKey_PageUp,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageUp, this)			},	// debugger: page up
+		{ ImGuiKey_PageDown,					ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageDown, this)			},	// debugger: page down
 
-		{ ImGuiMod_Ctrl | ImGuiKey_G,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_GoToAddress, this)		},	// debugger: go to address
+		{ ImGuiMod_Ctrl | ImGuiKey_G,			ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_GoToAddress, this)		},	// debugger: go to address
 
 		{ ImGuiKey_F4,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepTo);		}},	// debugger: step into
 		{ ImGuiKey_F7,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepInto);	}},	// debugger: step into
@@ -1713,6 +1947,11 @@ void SDisassembler::Input_Mouse()
 	}
 }
 
+void SDisassembler::Input_Enter()
+{
+	InputActionEvent.Type = EDisassemblerInput::Input_Enter;
+}
+
 void SDisassembler::Input_UpArrow()
 {
 	InputActionEvent.Type = EDisassemblerInput::Input_UpArrow;
@@ -1721,6 +1960,26 @@ void SDisassembler::Input_UpArrow()
 void SDisassembler::Input_DownArrow()
 {
 	InputActionEvent.Type = EDisassemblerInput::Input_DownArrow;
+}
+
+void SDisassembler::Input_CtrlUpArrow()
+{
+	InputActionEvent.Type = EDisassemblerInput::Input_CtrlUpArrow;
+}
+
+void SDisassembler::Input_CtrlDownArrow()
+{
+	InputActionEvent.Type = EDisassemblerInput::Input_CtrlDownArrow;
+}
+
+void SDisassembler::Input_CtrlLeftArrow()
+{
+	InputActionEvent.Type = EDisassemblerInput::Input_CtrlLeftArrow;
+}
+
+void SDisassembler::Input_CtrlRightArrow()
+{
+	InputActionEvent.Type = EDisassemblerInput::Input_CtrlRightArrow;
 }
 
 void SDisassembler::Input_PageUp()

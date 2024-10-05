@@ -15,8 +15,13 @@ enum class EDisassemblerInput
 	PageUpPressed,
 	PageDownPressed,
 
+	Input_Enter,
 	Input_UpArrow,
 	Input_DownArrow,
+	Input_CtrlUpArrow,
+	Input_CtrlDownArrow,
+	Input_CtrlLeftArrow,
+	Input_CtrlRightArrow,
 	Input_GoToAddress,
 	GoToAddress,
 };
@@ -27,6 +32,18 @@ enum class EDisassemblerInputValue
 	GoTo_Address,
 	GoTo_Line,
 };
+
+namespace DisassemblerColumn
+{
+	enum Type
+	{
+		Address = 0,
+		Opcode,
+		Instruction,
+
+		None = INDEX_NONE
+	};
+}
 
 struct FDisassemblerInput
 {
@@ -54,10 +71,22 @@ private:
 	void Draw_OpcodeInstruction(uint16_t Address, const std::string& Opcodes, int32_t CurrentLine);
 	void Draw_Instruction(uint16_t Address, const std::string& Command, int32_t CurrentLine);
 
+	void Enter_EditColumn();
+	void Reset_EditColumn();
+	void Prev_EditRow(bool bCtrl = false);
+	void Next_EditRow(int32_t MaxLines, bool bCtrl = false);
+	void Prev_EditColumn();
+	void Next_EditColumn();
+
 	void Input_HotKeys();
 	void Input_Mouse();
+	void Input_Enter();
 	void Input_UpArrow();
-	void Input_DownArrow();
+	void Input_DownArrow();	
+	void Input_CtrlUpArrow();
+	void Input_CtrlDownArrow();
+	void Input_CtrlLeftArrow();
+	void Input_CtrlRightArrow();
 	void Input_PageUp();
 	void Input_PageDown();
 	void Input_GoToAddress();
@@ -74,6 +103,7 @@ private:
 	float CodeDisassemblerScale;
 
 	// state
+	bool bEditingTakeFocusReset;
 	bool bAddressEditingTakeFocus;
 	bool bOpcodeInstructionEditingTakeFocus;
 	bool bInstructionEditingTakeFocus;
@@ -88,6 +118,7 @@ private:
 	uint16_t TopCursorAtAddress;
 	uint16_t UserCursorAtAddress;
 	int32_t UserCursorAtLine;
+	int32_t UserCursorAtColumn;
 
 	uint64_t LatestClockCounter;
 	FMemorySnapshot Snapshot;
