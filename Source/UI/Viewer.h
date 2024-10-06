@@ -30,6 +30,7 @@ public:
 
 private:
 	void Input_HotKeys();
+	void Inut_Debugger();
 
 	FMotherboard& GetMotherboard() const;
 	std::shared_ptr<SWindow> GetWindow(EWindowsType Type)

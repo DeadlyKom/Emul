@@ -89,6 +89,9 @@
     <ClCompile Include="UI\MemoryDump.cpp">
       <Filter>Source\UI</Filter>
     </ClCompile>
+    <ClCompile Include="Core\Image.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source">
@@ -249,9 +252,18 @@
     <ClInclude Include="Utils\ScopeExit.h">
       <Filter>Source\Utils</Filter>
     </ClInclude>
+    <ClInclude Include="UI\Interface_WindowEventNotification.h">
+      <Filter>Source\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Image.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Resource\Icons\ICONE.ico">
+      <Filter>Resource\Icons</Filter>
+    </Image>
+    <Image Include="..\Resource\Icons\ArrowRight.png">
       <Filter>Resource\Icons</Filter>
     </Image>
   </ItemGroup>

@@ -8,6 +8,8 @@
 #include "Devices/Memory/EPROM.h"
 #include "Motherboard/Motherboard.h"
 #include "Motherboard/Motherboard_Board.h"
+#include "Core/Fonts.h"
+#include "Core/Image.h"
 
 namespace
 {
@@ -23,6 +25,9 @@ void FAppDebugger::Initialize()
 	FAppFramework::Initialize();
 
 	LOG_CONSOLE("Initialize.");
+
+	FImageBase& Images = FImageBase::Get();
+	Images.Initialize(Device);
 
 	Viewer = std::make_shared<SViewer>(NAME_DOS_12, WindowWidth, WindowHeight);
 	if (Viewer)
@@ -49,6 +54,7 @@ void FAppDebugger::Initialize()
 		Motherboard->LoadRawData(NAME_MainBoard, NAME_EPROM, FIlePath);
 
 		Motherboard->Reset();
+		Motherboard->Inut_Debugger();
 	}
 
 	FFonts& Fonts = FFonts::Get();

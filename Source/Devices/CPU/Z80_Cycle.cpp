@@ -7,7 +7,6 @@
 
 void FCPU_Z80::Cycle_Reset()
 {
-	int a = CG->ToFullCycles(Registers.Step);
 	// the address and data bus enter a high-impedance state
 	SB->SetDataOnAddressBus(0xFFFF);
 	SB->SetDataOnDataBus(0xFF);

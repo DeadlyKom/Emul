@@ -7,6 +7,7 @@
 
 FThread::FThread(FName Name)
 	: ThreadName(Name)
+	, StepType(FCPU_StepType::None)
 	, ThreadStatus(EThreadStatus::Stop)
 {}
 
@@ -167,6 +168,34 @@ void FThread::Thread_Execution()
 			Thread_RequestHandling();
 		}
 
+		// finish machine cycle
+		if (ThreadStatus == EThreadStatus::Stop)
+		{
+			static auto CheckLambda = [this]() -> bool
+				{
+					for (std::shared_ptr<FDevice> Device : Devices)
+					{
+						std::shared_ptr<FCPU_Z80> CPU = std::dynamic_pointer_cast<FCPU_Z80>(Device);
+						if (CPU == nullptr)
+						{
+							continue;
+						}
+
+						return CPU->Registers.Step == DecoderStep::Completed && CPU->Registers.CP.IsEmpty();
+					}
+					return true;
+				};
+
+			while (!CheckLambda())
+			{
+				CG.Tick();		// internal clock generator
+				for (std::shared_ptr<FDevice>& Device : Devices)
+				{
+					if (Device) Device->Tick();
+				}
+			}
+		}
+
 		while (ThreadStatus == EThreadStatus::Trace)
 		{
 			CG.Tick();		// internal clock generator
@@ -262,11 +291,10 @@ void FThread::ThreadRequest_Reset()
 
 	ThreadRequest_SetStatus(EThreadStatus::Run);
 	SB.SetActive(BUS_RESET);
-	ADD_EVENT(CG, CG.ToSec(0.2f), "End signal RESET",
+	ADD_EVENT(CG, 7, "End signal RESET",
 		[&]()
 		{
 			SB.SetInactive(BUS_RESET);
-			ThreadStatus = EThreadStatus::Stop;
 		});
 }
 
@@ -312,6 +340,10 @@ void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_inde
 			else if (Type == typeid(uint64_t))
 			{
 				return ThreadRequestResult.Push(CG.GetClockCounter());
+			}
+			else if (Type == typeid(double))
+			{
+				return ThreadRequestResult.Push(CG.GetFrequency());
 			}
 			break;
 		}

@@ -22,6 +22,7 @@ public:
 	void Inut_Debugger();
 	void Input_Step(FCPU_StepType::Type Type);
 
+	bool GetDebuggerState() const { return bFlipFlopDebugger; }
 	void LoadRawData(EName::Type BoardID, EName::Type DeviceID, std::filesystem::path FilePath);
 	
 	template<typename T>

@@ -2,10 +2,13 @@
 
 #include <CoreMinimal.h>
 #include "Viewer.h"
+#include "Core/Image.h"
 #include "Devices/Memory/Interface_Memory.h"
+#include "Interface_WindowEventNotification.h"
 
 class FMotherboard;
 enum class EThreadStatus;
+namespace FCPU_StepType { enum Type; }
 
 enum class EDisassemblerInput
 {
@@ -51,7 +54,7 @@ struct FDisassemblerInput
 	std::map<EDisassemblerInputValue, std::any> Value;
 };
 
-class SDisassembler : public SViewerChild
+class SDisassembler : public SViewerChild, public IWindowEventNotification
 {
 	using Super = SViewerChild;
 	using ThisClass = SDisassembler;
@@ -67,12 +70,14 @@ private:
 
 	void Load_MemorySnapshot();
 	void Upload_MemorySnapshot();
+	uint16_t GetProgramCounter();
 
 	void Draw_CodeDisassembler(EThreadStatus Status);
 	void Draw_Breakpoint(uint16_t Address);
 	void Draw_Address(uint16_t Address, int32_t CurrentLine);
 	void Draw_OpcodeInstruction(uint16_t Address, const std::string& Opcodes, int32_t CurrentLine);
 	void Draw_Instruction(uint16_t Address, const std::string& Command, int32_t CurrentLine);
+	void Draw_ProgramCounter(uint16_t Address);
 
 	void Enter_EditColumn();
 	void Reset_EditColumn();
@@ -82,6 +87,7 @@ private:
 	void Next_EditColumn();
 
 	void Input_HotKeys();
+	void Input_Step(FCPU_StepType::Type Type);
 	void Input_Mouse();
 	void Input_Enter();
 	void Input_UpArrow();
@@ -94,6 +100,9 @@ private:
 	void Input_PageDown();
 	void Input_GoToAddress();
 
+	//
+	virtual void OnInputDebugger(bool bDebuggerState) override;
+
 	// visual preferences
 	bool bMemoryArea;
 	bool bShowStatusBar;
@@ -104,6 +113,9 @@ private:
 	// windows ID
 	ImGuiID CodeDisassemblerID;
 	float CodeDisassemblerScale;
+
+	// image 
+	FImageHandle ImageProgramCounter;
 
 	// state
 	bool bEditingTakeFocusReset;
@@ -123,6 +135,7 @@ private:
 	int32_t UserCursorAtLine;
 	int32_t UserCursorAtColumn;
 
+	uint64_t TimeElapsedCounter;
 	uint64_t LatestClockCounter;
 	EThreadStatus Status;
 	FMemorySnapshot Snapshot;

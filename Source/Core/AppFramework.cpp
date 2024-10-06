@@ -82,7 +82,6 @@ FAppFramework::FAppFramework()
 FAppFramework::~FAppFramework()
 {}
 
-
 int32_t FAppFramework::Launch(const std::map<std::string, std::string>& Args)
 {
 	if (Args.contains("help"))

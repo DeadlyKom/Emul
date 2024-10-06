@@ -88,12 +88,26 @@ void SViewer::Input_HotKeys()
 {
 	static std::vector<FHotKey> Hotkeys =
 	{
-		{ ImGuiKey_GraveAccent,			ImGuiInputFlags_None,	[this]() { GetMotherboard().Inut_Debugger();		}},		// debugger
+		{ ImGuiKey_GraveAccent,			ImGuiInputFlags_None,	std::bind(&ThisClass::Inut_Debugger, this)			 },		// debugger
 		{ ImGuiKey_F11,					ImGuiInputFlags_None,	[this]() { GetMotherboard().NonmaskableInterrupt(); }},		// NMI
 		{ ImGuiMod_Ctrl | ImGuiKey_F12, ImGuiInputFlags_None,	[this]() { GetMotherboard().Reset();				}},		// Reset
 	};
 
 	HotKey::Handler(Hotkeys);
+}
+
+void SViewer::Inut_Debugger()
+{
+	const bool bDebuggerState = GetMotherboard().GetDebuggerState();
+	for (auto& [Type, Window] : Windows)
+	{
+		std::shared_ptr<IWindowEventNotification> Interface = std::dynamic_pointer_cast<IWindowEventNotification>(Window);
+		if (Interface != nullptr)
+		{
+			Interface->OnInputDebugger(bDebuggerState);
+		}
+	}
+	GetMotherboard().Inut_Debugger();
 }
 
 FMotherboard& SViewer::GetMotherboard() const

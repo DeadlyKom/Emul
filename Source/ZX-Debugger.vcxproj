@@ -200,6 +200,7 @@
     <ClCompile Include="Core\AppFramework.cpp" />
     <ClCompile Include="AppDebugger.cpp" />
     <ClCompile Include="Core\Fonts.cpp" />
+    <ClCompile Include="Core\Image.cpp" />
     <ClCompile Include="Core\SystemTime.cpp" />
     <ClCompile Include="Core\TimerManager.cpp" />
     <ClCompile Include="Devices\ControlUnit\AccessToROM.cpp" />
@@ -233,6 +234,7 @@
     <ClInclude Include="Core\CoreMinimal.h" />
     <ClInclude Include="AppDebugger.h" />
     <ClInclude Include="Core\Fonts.h" />
+    <ClInclude Include="Core\Image.h" />
     <ClInclude Include="Core\SystemTime.h" />
     <ClInclude Include="Core\TimerManager.h" />
     <ClInclude Include="Core\Window.h" />
@@ -253,6 +255,7 @@
     <ClInclude Include="UI\CallStack.h" />
     <ClInclude Include="UI\Disassembler.h" />
     <ClInclude Include="UI\CPU_State.h" />
+    <ClInclude Include="UI\Interface_WindowEventNotification.h" />
     <ClInclude Include="UI\MemoryDump.h" />
     <ClInclude Include="UI\Viewer.h" />
     <ClInclude Include="Utils\CommandPipeline.h" />
@@ -273,6 +276,7 @@
     <ResourceCompile Include="ZX-Debugger.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="..\Resource\Icons\ArrowRight.png" />
     <Image Include="..\Resource\Icons\ICONE.ico" />
   </ItemGroup>
   <ItemGroup>

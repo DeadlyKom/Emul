@@ -7,6 +7,7 @@
 #include "Devices/CPU/Z80.h"
 #include "CPU_State.h"
 #include "Motherboard/Motherboard.h"
+#include "resource.h"
 
 namespace
 {
@@ -16,7 +17,7 @@ namespace
 	static constexpr float ColumnWidth_Breakpoint = 2;
 	static constexpr float ColumnWidth_PrefixAddress = 10.0f;
 	static constexpr float ColumnWidth_Address = 50.0f;
-	static constexpr float ColumnWidth_Opcode = 70.0f;
+	static constexpr float ColumnWidth_Opcode = 80.0f;
 	static constexpr float ColumnWidth_Instruction = 200.0f;
 
 	#define FORMAT_ADDRESS(upper)		(upper ? "%04X" : "%04x")
@@ -1122,7 +1123,7 @@ SDisassembler::SDisassembler(EFont::Type _FontName)
 
 void SDisassembler::Initialize()
 {
-
+	ImageProgramCounter = FImageBase::LoadImageFromResource(IDB_ARROW_RIGHT, TEXT("PNG"));
 }
 
 void SDisassembler::Tick(float DeltaTime)
@@ -1131,23 +1132,17 @@ void SDisassembler::Tick(float DeltaTime)
 	if (Status == EThreadStatus::Stop)
 	{
 		const uint64_t ClockCounter = GetMotherboard().GetState<uint64_t>(NAME_MainBoard, NAME_None);
-		if (ClockCounter != LatestClockCounter || ClockCounter == -1)
+		if (ClockCounter != LatestClockCounter || ClockCounter == INDEX_NONE)
 		{
 			Load_MemorySnapshot();
+			TimeElapsedCounter = LatestClockCounter == INDEX_NONE ? ClockCounter : ClockCounter - LatestClockCounter;
 			LatestClockCounter = ClockCounter;
 		}
 	}
 
 	if (TopCursorAtAddress == INDEX_NONE)
 	{
-		std::shared_ptr<SCPU_State> CPU_State = GetWindow<SCPU_State>(EWindowsType::CPU_State);
-		if (CPU_State == nullptr)
-		{
-			LOG_CONSOLE("unable to get processor state.")
-				return;
-		}
-
-		TopCursorAtAddress = CPU_State->GetLatestRegistersState().PC.Get();
+		TopCursorAtAddress = GetProgramCounter();
 		UserCursorAtAddress = TopCursorAtAddress;
 		UserCursorAtLine = TopCursorAtAddress;
 	}
@@ -1177,14 +1172,29 @@ FMotherboard& SDisassembler::GetMotherboard() const
 
 void SDisassembler::Load_MemorySnapshot()
 {
+
 	Snapshot = GetMotherboard().GetState<FMemorySnapshot>(NAME_MainBoard, NAME_Memory);
 	Memory::ToAddressSpace(Snapshot, AddressSpace);
 }
 
 void SDisassembler::Upload_MemorySnapshot()
 {
+	LatestClockCounter = GetMotherboard().GetState<uint64_t>(NAME_MainBoard, NAME_None);
+
 	Memory::ToSnapshot(Snapshot, AddressSpace);
 	GetMotherboard().SetState<FMemorySnapshot>(NAME_MainBoard, NAME_Memory, Snapshot);
+}
+
+uint16_t SDisassembler::GetProgramCounter()
+{
+	std::shared_ptr<SCPU_State> CPU_State = GetWindow<SCPU_State>(EWindowsType::CPU_State);
+	if (CPU_State == nullptr)
+	{
+		LOG_CONSOLE("unable to get processor state.");
+		return 0;
+	}
+
+	return CPU_State->GetLatestRegistersState().PC.Get();
 }
 
 void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
@@ -1194,9 +1204,24 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 		return;
 	}
 
-	ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_WEAK));
-	UI::TextAligned(std::format("CC: #{:016X}", Snapshot.SnapshotTimeCC).c_str(), { 1.0f, 0.5f });
-	ImGui::PopStyleColor();
+	// draw memory area
+	{
+		std::string MemoryAreaName;
+		if (Memory::GetNameByAddress(Snapshot, UserCursorAtAddress, MemoryAreaName))
+		{
+			ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_WEAK));
+			UI::TextAligned(MemoryAreaName.c_str(), { 0.0f, 0.5f });
+			ImGui::PopStyleColor();
+			ImGui::SameLine(-1);
+		}
+	}
+
+	// draw current clock counter
+	{
+		ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_WEAK));
+		UI::TextAligned(std::format("CC: #{:016X}", Snapshot.SnapshotTimeCC).c_str(), { 1.0f, 0.5f });
+		ImGui::PopStyleColor();
+	}
 
 	float FooterHeight = 0;
 	const float HeightSeparator = ImGui::GetStyle().ItemSpacing.y;
@@ -1359,6 +1384,10 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 				{
 					Draw_OpcodeInstruction(StartAddress, Opcodes, i);
 				}
+				if (Status != EThreadStatus::Run)
+				{
+					Draw_ProgramCounter(StartAddress);
+				}
 				Draw_Instruction(StartAddress, Command, i);
 
 				// any interaction rectangle cursore
@@ -1395,9 +1424,44 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 	ImGui::EndChild();
 
 	ImGui::Separator();
-	ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_WEAK));
-	UI::TextAligned(std::format("{}%", 100.0f * CodeDisassemblerScale).c_str(), { 1.0f, 0.5f });
-	ImGui::PopStyleColor();
+
+	// draw time passed
+	{
+		const double ClockFrequencyInv = GetMotherboard().GetState<double>(NAME_MainBoard, NAME_None);
+		double DeltaTime = (double)TimeElapsedCounter * ClockFrequencyInv;
+		std::string FormatTime;
+		if (DeltaTime < 1e-7)
+		{
+			FormatTime = std::format("{:.2f} ns", DeltaTime * 1e9);
+		}
+		else if (DeltaTime < 1e-4)
+		{
+			FormatTime = std::format("{:.2f} us", DeltaTime * 1e6);
+		}
+		else if (DeltaTime < 1e-3)
+		{
+			FormatTime = std::format("{:.2f} ms", DeltaTime * 1e3);
+		}
+		else if (DeltaTime < 1e-1)
+		{
+			FormatTime = std::format("{:.2f} s", DeltaTime);
+		}
+		else
+		{
+			FormatTime = std::format("{:.2f} s", DeltaTime);
+		}
+		ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_WEAK));
+		UI::TextAligned(std::format("Time elapsed: {}cc ({})", TimeElapsedCounter >> 1, FormatTime).c_str(), {0.0f, 0.5f});
+		ImGui::PopStyleColor();
+		ImGui::SameLine(-1);
+	}
+
+	// draw current scale
+	{
+		ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_WEAK));
+		UI::TextAligned(std::format("{}%", 100.0f * CodeDisassemblerScale).c_str(), { 1.0f, 0.5f });
+		ImGui::PopStyleColor();
+	}
 }
 
 void SDisassembler::Draw_Breakpoint(uint16_t Address)
@@ -1736,6 +1800,29 @@ void SDisassembler::Draw_Instruction(uint16_t Address, const std::string& _Comma
 	}
 }
 
+void SDisassembler::Draw_ProgramCounter(uint16_t Address)
+{
+	if (GetProgramCounter() != Address)
+	{
+		return;
+	}
+
+	ImGuiWindow* Window = ImGui::GetCurrentWindow();
+	if (Window->SkipItems)
+	{
+		return;
+	}
+	FImage Image = FImageBase::Get().GetImage(ImageProgramCounter);
+	const ImVec2 Size = ImVec2(Image.Width, Image.Height) * 0.3f * CodeDisassemblerScale;
+
+	const float OffsetX = ColumnWidth_Opcode;
+	const float OffsetY = (ImGui::GetTextLineHeight() - Size.y) * 0.5f;
+
+	const ImVec2 Position = ImVec2(Window->DC.CursorPos.x, Window->DC.CursorPosPrevLine.y) + ImVec2(OffsetX, OffsetY) * CodeDisassemblerScale;
+	const ImRect bb(Position, Position + Size);
+	Window->DrawList->AddImage(Image.GetShaderResourceView(), bb.Min, bb.Max, ImVec2(0.0, 0.0f), ImVec2(1.0, 1.0f), COL_CONST32(UI::COLOR_WHITE));
+}
+
 void SDisassembler::Enter_EditColumn()
 {
 	Reset_EditColumn();
@@ -1943,25 +2030,31 @@ void SDisassembler::Input_HotKeys()
 {
 	static std::vector<FHotKey> Hotkeys =
 	{
-		{ ImGuiKey_Enter,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Enter, this)			},	// debugger: enter
-		{ ImGuiKey_UpArrow,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_UpArrow, this)			},	// debugger: up arrow
-		{ ImGuiKey_DownArrow,					ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_DownArrow, this)		},	// debugger: down arrow
-		{ ImGuiMod_Ctrl | ImGuiKey_UpArrow,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlUpArrow, this)		},	// debugger: ctrl + up arrow
-		{ ImGuiMod_Ctrl | ImGuiKey_DownArrow,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlDownArrow, this)	},	// debugger: ctrl + down arrow
-		{ ImGuiMod_Ctrl | ImGuiKey_LeftArrow,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlLeftArrow, this)	},	// debugger: ctrl + left arrow
-		{ ImGuiMod_Ctrl | ImGuiKey_RightArrow,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlRightArrow, this)	},	// debugger: ctrl + right arrow
-		{ ImGuiKey_PageUp,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageUp, this)			},	// debugger: page up
-		{ ImGuiKey_PageDown,					ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageDown, this)			},	// debugger: page down
+		{ ImGuiKey_Enter,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Enter, this)						},	// debugger: enter
+		{ ImGuiKey_UpArrow,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_UpArrow, this)						},	// debugger: up arrow
+		{ ImGuiKey_DownArrow,					ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_DownArrow, this)					},	// debugger: down arrow
+		{ ImGuiMod_Ctrl | ImGuiKey_UpArrow,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlUpArrow, this)					},	// debugger: ctrl + up arrow
+		{ ImGuiMod_Ctrl | ImGuiKey_DownArrow,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlDownArrow, this)				},	// debugger: ctrl + down arrow
+		{ ImGuiMod_Ctrl | ImGuiKey_LeftArrow,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlLeftArrow, this)				},	// debugger: ctrl + left arrow
+		{ ImGuiMod_Ctrl | ImGuiKey_RightArrow,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlRightArrow, this)				},	// debugger: ctrl + right arrow
+		{ ImGuiKey_PageUp,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageUp, this)						},	// debugger: page up
+		{ ImGuiKey_PageDown,					ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageDown, this)						},	// debugger: page down
 
-		{ ImGuiMod_Ctrl | ImGuiKey_G,			ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_GoToAddress, this)		},	// debugger: go to address
+		{ ImGuiMod_Ctrl | ImGuiKey_G,			ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_GoToAddress, this)					},	// debugger: go to address
 
-		{ ImGuiKey_F4,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepTo);		}},	// debugger: step into
-		{ ImGuiKey_F7,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepInto);	}},	// debugger: step into
-		{ ImGuiKey_F8,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepOver);	}},	// debugger: step over
-		{ ImGuiKey_F11,	ImGuiInputFlags_Repeat,	[this]() { GetMotherboard().Input_Step(FCPU_StepType::StepOut);		}},	// debugger: step out
+		{ ImGuiKey_F4,							ImGuiInputFlags_Repeat, std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepTo)	},	// debugger: step into
+		{ ImGuiKey_F7,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepInto)},	// debugger: step into
+		{ ImGuiKey_F8,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepOver)},	// debugger: step over
+		{ ImGuiKey_F11,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepOut)	},	// debugger: step out
 	};
 
 	Shortcut::Handler(Hotkeys);
+}
+
+void SDisassembler::Input_Step(FCPU_StepType::Type Type)
+{
+	Upload_MemorySnapshot();
+	GetMotherboard().Input_Step(Type);
 }
 
 void SDisassembler::Input_Mouse()
@@ -2036,4 +2129,12 @@ void SDisassembler::Input_PageDown()
 void SDisassembler::Input_GoToAddress()
 {
 	InputActionEvent.Type = EDisassemblerInput::Input_GoToAddress;
+}
+
+void SDisassembler::OnInputDebugger(bool bDebuggerState)
+{
+	if (bDebuggerState /*true = enter debugger*/)
+	{
+		Upload_MemorySnapshot();
+	}
 }

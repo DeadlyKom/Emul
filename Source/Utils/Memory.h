@@ -22,4 +22,17 @@ namespace Memory
 			std::ranges::copy(InRawData.begin() + DataBlock.PlacementAddress, InRawData.begin() + DataBlock.Data.size(), DataBlock.Data.begin());
 		}
 	}
+
+	bool GetNameByAddress(FMemorySnapshot& Snapshot, uint32_t Address, std::string& Output)
+	{
+		for (FDataBlock& DataBlock : Snapshot.DataBlocks)
+		{
+			if (DataBlock.PlacementAddress <= Address && DataBlock.PlacementAddress + DataBlock.Data.size() > Address)
+			{
+				Output = DataBlock.BlockName.ToString();
+				return true;
+			}
+		}
+		return  false;
+	}
 }

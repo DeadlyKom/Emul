@@ -101,7 +101,6 @@ void FEPROM::Snapshot(FMemorySnapshot& InOutMemorySnaphot, EMemoryOperationType 
 {
 	if (Type == EMemoryOperationType::Read)
 	{
-		auto a = Firmware.size();
 		FDataBlock DataBlock
 		{
 			.DeviceName = DeviceName,
@@ -116,7 +115,7 @@ void FEPROM::Snapshot(FMemorySnapshot& InOutMemorySnaphot, EMemoryOperationType 
 	{
 		for (FDataBlock& DataBlock : InOutMemorySnaphot.DataBlocks)
 		{
-			if (DataBlock.BlockName != DeviceName)
+			if (DataBlock.DeviceName != DeviceName)
 			{
 				continue;
 			}
