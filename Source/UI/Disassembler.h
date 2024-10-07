@@ -90,6 +90,7 @@ private:
 	void Input_Step(FCPU_StepType::Type Type);
 	void Input_Mouse();
 	void Input_Enter();
+	void Input_ShowNextStatement();
 	void Input_UpArrow();
 	void Input_DownArrow();	
 	void Input_CtrlUpArrow();
