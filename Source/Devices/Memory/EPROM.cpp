@@ -29,6 +29,7 @@ FEPROM::FEPROM(EEPROM_Type _Type,
 	, Type(_Type)
 	, ChipEnable(_CE)
 	, OutputEnable(_OE)
+	, bReadOnlyMode(true)
 	, PlacementAddress(_PlacementAddress)
 	, Firmware(_Firmware)
 {}
@@ -43,11 +44,13 @@ FEPROM::FEPROM(EEPROM_Type _Type,
 	, Type(_Type)
 	, ChipEnable(_CE)
 	, OutputEnable(_OE)
+	, bReadOnlyMode(true)
 	, PlacementAddress(_PlacementAddress)
 {
 	if (_Firmware != 0 && _FirmwareSize != 0)
 	{
-		std::copy(_Firmware, _Firmware + _FirmwareSize, Firmware.begin());
+		Firmware.resize(_FirmwareSize);
+		std::ranges::copy(_Firmware, _Firmware + _FirmwareSize, Firmware.begin());
 	}
 }
 
@@ -67,7 +70,10 @@ std::string FEPROM::ToString(EEPROM_Type Type)
 
 void FEPROM::Tick()
 {
-	OutputEnable = SB->GetSignal(BUS_RD_ROM);
+	const ESignalState::Type ReadMode = SB->GetSignal(BUS_RD_ROM);
+	const ESignalState::Type WriteMode = SB->GetSignal(BUS_WR_ROM);
+
+	OutputEnable = ReadMode && WriteMode;
 
 	if (ChipEnable   != ESignalState::Low || 
 		OutputEnable != ESignalState::Low)
@@ -76,24 +82,39 @@ void FEPROM::Tick()
 	}
 
 	const uint16_t Address = SB->GetDataOnAddressBus();
-	if (Address < Firmware.size())
+	if (ReadMode == ESignalState::Low || bReadOnlyMode)
 	{
-		const uint8_t Value = Firmware[Address];
-		ADD_EVENT_(CG, CG->ToNanosec(60), "Delay signal",
-			[=]() -> void
-			{
-				SB->SetDataOnDataBus(Value);
-			});
+		if (Address < Firmware.size())
+		{
+			const uint8_t Value = Firmware[Address];
+			ADD_EVENT_(CG, CG->ToNanosec(60), "Delay signal",
+				[=]() -> void
+				{
+					SB->SetDataOnDataBus(Value);
+				});
+		}
+		else
+		{
+			// unstable data bus
+			const uint8_t Value = rand();
+			ADD_EVENT_(CG, CG->ToNanosec(60), "Delay signal",
+				[=]() -> void
+				{
+					SB->SetDataOnDataBus(Value);
+				});
+		}
 	}
-	else
+	else if (WriteMode == ESignalState::Low)
 	{
-		// unstable data bus
-		const uint8_t Value = rand();
-		ADD_EVENT_(CG, CG->ToNanosec(60), "Delay signal",
-			[=]() -> void
-			{
-				SB->SetDataOnDataBus(Value);
-			});
+		if (Address < Firmware.size())
+		{
+			const uint8_t Value = SB->GetDataOnDataBus();
+			ADD_EVENT_(CG, CG->ToNanosec(20), "Delay signal",
+				[=]() -> void
+				{
+					Firmware[Address] = Value;
+				});
+		}
 	}
 }
 
@@ -105,6 +126,7 @@ void FEPROM::Snapshot(FMemorySnapshot& InOutMemorySnaphot, EMemoryOperationType 
 		{
 			.DeviceName = DeviceName,
 			.BlockName = "Test ROM",
+			.bReadOnlyMode = bReadOnlyMode,
 			.State = EDataBlockState::Actived,
 			.PlacementAddress = PlacementAddress,
 			.Data = Firmware,
@@ -119,6 +141,8 @@ void FEPROM::Snapshot(FMemorySnapshot& InOutMemorySnaphot, EMemoryOperationType 
 			{
 				continue;
 			}
+
+			bReadOnlyMode = DataBlock.bReadOnlyMode;
 			std::ranges::copy(DataBlock.Data.begin(), DataBlock.Data.end(), Firmware.begin() + DataBlock.PlacementAddress);
 		}
 	}
@@ -156,4 +180,9 @@ void FEPROM::Load(const std::filesystem::path& FilePath)
 	Firmware.insert(Firmware.begin(), std::istream_iterator<BYTE>(File), std::istream_iterator<BYTE>());
 
 	File.close();
+}
+
+void FEPROM::SetReadOnlyMode(bool bEnable)
+{
+	bReadOnlyMode = bEnable;
 }

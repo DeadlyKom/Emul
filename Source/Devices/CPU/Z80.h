@@ -138,6 +138,7 @@ public:
 
 	void Cycle_InstructionFetch();
 	void Cycle_MemoryReadCycle(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback = nullptr);
+	void Cycle_MemoryWriteCycle(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback = nullptr);
 
 	// ALU operation of adding the Program Counter and relative offset using the intermediate register WZ
 	void Cycle_ALU_LoadWZ_AddWZ_UnloadWZ();

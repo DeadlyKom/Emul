@@ -26,11 +26,13 @@ public:
 	virtual void Tick() override;
 	virtual void Snapshot(FMemorySnapshot& InOutMemorySnaphot, EMemoryOperationType Type) override;
 	virtual void Load(const std::filesystem::path& FilePath) override;
+	virtual void SetReadOnlyMode(bool bEnable = true) override;
 
 private:
 	EEPROM_Type Type;
 	ESignalState::Type ChipEnable;
 	ESignalState::Type OutputEnable;
+	bool bReadOnlyMode;
 	uint16_t PlacementAddress;
 	std::vector<uint8_t> Firmware;
 };

@@ -16,9 +16,12 @@ FAccessToROM::FAccessToROM()
 
 void FAccessToROM::Tick()
 {
-	const bool bAddress = !!SB->GetSignal(BUS_A14) || !!SB->GetSignal(BUS_A15);
-	const bool bControl = !!SB->GetSignal(BUS_RD)  || !!SB->GetSignal(BUS_MREQ);
-	const bool bReadROM = bAddress || bControl;
+	const ESignalState::Type Address	  = SB->GetSignal(BUS_A14) || SB->GetSignal(BUS_A15);
+	const ESignalState::Type ReadControl  = SB->GetSignal(BUS_RD)  || SB->GetSignal(BUS_MREQ);
+	const ESignalState::Type WriteControl = SB->GetSignal(BUS_WR)  || SB->GetSignal(BUS_MREQ);
+	const ESignalState::Type ReadROM  = Address || ReadControl;
+	const ESignalState::Type WriteROM = Address || WriteControl;
 
-	SB->SetSignal(BUS_RD_ROM, bReadROM ? ESignalState::High : ESignalState::Low);
+	SB->SetSignal(BUS_RD_ROM, ReadROM);
+	SB->SetSignal(BUS_WR_ROM, WriteROM);
 }

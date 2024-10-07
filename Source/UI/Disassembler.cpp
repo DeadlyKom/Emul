@@ -1144,7 +1144,7 @@ void SDisassembler::Tick(float DeltaTime)
 	{
 		TopCursorAtAddress = GetProgramCounter();
 		UserCursorAtAddress = TopCursorAtAddress;
-		UserCursorAtLine = TopCursorAtAddress;
+		UserCursorAtLine = 0;
 	}
 }
 
@@ -1179,8 +1179,6 @@ void SDisassembler::Load_MemorySnapshot()
 
 void SDisassembler::Upload_MemorySnapshot()
 {
-	LatestClockCounter = GetMotherboard().GetState<uint64_t>(NAME_MainBoard, NAME_None);
-
 	Memory::ToSnapshot(Snapshot, AddressSpace);
 	GetMotherboard().SetState<FMemorySnapshot>(NAME_MainBoard, NAME_Memory, Snapshot);
 }
@@ -1206,8 +1204,20 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 
 	// draw memory area
 	{
-		std::string MemoryAreaName;
-		if (Memory::GetNameByAddress(Snapshot, UserCursorAtAddress, MemoryAreaName))
+		bool bAccessMode;
+		if (Memory::GetAccessMode(Snapshot, UserCursorAtAddress, bAccessMode))
+		{
+			std::string AccessModeName = bAccessMode ? "RD" : "RW";
+			if (ImGui::Button(AccessModeName.c_str(), ImVec2(20.0f, 0.0f)))
+			{
+				Memory::SetAccessMode(Snapshot, UserCursorAtAddress, !bAccessMode);
+			}
+		}
+
+		ImGui::SameLine(30);
+
+		std::string MemoryAreaName = "Out of memory";
+		Memory::GetNameByAddress(Snapshot, UserCursorAtAddress, MemoryAreaName);
 		{
 			ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_WEAK));
 			UI::TextAligned(MemoryAreaName.c_str(), { 0.0f, 0.5f });
@@ -2136,5 +2146,9 @@ void SDisassembler::OnInputDebugger(bool bDebuggerState)
 	if (bDebuggerState /*true = enter debugger*/)
 	{
 		Upload_MemorySnapshot();
+	}
+	else
+	{
+		TopCursorAtAddress = INDEX_NONE;
 	}
 }

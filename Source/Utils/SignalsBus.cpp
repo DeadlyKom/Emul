@@ -98,3 +98,28 @@ void FSignalsBus::SetAllControlOutput(ESignalState::Type State)
 	Signals[0][BUS_BUSACK]	= State;
 }
 
+ESignalState::Type operator||(ESignalState::Type Lhs, ESignalState::Type Rhs)
+{
+	if (Lhs == ESignalState::Low && Rhs == ESignalState::Low)
+	{
+		return ESignalState::Low;
+	}
+	else if (Lhs == ESignalState::HiZ && Rhs == ESignalState::HiZ)
+	{
+		return ESignalState::HiZ;
+	}
+	return ESignalState::High;
+}
+
+ESignalState::Type operator&&(ESignalState::Type Lhs, ESignalState::Type Rhs)
+{
+	if (Lhs == ESignalState::High && Rhs == ESignalState::High)
+	{
+		return ESignalState::High;
+	}
+	else if (Lhs == ESignalState::HiZ && Rhs == ESignalState::HiZ)
+	{
+		return ESignalState::HiZ;
+	}
+	return ESignalState::Low;
+}

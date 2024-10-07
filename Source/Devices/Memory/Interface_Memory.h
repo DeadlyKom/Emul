@@ -18,6 +18,7 @@ struct FDataBlock
 {
 	FName DeviceName;
 	FName BlockName;
+	bool bReadOnlyMode;
 	EDataBlockState State;
 	uint32_t PlacementAddress;
 	std::vector<uint8_t> Data;
@@ -42,4 +43,5 @@ class IMemory
 public:
 	virtual void Snapshot(FMemorySnapshot& InOutMemorySnaphot, EMemoryOperationType Type) = 0;
 	virtual void Load(const std::filesystem::path& FilePath) = 0;
+	virtual void SetReadOnlyMode(bool bEnable = true) {};
 };

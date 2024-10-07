@@ -162,6 +162,45 @@ void FCPU_Z80::Cycle_MemoryReadCycle(uint16_t Address, Register8& Register, std:
 	}
 }
 
+void FCPU_Z80::Cycle_MemoryWriteCycle(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback /*= nullptr*/)
+{
+	switch (Registers.Step)
+	{
+	case DecoderStep::T1_H1:
+		SB->SetDataOnAddressBus(Address);
+		INCREMENT_HALF();
+		break;
+	case DecoderStep::T1_H2:
+		SB->SetActive(BUS_MREQ);
+		SB->SetDataOnDataBus(*Register);
+		INCREMENT_HALF();
+		break;
+
+	case DecoderStep::T2_H1:
+		// if the WAIT signal is active, wait for the next tick
+		if (SB->IsInactive(BUS_WAIT))
+		{
+			INCREMENT_HALF();
+		}
+		break;
+	case DecoderStep::T2_H2:
+		SB->SetActive(BUS_WR);
+		INCREMENT_HALF();
+		break;
+
+	case DecoderStep::T3_H1:
+		INCREMENT_HALF();
+		break;
+	case DecoderStep::T3_H2:
+		// one half clock cycle later, the MREQ and WR signals goes inactive
+		SB->SetInactive(BUS_MREQ);
+		SB->SetInactive(BUS_WR);
+		if (CompletedCallback) CompletedCallback(*this);
+		COMPLETED();
+		break;
+	}
+}
+
 void FCPU_Z80::Cycle_ALU_LoadWZ_AddWZ_UnloadWZ()
 {
 	// 1 tick, low register WZ stores relative offset

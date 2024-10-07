@@ -35,4 +35,30 @@ namespace Memory
 		}
 		return  false;
 	}
+
+	bool GetAccessMode(FMemorySnapshot& Snapshot, uint32_t Address, bool& Output)
+	{
+		for (FDataBlock& DataBlock : Snapshot.DataBlocks)
+		{
+			if (DataBlock.PlacementAddress <= Address && DataBlock.PlacementAddress + DataBlock.Data.size() > Address)
+			{
+				Output = DataBlock.bReadOnlyMode;
+				return true;
+			}
+		}
+		return  false;
+	}
+	
+	bool SetAccessMode(FMemorySnapshot& Snapshot, uint32_t Address, bool NewAccessMode)
+	{
+		for (FDataBlock& DataBlock : Snapshot.DataBlocks)
+		{
+			if (DataBlock.PlacementAddress <= Address && DataBlock.PlacementAddress + DataBlock.Data.size() > Address)
+			{
+				DataBlock.bReadOnlyMode = NewAccessMode;
+				return true;
+			}
+		}
+		return  false;
+	}
 }

@@ -31,6 +31,10 @@ namespace ESignalState
 	};
 }
 
+ESignalState::Type operator||(ESignalState::Type Lhs, ESignalState::Type Rhs);
+
+ESignalState::Type operator&&(ESignalState::Type Lhs, ESignalState::Type Rhs);
+
 struct FExtraSignals
 {
 	FExtraSignals(ESignalState::Type _Type = ESignalState::HiZ)
