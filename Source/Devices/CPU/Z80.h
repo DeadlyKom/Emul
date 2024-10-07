@@ -6,7 +6,6 @@
 #include "Utils/CommandPipeline.h"
 
 class FSignalsBus;
-typedef void (*CMD_FUNC)(FCPU_Z80&);
 
 namespace DecoderStep
 {
@@ -36,6 +35,9 @@ namespace DecoderStep
 		Completed = -1,
 	};
 }
+
+typedef void (*CMD_FUNC)(FCPU_Z80&);
+typedef void (*CMD_FUNC_CYCLE)(FCPU_Z80&, DecoderStep::Type Step);
 
 namespace MachineCycle
 {
@@ -114,6 +116,7 @@ struct FRegisters
 	bool IFF1;
 	bool IFF2;
 
+	uint8_t Opcode;
 	uint32_t CC;			// counter of clock cycles in one machine cycle
 #ifndef NDEBUG
 	MachineCycle::Type MC;	// machine cycle counter
@@ -147,8 +150,10 @@ public:
 
 private:
 	void Cycle_Reset();
-	void DecodeAndExecuteFetchedInstruction(uint8_t Opcode);
+	void DecodeAndAddInstruction(uint8_t Opcode);
+	void CycleExecuteFetchedInstruction(uint8_t Opcode, DecoderStep::Type Step);
 
 	static const CMD_FUNC Unprefixed[256];
+	static const CMD_FUNC_CYCLE Unprefixed_Cycle[256];
 	std::function<void(FCPU_Z80& CPU)> Command;
 };

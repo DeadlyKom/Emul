@@ -2,9 +2,37 @@
 #include "Utils/SignalsBus.h"
 #include "Motherboard/Motherboard_ClockGenerator.h"
 
+#define COMPLETED()		 { CPU.Registers.Step = DecoderStep::Completed; }
+
 static void CMD_PC_Increment_1(FCPU_Z80& CPU)
 {
 	++CPU.Registers.PC;
+}
+
+static void _def(FCPU_Z80& CPU, DecoderStep::Type Step)
+{
+	switch (Step)
+	{
+		case DecoderStep::T3_H1:
+		{
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			break;
+		}
+
+		case DecoderStep::T4_H1:
+		{
+			break;
+		}
+		case DecoderStep::T4_H2:
+		{
+			++CPU.Registers.PC;
+			COMPLETED();
+			break;
+		}
+	}
 }
 
 // nop
@@ -28,9 +56,87 @@ void _02(FCPU_Z80& CPU)
 void _03(FCPU_Z80& CPU)
 {}
 
+void _03c(FCPU_Z80& CPU, DecoderStep::Type Step)
+{
+	switch (Step)
+	{
+		case DecoderStep::T3_H1:
+		{
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			// update flags ?
+			break;
+		}
+
+		case DecoderStep::T4_H1:
+		{
+			break;
+		}
+		case DecoderStep::T4_H2:
+		{
+			// чтение bc в alu и инкремент
+			break;
+		}
+
+		case DecoderStep::T5_H1:
+		{
+			break;
+		}
+		case DecoderStep::T5_H2:
+		{
+			// запись в bc
+			++CPU.Registers.BC;
+			break;
+		}
+
+		case DecoderStep::T6_H1:
+		{
+			break;
+		}
+		case DecoderStep::T6_H2:
+		{
+			// инкремент PC и окончание М1
+			++CPU.Registers.PC;
+			COMPLETED();
+			break;
+		}
+	}
+}
+
 // inc b
 void _04(FCPU_Z80& CPU)
 {}
+
+void _04c(FCPU_Z80& CPU, DecoderStep::Type Step)
+{
+	switch (Step)
+	{
+		case DecoderStep::T3_H1:
+		{
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			// update flags
+			break;
+		}
+
+		case DecoderStep::T4_H1:
+		{
+			break;
+		}
+		case DecoderStep::T4_H2:
+		{
+			// update register
+			++CPU.Registers.BC.L;
+			++CPU.Registers.PC;
+			COMPLETED();
+			break;
+		}
+	}
+}
 
 // dec b
 void _05(FCPU_Z80& CPU)
@@ -720,195 +826,195 @@ void _af(FCPU_Z80& CPU)
 {}
 
 // or b
-void _b0(FCPU_Z80 & CPU)
+void _b0(FCPU_Z80& CPU)
 {}
 
 // or c
-void _b1(FCPU_Z80 & CPU)
+void _b1(FCPU_Z80& CPU)
 {}
 
 // or d
-void _b2(FCPU_Z80 & CPU)
+void _b2(FCPU_Z80& CPU)
 {}
 
 // or e
-void _b3(FCPU_Z80 & CPU)
+void _b3(FCPU_Z80& CPU)
 {}
 
 // or h
-void _b4(FCPU_Z80 & CPU)
+void _b4(FCPU_Z80& CPU)
 {}
 
 // or l
-void _b5(FCPU_Z80 & CPU)
+void _b5(FCPU_Z80& CPU)
 {}
 
 // or (hl)
-void _b6(FCPU_Z80 & CPU)
+void _b6(FCPU_Z80& CPU)
 {}
 
 // or a
-void _b7(FCPU_Z80 & CPU)
+void _b7(FCPU_Z80& CPU)
 {}
 
 // cp b
-void _b8(FCPU_Z80 & CPU)
+void _b8(FCPU_Z80& CPU)
 {}
 
 // cp c
-void _b9(FCPU_Z80 & CPU)
+void _b9(FCPU_Z80& CPU)
 {}
 
 // cp d
-void _ba(FCPU_Z80 & CPU)
+void _ba(FCPU_Z80& CPU)
 {}
 
 // cp e
-void _bb(FCPU_Z80 & CPU)
+void _bb(FCPU_Z80& CPU)
 {}
 
 // cp h
-void _bc(FCPU_Z80 & CPU)
+void _bc(FCPU_Z80& CPU)
 {}
 
 // cp l
-void _bd(FCPU_Z80 & CPU)
+void _bd(FCPU_Z80& CPU)
 {}
 
 // cp (hl)
-void _be(FCPU_Z80 & CPU)
+void _be(FCPU_Z80& CPU)
 {}
 
 // cp a
-void _bf(FCPU_Z80 & CPU)
+void _bf(FCPU_Z80& CPU)
 {}
 
 // ret nz
-void _c0(FCPU_Z80 & CPU)
+void _c0(FCPU_Z80& CPU)
 {}
 
 // pop bc
-void _c1(FCPU_Z80 & CPU)
+void _c1(FCPU_Z80& CPU)
 {}
 
 // jp nz, nn
-void _c2(FCPU_Z80 & CPU)
+void _c2(FCPU_Z80& CPU)
 {}
 
 // jp nn
-void _c3(FCPU_Z80 & CPU)
+void _c3(FCPU_Z80& CPU)
 {}
 
 // call nz, nn
-void _c4(FCPU_Z80 & CPU)
+void _c4(FCPU_Z80& CPU)
 {}
 
 // push bc
-void _c5(FCPU_Z80 & CPU)
+void _c5(FCPU_Z80& CPU)
 {}
 
 // add a, n
-void _c6(FCPU_Z80 & CPU)
+void _c6(FCPU_Z80& CPU)
 {}
 
 // rst #00
-void _c7(FCPU_Z80 & CPU)
+void _c7(FCPU_Z80& CPU)
 {}
 
 // ret z
-void _c8(FCPU_Z80 & CPU)
+void _c8(FCPU_Z80& CPU)
 {}
 
 // ret
-void _c9(FCPU_Z80 & CPU)
+void _c9(FCPU_Z80& CPU)
 {}
 
 // jp z, nn
-void _ca(FCPU_Z80 & CPU)
+void _ca(FCPU_Z80& CPU)
 {}
 
 // opcode #CB
-void _cb(FCPU_Z80 & CPU)
+void _cb(FCPU_Z80& CPU)
 {}
 
 // call z, nn
-void _cc(FCPU_Z80 & CPU)
+void _cc(FCPU_Z80& CPU)
 {}
 
 // call nn
-void _cd(FCPU_Z80 & CPU)
+void _cd(FCPU_Z80& CPU)
 {}
 
 // adc a, n
-void _ce(FCPU_Z80 & CPU)
+void _ce(FCPU_Z80& CPU)
 {}
 
 // rst #08
-void _cf(FCPU_Z80 & CPU)
+void _cf(FCPU_Z80& CPU)
 {}
 
 // ret nc
-void _d0(FCPU_Z80 & CPU)
+void _d0(FCPU_Z80& CPU)
 {}
 
 // pop de
-void _d1(FCPU_Z80 & CPU)
+void _d1(FCPU_Z80& CPU)
 {}
 
 // jp nc, nn
-void _d2(FCPU_Z80 & CPU)
+void _d2(FCPU_Z80& CPU)
 {}
 
 // out (n), a
-void _d3(FCPU_Z80 & CPU)
+void _d3(FCPU_Z80& CPU)
 {}
 
 // call nc, nn
-void _d4(FCPU_Z80 & CPU)
+void _d4(FCPU_Z80& CPU)
 {}
 
 // push de
-void _d5(FCPU_Z80 & CPU)
+void _d5(FCPU_Z80& CPU)
 {}
 
 // sub n
-void _d6(FCPU_Z80 & CPU)
+void _d6(FCPU_Z80& CPU)
 {}
 
 // rst #10
-void _d7(FCPU_Z80 & CPU)
+void _d7(FCPU_Z80& CPU)
 {}
 
 // ret c
-void _d8(FCPU_Z80 & CPU)
+void _d8(FCPU_Z80& CPU)
 {}
 
 // exx
-void _d9(FCPU_Z80 & CPU)
+void _d9(FCPU_Z80& CPU)
 {}
 
 // jp c, nn
-void _da(FCPU_Z80 & CPU)
+void _da(FCPU_Z80& CPU)
 {}
 
 // in a, (n)
-void _db(FCPU_Z80 & CPU)
+void _db(FCPU_Z80& CPU)
 {}
 
 // call c, nn
-void _dc(FCPU_Z80 & CPU)
+void _dc(FCPU_Z80& CPU)
 {}
 
 // opcode DD
-void _dd(FCPU_Z80 & CPU)
+void _dd(FCPU_Z80& CPU)
 {}
 
 // sbc a, n
-void _de(FCPU_Z80 & CPU)
+void _de(FCPU_Z80& CPU)
 {}
 
 // rst #18
-void _df(FCPU_Z80 & CPU)
+void _df(FCPU_Z80& CPU)
 {}
 
 // ret po
@@ -1057,4 +1163,24 @@ const CMD_FUNC FCPU_Z80::Unprefixed[256] =
 	_d0, _d1, _d2, _d3, _d4, _d5, _d6, _d7, _d8, _d9, _da, _db, _dc, _dd, _de, _df,
 	_e0, _e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8, _e9, _ea, _eb, _ec, _ed, _ee, _ef,
 	_f0, _f1, _f2, _f3, _f4, _f5, _f6, _f7, _f8, _f9, _fa, _fb, _fc, _fd, _fe, _ff,
+};
+
+const CMD_FUNC_CYCLE FCPU_Z80::Unprefixed_Cycle[256] =
+{
+	_def, _def, _def, _03c, _04c, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
 };
