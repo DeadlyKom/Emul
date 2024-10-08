@@ -16,21 +16,6 @@ struct Register8
 		: Byte(Value)
 	{}
 
-	uint8_t Get() const
-	{
-		return Byte;
-	}
-
-	void Set(uint8_t Value)
-	{
-		Byte = Value;
-	}
-
-	void Reset()
-	{
-		Byte = 0;
-	}
-
 	void AND(uint8_t Value)
 	{
 		Byte &= Value;
@@ -46,68 +31,6 @@ struct Register8
 		Byte ^= Value;
 	}
 
-	bool RL(bool Flag = false)
-	{
-		const uint8_t Mask = CHAR_BIT - 1;
-		const bool Result = Byte & 0x80;
-		Byte = (Byte << 1) | (Flag >> ((-1) & Mask));
-		return Result;
-	}
-	
-	bool RLC()
-	{
-		const uint8_t Mask = CHAR_BIT - 1;
-		Byte = (Byte << 1) | (Byte >> ((-1) & Mask));
-		return Byte & 0x01;
-	}
-
-	bool SLL(bool Flag = false)
-	{
-		const uint8_t Mask = CHAR_BIT - 1;
-		const bool Result = Byte & 0x80;
-		Byte = (Byte << 1) | (Flag >> ((-1) & Mask));
-		return Result;
-	}
-
-	bool RR(bool Flag = false)
-	{
-		const uint8_t Mask = CHAR_BIT - 1;
-		const bool Result = Byte & 0x01;
-		Byte = (Byte >> 1) | (Flag << ((-1) & Mask));
-		return Result;
-	}
-	
-	bool RRC()
-	{
-		const uint8_t Mask = CHAR_BIT - 1;
-		Byte = (Byte >> 1) | (Byte << ((-1) & Mask));
-		return Byte & 0x80;
-	}
-
-	bool SRL(bool Flag = false)
-	{
-		const uint8_t Mask = CHAR_BIT - 1;
-		const bool Result = Byte & 0x01;
-		Byte = (Byte >> 1) | (Flag << ((-1) & Mask));
-		return Result;
-	}
-
-	uint8_t RLD(uint8_t Value)
-	{
-		uint8_t Result = (Byte >> 4) & 0x0F;
-		Byte = (Byte << 4) | (Value & 0x0F);
-		Result |= Value & 0xF0;
-		return Result;
-	}
-
-	uint8_t RRD(uint8_t Value)
-	{
-		uint8_t Result = Byte & 0x0F;
-		Byte = (Byte >> 4) | ((Value & 0x0F) << 4);
-		Result |= Value & 0xF0;
-		return Result;
-	}
-	
 	bool GetBit(uint8_t Bit)
 	{
 		return (Byte >> Bit) & 0x01;
@@ -128,21 +51,19 @@ struct Register8
 		Byte &= ~(1 << Bit);
 	}
 
-	void Increment()
-	{
-		Byte++;
-	}
-
-	void Decrement()
-	{
-		Byte--;
-	}
-
 	Register8& operator++()
 	{
-		return ++Byte, * this;
+		return ++Byte, *this;
+	}
+	Register8& operator--()
+	{
+		return --Byte, *this;
 	}
 	uint8_t operator*()
+	{
+		return Byte;
+	}
+	uint8_t operator*() const
 	{
 		return Byte;
 	}
@@ -205,41 +126,6 @@ struct Register16
 		: Word(Value)
 	{}
 
-	uint16_t Get() const
-	{
-		return Word;
-	}
-
-	void Set(uint16_t Value)
-	{
-		Word = Value;
-	}
-
-	uint8_t GetLow() const
-	{
-		return L.Get();
-	}
-
-	uint8_t GetHigh() const
-	{
-		return H.Get();
-	}
-
-	void Reset()
-	{
-		Word = 0;
-	}
-
-	void Increment()
-	{
-		Word++;
-	}
-
-	void Decrement()
-	{
-		Word--;
-	}
-
 	void Exchange(Register16& Other)
 	{
 		std::swap(Word, Other.Word);
@@ -250,6 +136,10 @@ struct Register16
 		return ++Word, *this;
 	}
 	uint16_t operator*()
+	{
+		return Word;
+	}
+	uint16_t operator*() const
 	{
 		return Word;
 	}
@@ -315,15 +205,15 @@ class RegisterIR : public Register16
 public:
 	uint8_t GetI() const
 	{
-		return GetHigh();
+		return H.Byte;
 	}
 	uint8_t GetR() const
 	{
-		return GetLow();
+		return L.Byte;
 	}
 	void IncrementR()
 	{
-		L.Set((GetR() & 0x80) | ((GetR() + 1) & 0x7F));
+		L.Byte = ((GetR() & 0x80) | ((GetR() + 1) & 0x7F));
 	}
 	void operator=(uint16_t Value)
 	{
@@ -335,41 +225,34 @@ public:
 	}
 };
 
-enum class EZ80_Flag
+namespace EZ80_Flag
 {
-	Carry			= 0,
-	Add_Subtract	= 1,
-	Parity_Overflow = 2,
-	X				= 3, // undocumented bit 3
-	Half_Carry		= 4,
-	Y				= 5, // undocumented bit 5
-	Zero			= 6,
-	Sign			= 7,
-};
+	enum Type : uint8_t
+	{
+		Carry			= 0,
+		Add_Subtract	= 1,
+		Parity_Overflow = 2,
+		X				= 3, // undocumented bit 3
+		Half_Carry		= 4,
+		Y				= 5, // undocumented bit 5
+		Zero			= 6,
+		Sign			= 7,
+	};
+}
+
+#define Z80_CF		(1 << EZ80_Flag::Carry)
+#define Z80_NF		(1 << EZ80_Flag::Add_Subtract)
+#define Z80_VF		(1 << EZ80_Flag::Parity_Overflow)
+#define Z80_PF		(1 << EZ80_Flag::Parity_Overflow)
+#define Z80_XF		(1 << EZ80_Flag::X)
+#define Z80_HF		(1 << EZ80_Flag::Half_Carry)
+#define Z80_YF		(1 << EZ80_Flag::Y)
+#define Z80_ZF		(1 << EZ80_Flag::Zero)
+#define Z80_SF		(1 << EZ80_Flag::Sign)
 
 class RegisterAF : public Register16
 {
 public:
-	bool GetFlag(EZ80_Flag Flag)
-	{
-		return L.GetBit(static_cast<uint8_t>(Flag));
-	}
-	
-	void SetFlag(EZ80_Flag Flag)
-	{
-		return L.SetBit(static_cast<uint8_t>(Flag));
-	}
-	
-	void ResetFlag(EZ80_Flag Flag)
-	{
-		return L.ResetBit(static_cast<uint8_t>(Flag));
-	}
-
-	uint8_t GetAccumulator()
-	{
-		return H.Get();
-	}
-
 	void operator=(uint16_t Value)
 	{
 		Word = Value;

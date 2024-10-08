@@ -121,7 +121,7 @@ void FCPU_Z80::Cycle_InstructionFetch()
 			SB->SetActive(BUS_RFSH);
 			// timer for setting RFSH signal inactive at the end of T4 clock cycle
 			ADD_EVENT_(CG, 4, "set inactive RFSH at the end of T4 clock cycle", [&]() { SB->IsInactive(BUS_RFSH); });
-			SB->SetDataOnAddressBus(Registers.IR.Get());
+			SB->SetDataOnAddressBus(Registers.IR.Word);
 			INCREMENT_HALF();
 			break;
 		}

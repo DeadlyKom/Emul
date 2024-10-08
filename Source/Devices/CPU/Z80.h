@@ -116,17 +116,13 @@ struct FRegisters
 	bool IFF1;
 	bool IFF2;
 
-	uint8_t Opcode;
+	uint8_t Opcode;			// current opcode
+	uint8_t DataLatch;		// temporary store for data bus value
 	uint32_t CC;			// counter of clock cycles in one machine cycle
-#ifndef NDEBUG
 	MachineCycle::Type MC;	// machine cycle counter
 	DecoderStep::Type Step;	// the currently active decoder step
 	Prefix::Type Prefix;
-#else
-	int32_t MC;
-	int32_t Step;
-	int32_t Prefix;
-#endif
+
 	FCommandPipeline CP;
 };
 

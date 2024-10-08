@@ -4,6 +4,11 @@
 
 #define COMPLETED()		 { CPU.Registers.Step = DecoderStep::Completed; }
 
+static uint8_t UpdateFlags_SZ(uint8_t Value)
+{
+	return (Value != 0) ? (Value & Z80_SF) : Z80_ZF;
+}
+
 static void CMD_PC_Increment_1(FCPU_Z80& CPU)
 {
 	++CPU.Registers.PC;
@@ -28,6 +33,88 @@ static void _def(FCPU_Z80& CPU, DecoderStep::Type Step)
 		}
 		case DecoderStep::T4_H2:
 		{
+			++CPU.Registers.PC;
+			COMPLETED();
+			break;
+		}
+	}
+}
+
+static void _inc8(FCPU_Z80& CPU, DecoderStep::Type Step, Register8& Register)
+{
+	switch (Step)
+	{
+		case DecoderStep::T3_H1:
+		{
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			// update flags
+			uint8_t& F = CPU.Registers.AF.L.Byte;
+			uint8_t& Result = CPU.Registers.DataLatch;
+			
+			Result = Register.Byte + 1;
+			uint8_t ResultFlags = UpdateFlags_SZ(Result) | (Result & (Z80_XF | Z80_YF)) | ((Result ^ Register.Byte) & Z80_HF);
+			if (Result == 0x80)
+			{
+				ResultFlags |= Z80_VF;
+			}
+			F = ResultFlags | (F & Z80_CF);
+			break;
+		}
+
+		case DecoderStep::T4_H1:
+		{
+			break;
+		}
+		case DecoderStep::T4_H2:
+		{
+			// update register
+			uint8_t& Result = CPU.Registers.DataLatch;
+			Register = Result;
+
+			++CPU.Registers.PC;
+			COMPLETED();
+			break;
+		}
+	}
+}
+
+static void _dec8(FCPU_Z80& CPU, DecoderStep::Type Step, Register8& Register)
+{
+	switch (Step)
+	{
+		case DecoderStep::T3_H1:
+		{
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			// update flags
+			uint8_t& F = CPU.Registers.AF.L.Byte;
+			uint8_t& Result = CPU.Registers.DataLatch;
+
+			Result = Register.Byte - 1;
+			uint8_t ResultFlags = Z80_NF | UpdateFlags_SZ(Result) | (Result & (Z80_XF | Z80_YF)) | ((Result ^ Register.Byte) & Z80_HF);
+			if (Result == 0x7F)
+			{
+				ResultFlags |= Z80_VF;
+			}
+			F = ResultFlags | (F & Z80_CF);
+			break;
+		}
+
+		case DecoderStep::T4_H1:
+		{
+			break;
+		}
+		case DecoderStep::T4_H2:
+		{
+			// update register
+			uint8_t& Result = CPU.Registers.DataLatch;
+			Register = Result;
+
 			++CPU.Registers.PC;
 			COMPLETED();
 			break;
@@ -76,7 +163,7 @@ void _03c(FCPU_Z80& CPU, DecoderStep::Type Step)
 		}
 		case DecoderStep::T4_H2:
 		{
-			// чтение bc в alu и инкремент
+			// read register bc and increment in alu
 			break;
 		}
 
@@ -86,7 +173,7 @@ void _03c(FCPU_Z80& CPU, DecoderStep::Type Step)
 		}
 		case DecoderStep::T5_H2:
 		{
-			// запись в bc
+			// write to register bc
 			++CPU.Registers.BC;
 			break;
 		}
@@ -97,7 +184,7 @@ void _03c(FCPU_Z80& CPU, DecoderStep::Type Step)
 		}
 		case DecoderStep::T6_H2:
 		{
-			// инкремент PC и окончание М1
+			// increment PC and end M1
 			++CPU.Registers.PC;
 			COMPLETED();
 			break;
@@ -111,26 +198,59 @@ void _04(FCPU_Z80& CPU)
 
 void _04c(FCPU_Z80& CPU, DecoderStep::Type Step)
 {
+	_inc8(CPU, Step, CPU.Registers.BC.H);
+}
+
+// dec b
+void _05(FCPU_Z80& CPU)
+{}
+
+void _05c(FCPU_Z80& CPU, DecoderStep::Type Step)
+{
+	_dec8(CPU, Step, CPU.Registers.BC.H);
+}
+
+// ld b, n
+void _06(FCPU_Z80& CPU)
+{
+	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryReadCycle(*CPU.Registers.PC, CPU.Registers.BC.H, std::move(CMD_PC_Increment_1)); });
+}
+
+// rlca
+void _07(FCPU_Z80& CPU)
+{}
+
+void _07c(FCPU_Z80& CPU, DecoderStep::Type Step)
+{
 	switch (Step)
 	{
 		case DecoderStep::T3_H1:
 		{
+			// update flags
+			uint8_t& A = CPU.Registers.AF.H.Byte;
+			uint8_t& F = CPU.Registers.AF.L.Byte;
+			uint8_t& Result = CPU.Registers.DataLatch;
+
+			Result = (A << 1) | (A >> 7);
+			F = ((A >> 7) & Z80_CF) | (F & (Z80_SF | Z80_ZF | Z80_PF)) | (Result & (Z80_YF | Z80_XF));
+
 			break;
 		}
 		case DecoderStep::T3_H2:
 		{
-			// update flags
 			break;
 		}
 
 		case DecoderStep::T4_H1:
 		{
+			// update register
+			uint8_t& A = CPU.Registers.AF.H.Byte;
+			uint8_t& Result = CPU.Registers.DataLatch;
+			A = Result;
 			break;
 		}
 		case DecoderStep::T4_H2:
 		{
-			// update register
-			++CPU.Registers.BC.L;
 			++CPU.Registers.PC;
 			COMPLETED();
 			break;
@@ -138,21 +258,39 @@ void _04c(FCPU_Z80& CPU, DecoderStep::Type Step)
 	}
 }
 
-// dec b
-void _05(FCPU_Z80& CPU)
-{}
-
-// ld b, n
-void _06(FCPU_Z80& CPU)
-{}
-
-// rlca
-void _07(FCPU_Z80& CPU)
-{}
-
 // ex af, af'
 void _08(FCPU_Z80& CPU)
 {}
+
+void _08c(FCPU_Z80& CPU, DecoderStep::Type Step)
+{
+	switch (Step)
+	{
+	case DecoderStep::T3_H1:
+	{
+		break;
+	}
+	case DecoderStep::T3_H2:
+	{
+		// update flags
+		break;
+	}
+
+	case DecoderStep::T4_H1:
+	{
+		break;
+	}
+	case DecoderStep::T4_H2:
+	{
+		// update register
+		CPU.Registers.AF.Exchange(CPU.Registers.AF_);
+
+		++CPU.Registers.PC;
+		COMPLETED();
+		break;
+	}
+	}
+}
 
 // add hl, bc
 void _09(FCPU_Z80& CPU)
@@ -1167,7 +1305,7 @@ const CMD_FUNC FCPU_Z80::Unprefixed[256] =
 
 const CMD_FUNC_CYCLE FCPU_Z80::Unprefixed_Cycle[256] =
 {
-	_def, _def, _def, _03c, _04c, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+	_def, _def, _def, _03c, _04c, _05c, _def, _07c, _08c, _def, _def, _def, _def, _def, _def, _def,
 	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
 	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
 	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,

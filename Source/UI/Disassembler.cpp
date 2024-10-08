@@ -350,7 +350,7 @@ namespace Disassembler
 					}
 					case 7:
 					{
-						switch (OCTAL_Z(Opcode))
+						switch (OCTAL_Y(Opcode))
 						{
 							case 0: Instruction = "RLCA";	break;
 							case 1: Instruction = "RRCA";	break;
@@ -1206,7 +1206,7 @@ void SDisassembler::Upload_MemorySnapshot()
 uint16_t SDisassembler::GetProgramCounter()
 {
 	const FRegisters RegistersState = GetMotherboard().GetState<FRegisters>(NAME_MainBoard, NAME_Z80);
-	return RegistersState.PC.Get();
+	return *RegistersState.PC;
 }
 
 void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
