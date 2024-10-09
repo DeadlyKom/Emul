@@ -25,6 +25,9 @@ namespace DecoderStep
 		T6_H1,
 		T6_H2,
 
+		TW_H1,
+		TW_H2,
+
 		T1		= 0,
 		T2,
 		T3,
@@ -120,6 +123,7 @@ struct FRegisters
 	uint8_t DataLatch;		// temporary store for data bus value
 	uint32_t CC;			// counter of clock cycles in one machine cycle
 	MachineCycle::Type MC;	// machine cycle counter
+	MachineCycle::Type NMC;	// next machine cycle
 	DecoderStep::Type Step;	// the currently active decoder step
 	Prefix::Type Prefix;
 
@@ -136,8 +140,8 @@ public:
 	virtual void Reset() override;
 
 	void Cycle_InstructionFetch();
-	void Cycle_MemoryReadCycle(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback = nullptr);
-	void Cycle_MemoryWriteCycle(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback = nullptr);
+	void Cycle_MemoryRead(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback = nullptr);
+	void Cycle_MemoryWrite(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback = nullptr);
 
 	// ALU operation of adding the Program Counter and relative offset using the intermediate register WZ
 	void Cycle_ALU_LoadWZ_AddWZ_UnloadWZ();

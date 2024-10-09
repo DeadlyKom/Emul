@@ -15,8 +15,8 @@ enum class EDeviceType;
 enum class EThreadStatus
 {
 	Unknown,
-	Run,
 	Stop,
+	Run,
 	Trace,
 	Quit
 };

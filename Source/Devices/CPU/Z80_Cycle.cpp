@@ -15,35 +15,41 @@ void FCPU_Z80::Cycle_Reset()
 	// all control output signals enter an inactive state
 	SB->SetAllControlOutput(ESignalState::High);
 
+
 	// skip half-clocs
 	switch (CG->ToFullCycles(Registers.Step))
 	{
 		// reset the status registers as described in "Undocumented Z80"
-	case DecoderStep::T1:
-		Registers.IFF1 = false;
-		Registers.IFF2 = false;
-		Registers.IM = 0x00;
-		INCREMENT_HALF();
-		break;
-
-	case DecoderStep::T2:
-		Registers.PC = 0x0000;
-		Registers.IR = 0x0000;
-		INCREMENT_HALF();
-		break;
-
-	case DecoderStep::T3:
-		Registers.SP = 0xFFFF;
-		Registers.AF = 0xFFFF;
-		INCREMENT_HALF();
-		break;
-
-	default:
-		// the processor is idle, waiting for the active RESET signal to complete
-		if (Registers.Step != DecoderStep::Completed)
+		case DecoderStep::T1:
 		{
-			COMPLETED();
-			ADD_EVENT_(CG, 1, "Reset completed", [&]() { Cycle_InstructionFetch(); });
+			Registers.NMC = MachineCycle::None;
+			Registers.IFF1 = false;
+			Registers.IFF2 = false;
+			Registers.IM = 0x00;
+			INCREMENT_HALF();
+			break;
+		}
+		case DecoderStep::T2:
+		{
+			Registers.PC = 0x0000;
+			Registers.IR = 0x0000;
+			INCREMENT_HALF();
+			break;
+		}
+		case DecoderStep::T3:
+		{
+			Registers.SP = 0xFFFF;
+			Registers.AF = 0xFFFF;
+			INCREMENT_HALF();
+			break;
+		}
+		default:
+		{
+			// the processor is idle, waiting for the active RESET signal to complete
+			if (Registers.NMC == MachineCycle::None)
+			{
+				Registers.NMC = MachineCycle::M1;
+			}
 		}
 		break;
 	}
@@ -71,39 +77,60 @@ void FCPU_Z80::Cycle_InstructionFetch()
 	{
 		case DecoderStep::T1_H1:
 		{
-			// the Program Counter is placed on the address bus at the beginning of the M1 cycle
-			SB->SetActive(BUS_M1);
+			// the Program Counter is placed on the address bus
 			SB->SetDataOnAddressBus(*Registers.PC);
 			INCREMENT_HALF();
 			break;
 		}
 		case DecoderStep::T1_H2:
 		{
-			// one half clock cycle later, the MREQ and RD signals goes active
-			SB->SetActive(BUS_MREQ);
-			SB->SetActive(BUS_RD);
+			SB->SetActive(BUS_M1);
 			INCREMENT_HALF();
 			break;
 		}
 
 		case DecoderStep::T2_H1:
 		{
+			// one half clock cycle later, the MREQ and RD signals goes active
+			SB->SetActive(BUS_MREQ);
+			SB->SetActive(BUS_RD);
+			++Registers.PC;
+			INCREMENT_HALF();
+			break;
+		}
+		case DecoderStep::T2_H2:
+		{
 			// if the WAIT signal is active, wait for the next tick
-			if (SB->IsInactive(BUS_WAIT))
+			if (SB->IsActive(BUS_WAIT))
+			{
+				Registers.Step = DecoderStep::TW_H1;
+			}
+			else
 			{
 				INCREMENT_HALF();
 			}
 			break;
 		}
-		case DecoderStep::T2_H2:
+
+		case DecoderStep::TW_H1:
 		{
 			INCREMENT_HALF();
 			break;
 		}
+		case DecoderStep::TW_H2:
+		{
+			Registers.Step = DecoderStep::T2_H1;
+			break;
+		}
 
 		// clock states T3 and T4 of a fetch cycle are used to refresh dynamic memories
-		// The CPU uses this time to decode and execute the fetched instruction so that no other concurrent operation can be performed.
+		// the CPU uses this time to decode and execute the fetched instruction so that no other concurrent operation can be performed.
 		case DecoderStep::T3_H1:
+		{
+			INCREMENT_HALF();
+			break;
+		}
+		case DecoderStep::T3_H2:
 		{
 			// the CPU samples the data from the data bus with the rising edge of the clock of state T3,
 			// and this same edge is used by the CPU to turn off the RD and MREQ signals
@@ -119,33 +146,27 @@ void FCPU_Z80::Cycle_InstructionFetch()
 			// during T3 and T4, the lower seven bits of the address bus contain a memory refresh address and the RFSH signal becomes active,
 			// indicating that a refresh read of all dynamic memories must be performed.
 			SB->SetActive(BUS_RFSH);
-			// timer for setting RFSH signal inactive at the end of T4 clock cycle
-			ADD_EVENT_(CG, 4, "set inactive RFSH at the end of T4 clock cycle", [&]() { SB->IsInactive(BUS_RFSH); });
+			// timer to set RFSH signal to inactive state after 4 clock cycles
+			ADD_EVENT_(CG, 4, "set inactive RFSH atafter 4 clock cycles", [&]() { SB->IsInactive(BUS_RFSH); });
 			SB->SetDataOnAddressBus(Registers.IR.Word);
 			INCREMENT_HALF();
 			break;
 		}
-		case DecoderStep::T3_H2:
+		case DecoderStep::T4_H1:
 		{
 			CycleExecuteFetchedInstruction(Registers.Opcode, Registers.Step);
 			// one half clock cycle intro T3 later, the MREQ signals goes active.
 			SB->SetActive(BUS_MREQ);
+			ADD_EVENT_(CG, 2, "set inactive BUS_MREQ atafter 2 clock cycle", [&]() { SB->SetInactive(BUS_MREQ); });
 			Registers.IR.IncrementR();
 			INCREMENT_HALF();
 			break;
 		}
 
-		case DecoderStep::T4_H1:
-		{
-			CycleExecuteFetchedInstruction(Registers.Opcode, Registers.Step);
-			INCREMENT_HALF();
-			break;
-		}
 		case DecoderStep::T4_H2:
 		{
 			CycleExecuteFetchedInstruction(Registers.Opcode, Registers.Step);
-			SB->SetInactive(BUS_MREQ);
-			INCREMENT_HALF_IF();
+			INCREMENT_HALF();
 			break;
 		}
 
@@ -158,7 +179,7 @@ void FCPU_Z80::Cycle_InstructionFetch()
 	}
 }
 
-void FCPU_Z80::Cycle_MemoryReadCycle(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback /*= nullptr*/)
+void FCPU_Z80::Cycle_MemoryRead(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback /*= nullptr*/)
 {
 	switch (Registers.Step)
 	{
@@ -174,6 +195,7 @@ void FCPU_Z80::Cycle_MemoryReadCycle(uint16_t Address, Register8& Register, std:
 		break;
 
 	case DecoderStep::T2_H1:
+		++Registers.PC;
 		// if the WAIT signal is active, wait for the next tick
 		if (SB->IsInactive(BUS_WAIT))
 		{
@@ -195,12 +217,12 @@ void FCPU_Z80::Cycle_MemoryReadCycle(uint16_t Address, Register8& Register, std:
 		SB->SetInactive(BUS_MREQ);
 		SB->SetInactive(BUS_RD);
 		if (CompletedCallback) CompletedCallback(*this);
-		COMPLETED();
+		//COMPLETED();
 		break;
 	}
 }
 
-void FCPU_Z80::Cycle_MemoryWriteCycle(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback /*= nullptr*/)
+void FCPU_Z80::Cycle_MemoryWrite(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback /*= nullptr*/)
 {
 	switch (Registers.Step)
 	{

@@ -9,9 +9,9 @@ static uint8_t UpdateFlags_SZ(uint8_t Value)
 	return (Value != 0) ? (Value & Z80_SF) : Z80_ZF;
 }
 
-static void CMD_PC_Increment_1(FCPU_Z80& CPU)
+static void CMD_Complite(FCPU_Z80& CPU)
 {
-	++CPU.Registers.PC;
+	CPU.Registers.NMC = CPU.Registers.MC++;
 }
 
 static void _def(FCPU_Z80& CPU, DecoderStep::Type Step)
@@ -33,8 +33,7 @@ static void _def(FCPU_Z80& CPU, DecoderStep::Type Step)
 		}
 		case DecoderStep::T4_H2:
 		{
-			++CPU.Registers.PC;
-			COMPLETED();
+			CPU.Registers.NMC = MachineCycle::M1;
 			break;
 		}
 	}
@@ -129,14 +128,14 @@ void _00(FCPU_Z80& CPU)
 // ld bc, nn
 void _01(FCPU_Z80& CPU)
 {
-	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryReadCycle(*CPU.Registers.PC, CPU.Registers.BC.L, std::move(CMD_PC_Increment_1)); });
-	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryReadCycle(*CPU.Registers.PC, CPU.Registers.BC.H, std::move(CMD_PC_Increment_1)); });
+	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.L, std::move(CMD_Complite)); });
+	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.H, std::move(CMD_Complite)); });
 }
 
 // ld (bc), a
 void _02(FCPU_Z80& CPU)
 {
-	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryWriteCycle(*CPU.Registers.BC, CPU.Registers.AF.H); });
+	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryWrite(*CPU.Registers.BC, CPU.Registers.AF.H); });
 }
 
 // inc bc
@@ -213,7 +212,7 @@ void _05c(FCPU_Z80& CPU, DecoderStep::Type Step)
 // ld b, n
 void _06(FCPU_Z80& CPU)
 {
-	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryReadCycle(*CPU.Registers.PC, CPU.Registers.BC.H, std::move(CMD_PC_Increment_1)); });
+	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.H, std::move(CMD_Complite)); });
 }
 
 // rlca
@@ -355,7 +354,7 @@ void _17(FCPU_Z80& CPU)
 // jr $
 void _18(FCPU_Z80& CPU)
 {
-	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryReadCycle(*CPU.Registers.PC, CPU.Registers.WZ.L, std::move(CMD_PC_Increment_1)); });
+	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.WZ.L, std::move(CMD_Complite)); });
 	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_ALU_LoadWZ_AddWZ_UnloadWZ(); });
 }
 

@@ -35,15 +35,15 @@ void FCPU_Z80::Tick()
 	else
 	{
 		// reset the internal counters
-		if (Registers.Step == DecoderStep::Completed)
+		if (Registers.NMC != MachineCycle::None)
 		{
-			Registers.MC++;
 			Registers.CC = 0;
-			Registers.Step = DecoderStep::T1_H1;
+			Registers.MC = Registers.NMC;
+			Registers.NMC = MachineCycle::None;
+			Registers.Step = DecoderStep::T1;
 
 			if (Registers.CP.IsEmpty())
 			{
-				Registers.MC = MachineCycle::M1;
 				Command = [this](FCPU_Z80& CPU) -> void { Cycle_InstructionFetch(); };
 			}
 			else
