@@ -21,6 +21,7 @@ class FEPROM : public FDevice, public IMemory
 public:
 	FEPROM(EEPROM_Type _Type, uint16_t _PlacementAddress, const std::vector<uint8_t>& _Firmware, ESignalState::Type _CE = ESignalState::High, ESignalState::Type _OE = ESignalState::High);
 	FEPROM(EEPROM_Type _Type, uint16_t _PlacementAddress, uint8_t* _Firmware = nullptr, uint32_t _FirmwareSize = 0, ESignalState::Type _CE = ESignalState::High, ESignalState::Type _OE = ESignalState::High);
+	virtual ~FEPROM() = default;
 
 	static std::string ToString(EEPROM_Type Type);
 	virtual void Tick() override;

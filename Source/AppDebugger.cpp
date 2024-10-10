@@ -3,7 +3,7 @@
 
 #include "UI/Viewer.h"
 #include "Devices/Device.h"
-#include "Devices/CPU/Z80.h"
+#include "Devices/CPU/Z80_NMOS.h"
 #include "Devices/ControlUnit/AccessToROM.h"
 #include "Devices/Memory/EPROM.h"
 #include "Motherboard/Motherboard.h"
@@ -44,9 +44,9 @@ void FAppDebugger::Initialize()
 		Motherboard->Initialize();
 		Motherboard->AddBoard(MainBoardName, EName::MainBoard,
 		{
-			std::make_shared<FCPU_Z80>(),
+			std::make_shared<FCPU_Z80_NMOS>(),
 			std::make_shared<FAccessToROM>(),
-			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, 0, std::vector<uint8_t>({ 0x00, 0x18, 0xFD, 0x00 }), ESignalState::Low),
+			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, 0, std::vector<uint8_t>({ 0x3e, 0x23, 0x08, 0x3e, 0x56 }), ESignalState::Low),
 		}, 3.5_MHz);
 
 		// load ROM

@@ -1,6 +1,7 @@
 #include "Motherboard.h"
 #include "AppFramework.h"
-#include "Devices/CPU/Z80.h"
+//#include "Devices/CPU/Z80.h"
+#include "Motherboard_Thread.h"
 
 FMotherboard::FMotherboard()
 	: bFlipFlopDebugger(false)
@@ -45,7 +46,7 @@ void FMotherboard::Inut_Debugger()
 	}
 }
 
-void FMotherboard::Input_Step(FCPU_StepType::Type Type)
+void FMotherboard::Input_Step(FCPU_StepType Type)
 {
 	if (!bFlipFlopDebugger)
 	{

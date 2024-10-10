@@ -92,6 +92,9 @@
     <ClCompile Include="Core\Image.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
+    <ClCompile Include="Devices\CPU\Z80_NMOS.cpp">
+      <Filter>Source\Devices\CPU</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source">
@@ -257,6 +260,12 @@
     </ClInclude>
     <ClInclude Include="Core\Image.h">
       <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Devices\CPU\Z80_NMOS.h">
+      <Filter>Source\Devices\CPU</Filter>
+    </ClInclude>
+    <ClInclude Include="Devices\CPU\Interface_CPU_Z80.h">
+      <Filter>Source\Devices\CPU</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

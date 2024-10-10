@@ -41,7 +41,7 @@
 			<Item Name="RFSH">Signals[0][29]</Item>
 			
 			<Item Name="HALT">Signals[0][30]</Item>
-			<Item Name="HAIT">Signals[0][31]</Item>
+			<Item Name="WAIT">Signals[0][31]</Item>
 			<Item Name="INT">Signals[0][32]</Item>
 			<Item Name="NMI">Signals[0][33]</Item>
 			<Item Name="RESET">Signals[0][34]</Item>

@@ -2,7 +2,7 @@
 #include "Devices/Device.h"
 #include "AppFramework.h"
 
-#include "Devices/CPU/Z80.h"
+#include "Devices/CPU/Interface_CPU_Z80.h"
 #include "Devices/Memory/Interface_Memory.h"
 
 FThread::FThread(FName Name)
@@ -65,7 +65,7 @@ void FThread::Inut_Debugger(bool bEnterDebugger)
 		});
 }
 
-void FThread::Input_Step(FCPU_StepType::Type Type)
+void FThread::Input_Step(FCPU_StepType Type)
 {
 	Thread_Request(EThreadTypeRequest::ExecuteTask,
 		[=, this]() -> void
@@ -162,58 +162,85 @@ void FThread::Thread_Execution()
 			Thread_RequestHandling();
 		}
 
-		while (ThreadStatus == EThreadStatus::Run || 
-			ThreadStatus == EThreadStatus::Stop && !SB.IsPositiveEdge(ESignalBus::M1))
+		LOG_CONSOLE("Begin");
+		int32_t t = 0;
+		auto startTime = std::chrono::system_clock::now();
+		while (/*ThreadStatus == EThreadStatus::Run*/ t++ < 7000000)
 		{
 			CG.Tick();		// internal clock generator
 			for (std::shared_ptr<FDevice>& Device : Devices)
 			{
 				if (Device) Device->Tick();
 			}
-
-			// ToDo check request at end of frame
-			Thread_RequestHandling();
+			// ToDo check request at end
+			//Thread_RequestHandling();
 		}
 
-		//// finish machine cycle
-		//if (ThreadStatus == EThreadStatus::Stop)
+		std::chrono::duration<int64_t, std::nano> elapsedTime = std::chrono::system_clock::now() - startTime;
+		double timeDurationSec = elapsedTime.count() / 1000000000.0;
+		LOG_CONSOLE("End [{}] : {}", t, timeDurationSec);
+
+		//while (ThreadStatus == EThreadStatus::Run || 
+		//	ThreadStatus == EThreadStatus::Stop && !SB.IsPositiveEdge(ESignalBus::M1))
 		//{
-		//	/*static auto CheckLambda = [this]() -> bool
-		//		{
-		//			for (std::shared_ptr<FDevice> Device : Devices)
-		//			{
-		//				std::shared_ptr<FCPU_Z80> CPU = std::dynamic_pointer_cast<FCPU_Z80>(Device);
-		//				if (CPU == nullptr)
-		//				{
-		//					continue;
-		//				}
-		//				return SB.IsPositiveEdge(ESignalBus::M1);
-		//			}
-		//			return true;
-		//		};*/
-		//	while (!SB.IsPositiveEdge(ESignalBus::M1))
+		//	CG.Tick();		// internal clock generator
+		//	for (std::shared_ptr<FDevice>& Device : Devices)
 		//	{
-		//		CG.Tick();		// internal clock generator
-		//		for (std::shared_ptr<FDevice>& Device : Devices)
-		//		{
-		//			if (Device) Device->Tick();
-		//		}
+		//		if (Device) Device->Tick();
 		//	}
+		//
+		//	// ToDo check request at end of frame
+		//	Thread_RequestHandling();
 		//}
 
+		////// finish machine cycle
+		////if (ThreadStatus == EThreadStatus::Stop)
+		////{
+		////	/*static auto CheckLambda = [this]() -> bool
+		////		{
+		////			for (std::shared_ptr<FDevice> Device : Devices)
+		////			{
+		////				std::shared_ptr<FCPU_Z80> CPU = std::dynamic_pointer_cast<FCPU_Z80>(Device);
+		////				if (CPU == nullptr)
+		////				{
+		////					continue;
+		////				}
+		////				return SB.IsPositiveEdge(ESignalBus::M1);
+		////			}
+		////			return true;
+		////		};*/
+		////	while (!SB.IsPositiveEdge(ESignalBus::M1))
+		////	{
+		////		CG.Tick();		// internal clock generator
+		////		for (std::shared_ptr<FDevice>& Device : Devices)
+		////		{
+		////			if (Device) Device->Tick();
+		////		}
+		////	}
+		////}
+
+		bool bLastM1 = SB.IsActive(ESignalBus::M1);
 		while (ThreadStatus == EThreadStatus::Trace)
 		{
 			CG.Tick();		// internal clock generator
-
-			bool bStopTrace = false;
+			//bool bStopTrace = false;
 			for (std::shared_ptr<FDevice> Device : Devices)
 			{
 				if (Device)
 				{
-					bStopTrace |= Device->TickStopCondition([this](std::shared_ptr<FDevice> _Device) -> bool { return ThreadRequest_StopCondition(_Device); });
+					//bStopTrace |= Device->TickStopCondition([this](std::shared_ptr<FDevice> _Device) -> bool { return ThreadRequest_StopCondition(_Device); });
+					if (Device) Device->Tick();
 				}
 			}
-			if (bStopTrace) { StepType = FCPU_StepType::None; ThreadRequest_SetStatus(EThreadStatus::Stop); }
+			//if (bStopTrace) { StepType = FCPU_StepType::None; ThreadRequest_SetStatus(EThreadStatus::Stop); }
+
+			bool bCurrentM1 = SB.IsActive(ESignalBus::M1);
+			if (!bLastM1 && bCurrentM1)
+			{
+				StepType = FCPU_StepType::None;
+				ThreadRequest_SetStatus(EThreadStatus::Stop);
+			}
+			bLastM1 = bCurrentM1;
 		}
 	};
 
@@ -240,7 +267,7 @@ void FThread::ThreadRequest_SetStatus(EThreadStatus NewStatus)
 	ThreadStatus = NewStatus;
 }
 
-void FThread::ThreadRequest_Step(FCPU_StepType::Type Type)
+void FThread::ThreadRequest_Step(FCPU_StepType Type)
 {
 	if (StepType == Type)
 	{
@@ -253,11 +280,11 @@ void FThread::ThreadRequest_Step(FCPU_StepType::Type Type)
 
 bool FThread::ThreadRequest_StopCondition(std::shared_ptr<FDevice> Device)
 {
-	std::shared_ptr<FCPU_Z80> CPU = std::dynamic_pointer_cast<FCPU_Z80>(Device);
-	if (CPU == nullptr)
-	{
-		return false;
-	}
+	//std::shared_ptr<FCPU_Z80> CPU = std::dynamic_pointer_cast<FCPU_Z80>(Device);
+	//if (CPU == nullptr)
+	//{
+	//	return false;
+	//}
 
 	switch (StepType)
 	{
@@ -271,7 +298,7 @@ bool FThread::ThreadRequest_StopCondition(std::shared_ptr<FDevice> Device)
 		break;
 	}
 
-	return CPU->Registers.Step == DecoderStep::Completed && CPU->Registers.CP.IsEmpty();
+	return true;// CPU->Registers.Step == DecoderStep::Completed && CPU->Registers.CP.IsEmpty();
 }
 
 void FThread::ThreadRequest_ExecuteTask(const Callback&& Task)
@@ -369,13 +396,13 @@ void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_inde
 				{
 					continue;
 				}
-
 				if (Type == typeid(FRegisters))
 				{
 					// ToDo need an interface to receive data from the CPU
-					if (std::shared_ptr<FCPU_Z80> CPU = std::dynamic_pointer_cast<FCPU_Z80>(Device))
+					if (std::shared_ptr<ICPU_Z80> CPU = std::dynamic_pointer_cast<ICPU_Z80>(Device))
 					{
-						return ThreadRequestResult.Push(CPU->Registers);
+						FRegisters Registers = CPU->GetRegisters();
+						return ThreadRequestResult.Push(Registers);
 					}
 				}
 			}

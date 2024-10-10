@@ -62,5 +62,5 @@ void FCPU_Z80::Tick()
 
 void FCPU_Z80::Reset()
 {
-	memset(&Registers, 0, sizeof(Registers));
+	memset(&Registers, 0, sizeof(FInternalRegisters_));
 }

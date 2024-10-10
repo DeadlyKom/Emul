@@ -28,7 +28,7 @@ void FBoard::NonmaskableInterrupt()
 	Thread->NonmaskableInterrupt();
 }
 
-void FBoard::Input_Step(FCPU_StepType::Type Type)
+void FBoard::Input_Step(FCPU_StepType Type)
 {
 	Thread->Input_Step(Type);
 }

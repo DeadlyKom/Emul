@@ -1155,6 +1155,7 @@ void SDisassembler::Tick(float DeltaTime)
 		if (ClockCounter != LatestClockCounter || ClockCounter == INDEX_NONE)
 		{
 			Load_MemorySnapshot();
+			LatestRegistersState = GetMotherboard().GetState<FRegisters>(NAME_MainBoard, NAME_Z80);
 			TimeElapsedCounter = LatestClockCounter == INDEX_NONE ? ClockCounter : ClockCounter - LatestClockCounter;
 			LatestClockCounter = ClockCounter;
 		}
@@ -1205,8 +1206,7 @@ void SDisassembler::Upload_MemorySnapshot()
 
 uint16_t SDisassembler::GetProgramCounter()
 {
-	const FRegisters RegistersState = GetMotherboard().GetState<FRegisters>(NAME_MainBoard, NAME_Z80);
-	return *RegistersState.PC;
+	return *LatestRegistersState.PC;
 }
 
 void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
@@ -2067,7 +2067,7 @@ void SDisassembler::Input_HotKeys()
 
 		{ ImGuiMod_Ctrl | ImGuiKey_G,				ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_GoToAddress, this)					},	// debugger: go to address
 
-		{ ImGuiKey_F4,								ImGuiInputFlags_Repeat, std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepTo)	},	// debugger: step into				(f4)
+		{ ImGuiKey_F5,								ImGuiInputFlags_Repeat, std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepTo)	},	// debugger: step into				(f4)
 		{ ImGuiKey_F7,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepInto)},	// debugger: step into				(f7)
 		{ ImGuiKey_F8,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepOver)},	// debugger: step over				(f8)
 		{ ImGuiKey_F11,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepOut)	},	// debugger: step out				(f11)
@@ -2076,7 +2076,7 @@ void SDisassembler::Input_HotKeys()
 	Shortcut::Handler(Hotkeys);
 }
 
-void SDisassembler::Input_Step(FCPU_StepType::Type Type)
+void SDisassembler::Input_Step(FCPU_StepType Type)
 {
 	Upload_MemorySnapshot();
 	GetMotherboard().Input_Step(Type);

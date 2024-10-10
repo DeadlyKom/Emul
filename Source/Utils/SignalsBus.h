@@ -35,23 +35,6 @@ ESignalState::Type operator||(ESignalState::Type Lhs, ESignalState::Type Rhs);
 
 ESignalState::Type operator&&(ESignalState::Type Lhs, ESignalState::Type Rhs);
 
-struct FExtraSignals
-{
-	FExtraSignals(ESignalState::Type _Type = ESignalState::HiZ)
-		: Prev(_Type)
-		, Current(_Type)
-	{}
-
-	FExtraSignals& operator=(const FExtraSignals& Other)
-	{
-		Prev = Other.Prev;
-		Current = Other.Current;
-	}
-
-	ESignalState::Type Prev;
-	ESignalState::Type Current;
-};
-
 class FSignalsBus
 {
 public:
@@ -68,23 +51,35 @@ public:
 
 	FORCEINLINE void SetSignal(ESignalBus::Type Signal, ESignalState::Type State)
 	{
-		Signals[1][Signal] = Signals[0][Signal];
-		Signals[0][Signal] = State;
+		//if (Signals[0][Signal] != State)
+		{
+			Signals[1][Signal] = Signals[0][Signal];
+			Signals[0][Signal] = State;
+		}
 	}
 	FORCEINLINE void SetActive(ESignalBus::Type Signal, ESignalState::Type ActiveSignal = ESignalState::Low)
 	{
-		Signals[1][Signal] = Signals[0][Signal];
-		Signals[0][Signal] = ActiveSignal;
+		//if (Signals[0][Signal] != ActiveSignal)
+		{
+			Signals[1][Signal] = Signals[0][Signal];
+			Signals[0][Signal] = ActiveSignal;
+		}
 	}
 	FORCEINLINE void SetInactive(ESignalBus::Type Signal, ESignalState::Type InactiveSignal = ESignalState::High)
 	{
-		Signals[1][Signal] = Signals[0][Signal];
-		Signals[0][Signal] = InactiveSignal;
+		//if (Signals[0][Signal] != InactiveSignal)
+		{
+			Signals[1][Signal] = Signals[0][Signal];
+			Signals[0][Signal] = InactiveSignal;
+		}
 	}
 	FORCEINLINE void SetHighImpedance(ESignalBus::Type Signal)
 	{
-		Signals[1][Signal] = Signals[0][Signal];
-		Signals[0][Signal] = ESignalState::HiZ;
+		//if (Signals[0][Signal] != ESignalState::HiZ)
+		{
+			Signals[1][Signal] = Signals[0][Signal];
+			Signals[0][Signal] = ESignalState::HiZ;
+		}
 	}
 
 	FORCEINLINE bool IsPositiveEdge(ESignalBus::Type Signal) // -> low-to-high transition

@@ -137,6 +137,7 @@
       <DebugInformationFormat>None</DebugInformationFormat>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <WholeProgramOptimization>true</WholeProgramOptimization>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -186,6 +187,7 @@
       <DebugInformationFormat>None</DebugInformationFormat>
       <RuntimeLibrary>MultiThreadedDLL</RuntimeLibrary>
       <WholeProgramOptimization>true</WholeProgramOptimization>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
     </ClCompile>
     <Link>
       <SubSystem>Console</SubSystem>
@@ -209,6 +211,7 @@
     <ClCompile Include="Devices\ControlUnit\ULA.cpp" />
     <ClCompile Include="Devices\CPU\Z80.cpp" />
     <ClCompile Include="Devices\CPU\Z80_Cycle.cpp" />
+    <ClCompile Include="Devices\CPU\Z80_NMOS.cpp" />
     <ClCompile Include="Devices\CPU\Z80_Unprefixed.cpp" />
     <ClCompile Include="Devices\Device.cpp" />
     <ClCompile Include="Devices\IO\Beeper.cpp" />
@@ -242,7 +245,9 @@
     <ClInclude Include="Core\Window.h" />
     <ClInclude Include="Devices\ControlUnit\AccessToROM.h" />
     <ClInclude Include="Devices\ControlUnit\ULA.h" />
+    <ClInclude Include="Devices\CPU\Interface_CPU_Z80.h" />
     <ClInclude Include="Devices\CPU\Z80.h" />
+    <ClInclude Include="Devices\CPU\Z80_NMOS.h" />
     <ClInclude Include="Devices\Device.h" />
     <ClInclude Include="Devices\IO\Beeper.h" />
     <ClInclude Include="Devices\IO\Keyboard.h" />

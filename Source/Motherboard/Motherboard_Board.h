@@ -6,7 +6,7 @@
 class FDevice;
 class FMotherboard;
 
-namespace FCPU_StepType { enum Type; }
+enum class FCPU_StepType;
 
 class FBoard
 {
@@ -32,7 +32,7 @@ private:
 	void NonmaskableInterrupt();
 
 	// input
-	void Input_Step(FCPU_StepType::Type Type);
+	void Input_Step(FCPU_StepType Type);
 
 	void LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath);
 	template<typename T>
