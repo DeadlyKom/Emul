@@ -41,6 +41,9 @@ struct FMemorySnapshot
 class IMemory
 {
 public:
+	IMemory() = default;
+	virtual ~IMemory() = default;
+
 	virtual void Snapshot(FMemorySnapshot& InOutMemorySnaphot, EMemoryOperationType Type) = 0;
 	virtual void Load(const std::filesystem::path& FilePath) = 0;
 	virtual void SetReadOnlyMode(bool bEnable = true) {};

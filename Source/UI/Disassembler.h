@@ -3,12 +3,13 @@
 #include <CoreMinimal.h>
 #include "Viewer.h"
 #include "Core/Image.h"
+#include "Devices/CPU/Interface_CPU_Z80.h"
 #include "Devices/Memory/Interface_Memory.h"
 #include "Interface_WindowEventNotification.h"
 
 class FMotherboard;
 enum class EThreadStatus;
-namespace FCPU_StepType { enum Type; }
+enum class FCPU_StepType;
 
 enum class EDisassemblerInput
 {
@@ -87,7 +88,7 @@ private:
 	void Next_EditColumn();
 
 	void Input_HotKeys();
-	void Input_Step(FCPU_StepType::Type Type);
+	void Input_Step(FCPU_StepType Type);
 	void Input_Mouse();
 	void Input_Enter();
 	void Input_ShowNextStatement();

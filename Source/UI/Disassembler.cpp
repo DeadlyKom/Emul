@@ -2076,7 +2076,7 @@ void SDisassembler::Input_HotKeys()
 	Shortcut::Handler(Hotkeys);
 }
 
-void SDisassembler::Input_Step(FCPU_StepType::Type Type)
+void SDisassembler::Input_Step(FCPU_StepType Type)
 {
 	Upload_MemorySnapshot();
 	GetMotherboard().Input_Step(Type);

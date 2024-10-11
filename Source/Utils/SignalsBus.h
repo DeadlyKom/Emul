@@ -35,23 +35,6 @@ ESignalState::Type operator||(ESignalState::Type Lhs, ESignalState::Type Rhs);
 
 ESignalState::Type operator&&(ESignalState::Type Lhs, ESignalState::Type Rhs);
 
-struct FExtraSignals
-{
-	FExtraSignals(ESignalState::Type _Type = ESignalState::HiZ)
-		: Prev(_Type)
-		, Current(_Type)
-	{}
-
-	FExtraSignals& operator=(const FExtraSignals& Other)
-	{
-		Prev = Other.Prev;
-		Current = Other.Current;
-	}
-
-	ESignalState::Type Prev;
-	ESignalState::Type Current;
-};
-
 class FSignalsBus
 {
 public:

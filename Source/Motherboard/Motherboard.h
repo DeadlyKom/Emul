@@ -4,7 +4,7 @@
 #include "Motherboard_Board.h"
 #include "Devices/Device.h"
 
-namespace FCPU_StepType { enum Type; }
+enum class FCPU_StepType;
 
 class FMotherboard
 {
@@ -20,7 +20,7 @@ public:
 
 	// input
 	void Inut_Debugger();
-	void Input_Step(FCPU_StepType::Type Type);
+	void Input_Step(FCPU_StepType Type);
 
 	bool GetDebuggerState() const { return bFlipFlopDebugger; }
 	void LoadRawData(EName::Type BoardID, EName::Type DeviceID, std::filesystem::path FilePath);

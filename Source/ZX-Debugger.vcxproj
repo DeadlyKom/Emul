@@ -242,6 +242,7 @@
     <ClInclude Include="Core\Window.h" />
     <ClInclude Include="Devices\ControlUnit\AccessToROM.h" />
     <ClInclude Include="Devices\ControlUnit\ULA.h" />
+    <ClInclude Include="Devices\CPU\Interface_CPU_Z80.h" />
     <ClInclude Include="Devices\CPU\Z80.h" />
     <ClInclude Include="Devices\Device.h" />
     <ClInclude Include="Devices\IO\Beeper.h" />

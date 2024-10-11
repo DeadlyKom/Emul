@@ -3,7 +3,7 @@
 #include <CoreMinimal.h>
 #include "Utils/UI.h"
 #include "Viewer.h"
-#include "Devices/CPU/Z80.h"
+#include "Devices/CPU/Interface_CPU_Z80.h"
 
 class FMotherboard;
 enum class EThreadStatus;

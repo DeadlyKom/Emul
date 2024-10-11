@@ -45,7 +45,7 @@ void FMotherboard::Inut_Debugger()
 	}
 }
 
-void FMotherboard::Input_Step(FCPU_StepType::Type Type)
+void FMotherboard::Input_Step(FCPU_StepType Type)
 {
 	if (!bFlipFlopDebugger)
 	{

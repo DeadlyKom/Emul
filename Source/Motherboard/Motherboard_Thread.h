@@ -12,6 +12,15 @@ class FMotherboard;
 
 enum class EDeviceType;
 
+enum class FCPU_StepType
+{
+	None,
+	StepTo,
+	StepInto,
+	StepOver,
+	StepOut,
+};
+
 enum class EThreadStatus
 {
 	Unknown,
@@ -34,8 +43,6 @@ enum class EThreadTypeStateRequest
 {
 	IsRun,
 };
-
-namespace FCPU_StepType { enum Type; }
 
 class FThread
 {
@@ -64,7 +71,7 @@ private:
 
 	// input
 	void Inut_Debugger(bool bEnterDebugger);
-	void Input_Step(FCPU_StepType::Type Type);
+	void Input_Step(FCPU_StepType Type);
 
 	void Device_Registration(const std::vector<std::shared_ptr<FDevice>>& _Devices);
 	void Device_Unregistration();
@@ -77,7 +84,7 @@ private:
 	void Thread_RequestHandling();
 
 	void ThreadRequest_SetStatus(EThreadStatus NewStatus);
-	void ThreadRequest_Step(FCPU_StepType::Type Type);
+	void ThreadRequest_Step(FCPU_StepType Type);
 	bool ThreadRequest_StopCondition(std::shared_ptr<FDevice> Device);
 	void ThreadRequest_ExecuteTask(const Callback&& Task);
 	void ThreadRequest_Reset();
@@ -116,7 +123,7 @@ private:
 	FTimerManager TM;
 	FClockGenerator CG;
 
-	FCPU_StepType::Type StepType;
+	FCPU_StepType StepType;
 
 	std::thread Thread;
 	std::atomic<EThreadStatus> ThreadStatus;

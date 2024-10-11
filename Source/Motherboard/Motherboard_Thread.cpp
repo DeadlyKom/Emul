@@ -3,6 +3,7 @@
 #include "AppFramework.h"
 
 #include "Devices/CPU/Z80.h"
+#include "Devices/CPU/Interface_CPU_Z80.h"
 #include "Devices/Memory/Interface_Memory.h"
 
 FThread::FThread(FName Name)
@@ -65,7 +66,7 @@ void FThread::Inut_Debugger(bool bEnterDebugger)
 		});
 }
 
-void FThread::Input_Step(FCPU_StepType::Type Type)
+void FThread::Input_Step(FCPU_StepType Type)
 {
 	Thread_Request(EThreadTypeRequest::ExecuteTask,
 		[=, this]() -> void
@@ -240,7 +241,7 @@ void FThread::ThreadRequest_SetStatus(EThreadStatus NewStatus)
 	ThreadStatus = NewStatus;
 }
 
-void FThread::ThreadRequest_Step(FCPU_StepType::Type Type)
+void FThread::ThreadRequest_Step(FCPU_StepType Type)
 {
 	if (StepType == Type)
 	{
@@ -373,9 +374,9 @@ void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_inde
 				if (Type == typeid(FRegisters))
 				{
 					// ToDo need an interface to receive data from the CPU
-					if (std::shared_ptr<FCPU_Z80> CPU = std::dynamic_pointer_cast<FCPU_Z80>(Device))
+					if (std::shared_ptr<ICPU_Z80> CPU = std::dynamic_pointer_cast<ICPU_Z80>(Device))
 					{
-						return ThreadRequestResult.Push(CPU->Registers);
+						return ThreadRequestResult.Push(CPU->GetRegisters());
 					}
 				}
 			}

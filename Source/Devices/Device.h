@@ -23,6 +23,7 @@ class FDevice : public std::enable_shared_from_this<FDevice>
 public:
 	FDevice(FName Name, EName::Type UniqueID, EDeviceType Type);
 	FDevice() = default;
+	virtual ~FDevice() = default;
 
 	FORCEINLINE FName GetName() const { return DeviceName; }
 	FORCEINLINE EDeviceType GetType() const { return DeviceType; }

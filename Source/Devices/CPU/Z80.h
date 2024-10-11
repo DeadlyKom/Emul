@@ -4,6 +4,7 @@
 #include "Devices/Device.h"
 #include "Utils/Register.h"
 #include "Utils/CommandPipeline.h"
+#include "Interface_CPU_Z80.h"
 
 class FSignalsBus;
 
@@ -80,39 +81,8 @@ namespace Prefix
 	};
 }
 
-namespace FCPU_StepType
+struct FInternalRegisters : public FRegisters
 {
-	enum Type : int32_t
-	{
-		None,
-		StepTo,
-		StepInto,
-		StepOver,
-		StepOut,
-	};
-}
-
-struct FRegisters
-{
-	Register16 PC;		// program counter
-	RegisterIR IR;		// internal register to fetch instructions
-
-	Register16 IX;		// index register
-	Register16 IY;		// index register
-	Register16 SP;		// stack pointer
-
-	// main register set
-	RegisterAF AF;		// register pair AF
-	Register16 HL;		// register pair HL
-	Register16 DE;		// register pair DE
-	Register16 BC;		// register pair BC
-
-	// alternate register set
-	RegisterAF AF_;		// register pair AF'
-	Register16 HL_;		// register pair HL'
-	Register16 DE_;		// register pair DE'
-	Register16 BC_;		// register pair BC'
-
 	// internal
 	uint8_t IM;			// maskable interrupt mode
 	Register16 WZ;		// temporary register
@@ -130,14 +100,16 @@ struct FRegisters
 	FCommandPipeline CP;
 };
 
-class FCPU_Z80 : public FDevice
+class FCPU_Z80 : public FDevice, public ICPU_Z80
 {
 	using ThisClass = FCPU_Z80;
 public:
 	FCPU_Z80();
+	virtual ~FCPU_Z80() = default;
 
 	virtual void Tick() override;
 	virtual void Reset() override;
+	virtual FRegisters GetRegisters() const override;
 
 	void Cycle_InstructionFetch();
 	void Cycle_MemoryRead(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback = nullptr);
@@ -146,7 +118,7 @@ public:
 	// ALU operation of adding the Program Counter and relative offset using the intermediate register WZ
 	void Cycle_ALU_LoadWZ_AddWZ_UnloadWZ();
 
-	FRegisters Registers;
+	FInternalRegisters Registers;
 
 private:
 	void Cycle_Reset();

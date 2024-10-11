@@ -64,3 +64,8 @@ void FCPU_Z80::Reset()
 {
 	memset(&Registers, 0, sizeof(Registers));
 }
+
+FRegisters FCPU_Z80::GetRegisters() const
+{
+	return Registers;
+}
