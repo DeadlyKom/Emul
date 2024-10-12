@@ -97,14 +97,6 @@ void FCPU_Z80::OpcodeDecode()
 	Unprefixed[Registers.Opcode](*this);
 }
 
-//void FCPU_Z80::TickInstruction(FCPU_Z80& CPU)
-//{
-//#ifndef NDEBUG
-//	assert(Unprefixed_Tick[Registers.Opcode] != nullptr);
-//#endif
-//	Unprefixed_Tick[Registers.Opcode](*this);
-//}
-
 void FCPU_Z80::Cycle_OpcodeFetch(FCPU_Z80& CPU)
 {
 	switch (Registers.DSCP)

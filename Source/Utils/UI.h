@@ -1,8 +1,7 @@
 #pragma once
 
 #include <CoreMinimal.h>
-
-namespace EFont { enum Type; }
+#include "Core/Fonts.h"
 
 namespace UI
 {

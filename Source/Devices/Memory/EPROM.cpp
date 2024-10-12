@@ -20,6 +20,8 @@ namespace
 	static const char* EPROM_27CXXX_Name = "27CXXX\0";
 }
 
+#define NotDelay 
+
 FEPROM::FEPROM(EEPROM_Type _Type,
 			   uint16_t _PlacementAddress,
 			   const std::vector<uint8_t>& _Firmware,
@@ -87,21 +89,29 @@ void FEPROM::Tick()
 		if (Address < Firmware.size())
 		{
 			const uint8_t Value = Firmware[Address];
+		#ifndef NotDelay
 			ADD_EVENT_(CG, CG->ToNanosec(60), "Delay signal",
 				[=]() -> void
 				{
 					SB->SetDataOnDataBus(Value);
 				});
+		#else
+			SB->SetDataOnDataBus(Value);
+		#endif
 		}
 		else
 		{
 			// unstable data bus
 			const uint8_t Value = rand();
+		#ifndef NotDelay
 			ADD_EVENT_(CG, CG->ToNanosec(60), "Delay signal",
 				[=]() -> void
 				{
 					SB->SetDataOnDataBus(Value);
 				});
+		#else
+			SB->SetDataOnDataBus(Value);
+		#endif
 		}
 	}
 	else if (WriteMode == ESignalState::Low)
@@ -109,11 +119,15 @@ void FEPROM::Tick()
 		if (Address < Firmware.size())
 		{
 			const uint8_t Value = SB->GetDataOnDataBus();
+		#ifndef NotDelay
 			ADD_EVENT_(CG, CG->ToNanosec(20), "Delay signal",
 				[=]() -> void
 				{
 					Firmware[Address] = Value;
 				});
+		#else
+			Firmware[Address] = Value;
+		#endif
 		}
 	}
 }

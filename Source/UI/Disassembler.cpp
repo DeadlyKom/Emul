@@ -872,8 +872,8 @@ namespace Disassembler
 			}
 			case 2:
 			{
-				auto z = OCTAL_Z(Opcode);
-				auto y = OCTAL_Y(Opcode);
+				uint8_t z = OCTAL_Z(Opcode);
+				uint8_t y = OCTAL_Y(Opcode);
 				if ((OCTAL_Z(Opcode) <= 3) && (OCTAL_Y(Opcode) >= 4))
 				{
 					Instruction = BlockInstructions[OCTAL_Y(Opcode) - 4][OCTAL_Z(Opcode)];

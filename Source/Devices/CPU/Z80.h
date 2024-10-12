@@ -3,7 +3,7 @@
 #include <CoreMinimal.h>
 #include "Devices/Device.h"
 #include "Utils/Register.h"
-#include "Utils/CommandPipeline.h"
+#include "Utils/Pipeline.h"
 #include "Interface_CPU_Z80.h"
 
 class FSignalsBus;

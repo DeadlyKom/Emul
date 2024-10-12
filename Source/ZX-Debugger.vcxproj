@@ -265,7 +265,7 @@
     <ClInclude Include="UI\Interface_WindowEventNotification.h" />
     <ClInclude Include="UI\MemoryDump.h" />
     <ClInclude Include="UI\Viewer.h" />
-    <ClInclude Include="Utils\CommandPipeline.h" />
+    <ClInclude Include="Utils\Pipeline.h" />
     <ClInclude Include="Utils\Memory.h" />
     <ClInclude Include="Utils\ProfilerScope.h" />
     <ClInclude Include="Utils\ScopeExit.h" />

@@ -51,11 +51,11 @@ void FCPU_Z80::Tick()
 
 			if (!Registers.CP.IsEmpty())
 			{
-				Execute_Cycle = Registers.CP.Get();
+				Execute_Cycle = std::move(Registers.CP.Get());
 			}
 			else if (bIsCyclyM1)
 			{
-				Execute_Cycle = std::bind(&FCPU_Z80::Cycle_OpcodeFetch, this, *this);
+				Execute_Cycle = [this](FCPU_Z80& CPU) { Cycle_OpcodeFetch(CPU); };
 			}
 			else
 			{
@@ -72,7 +72,7 @@ void FCPU_Z80::Tick()
 				Registers.bInstrExeDone = false;
 				if (!Registers.TP.IsEmpty())
 				{
-					Execute_Tick = Registers.TP.Get();
+					Execute_Tick = std::move(Registers.TP.Get());
 				}
 			}
 			if (Execute_Tick) { Execute_Tick(*this); }

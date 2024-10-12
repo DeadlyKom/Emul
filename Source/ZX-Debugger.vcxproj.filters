@@ -231,7 +231,7 @@
     <ClInclude Include="Devices\ControlUnit\AccessToROM.h">
       <Filter>Source\Devices\ControlUnit</Filter>
     </ClInclude>
-    <ClInclude Include="Utils\CommandPipeline.h">
+    <ClInclude Include="Utils\Pipeline.h">
       <Filter>Source\Utils</Filter>
     </ClInclude>
     <ClInclude Include="Utils\UI.h">

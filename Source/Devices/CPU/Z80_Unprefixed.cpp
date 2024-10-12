@@ -121,7 +121,6 @@ static void _dec8(FCPU_Z80& CPU, Register8& Register)
 // nop
 void _00(FCPU_Z80& CPU)
 {
-	//CPU.Registers.SETMC = MachineCycle::M1;
 	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void {  _def(CPU); });
 }
 

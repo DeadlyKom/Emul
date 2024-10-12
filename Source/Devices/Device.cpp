@@ -5,9 +5,9 @@ FDevice::FDevice(FName Name, EName::Type DeviceID, EDeviceType Type)
 	: DeviceName(Name)
 	, UniqueDeviceID(DeviceID)
 	, DeviceType(Type)
-	, bRegistered(false)
 	, SB(nullptr)
 	, CG(nullptr)
+	, bRegistered(false)
 {}
 
 bool FDevice::TickStopCondition(std::function<bool(std::shared_ptr<FDevice>)>&& Condition)

@@ -34,7 +34,8 @@ void FClockGenerator::Tick()
 		if (Event.Callback) Event.Callback();
 		if (i + 1 < LastElementIndex)
 		{
-			std::swap(Events[i], Events[LastElementIndex-1]);
+			//std::swap(Events[i], Events[LastElementIndex-1]);
+			std::exchange(Events[i], std::move(Events[LastElementIndex-1]));
 			i--;
 		}
 		LastElementIndex--;

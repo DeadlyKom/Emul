@@ -23,9 +23,10 @@ struct FPipeline
 	
 	std::function<void(FCPU_Z80& CPU)> Get()
 	{
+		assert(Trail != Head);
 		size_t Index = Trail;
 		Trail = (Trail + 1) % Size;
-		return std::move(Buffer[Index]);
+		return std::exchange(Buffer[Index], nullptr);
 	}
 
 	void Execute(FCPU_Z80& CPU)
