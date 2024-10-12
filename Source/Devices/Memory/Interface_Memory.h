@@ -26,7 +26,7 @@ struct FDataBlock
 
 struct FMemorySnapshot
 {
-	FMemorySnapshot(uint64_t SnapshotTime = -1)
+	FMemorySnapshot(uint64_t SnapshotTime = INDEX_NONE)
 		: SnapshotTimeCC (SnapshotTime)
 	{}
 	void AddDataBlock(const FDataBlock& DataBlock)

@@ -2,304 +2,256 @@
 #include "Utils/SignalsBus.h"
 #include "Motherboard/Motherboard_ClockGenerator.h"
 
-#define INCREMENT_HALF()	{ CG->Increment(reinterpret_cast<uint32_t&>(Registers.Step)); }
-#define INCREMENT_HALF_IF()	{ if (Registers.Step != DecoderStep::Completed) { INCREMENT_HALF(); } }
-#define COMPLETED()			{ Registers.Step = DecoderStep::Completed; }
+#define INCREMENT_CP_HALF()	{ CG->Increment(reinterpret_cast<uint32_t&>(Registers.DSCP)); }
 
 void FCPU_Z80::Cycle_Reset()
 {
-	// the address and data bus enter a high-impedance state
-	SB->SetDataOnAddressBus(0xFFFF);
-	SB->SetDataOnDataBus(0xFF);
-
-	// all control output signals enter an inactive state
-	SB->SetAllControlOutput(ESignalState::High);
-
-
-	// skip half-clocs
-	switch (CG->ToFullCycles(Registers.Step))
+	switch (Registers.DSCP)
 	{
-		// reset the status registers as described in "Undocumented Z80"
-		case DecoderStep::T1:
+		case DecoderStep::T1_H1:
 		{
 			Registers.NMC = MachineCycle::None;
-			Registers.IFF1 = false;
-			Registers.IFF2 = false;
+			Registers.bIFF1 = false;
+			Registers.bIFF2 = false;
 			Registers.IM = 0x00;
-			INCREMENT_HALF();
+
+			Registers.AF = 0xFFFF;
+			Registers.PC = 0xFFFF;
+
+			SB->SetInactive(BUS_BUSACK);
+			SB->SetActive(BUS_MREQ);
+			SB->SetActive(BUS_IORQ);
+			SB->SetInactive(BUS_RD);
+			SB->SetActive(BUS_WR);
+			SB->SetInactive(BUS_HALT);
+
+			SB->SetDataOnDataBus(0xFF);
 			break;
 		}
-		case DecoderStep::T2:
+		case DecoderStep::T1_H2:
+		{
+			SB->SetInactive(BUS_RFSH);
+
+			SB->SetDataOnAddressBus(0xFFFF);
+			break;
+		}
+		case DecoderStep::T2_H1:
 		{
 			Registers.PC = 0x0000;
 			Registers.IR = 0x0000;
-			INCREMENT_HALF();
+			SB->SetInactive(BUS_IORQ);
+			SB->SetInactive(BUS_WR);
 			break;
 		}
-		case DecoderStep::T3:
+		case DecoderStep::T2_H2:
 		{
-			Registers.SP = 0xFFFF;
-			Registers.AF = 0xFFFF;
-			INCREMENT_HALF();
+			SB->SetInactive(BUS_MREQ);
+			Registers.bInitiCPU = true;
 			break;
 		}
 		default:
 		{
 			// the processor is idle, waiting for the active RESET signal to complete
-			if (Registers.NMC == MachineCycle::None)
-			{
-				Registers.NMC = MachineCycle::M1;
-			}
 		}
 		break;
 	}
+
+	INCREMENT_CP_HALF();
 }
 
-void FCPU_Z80::DecodeAndAddInstruction(uint8_t Opcode)
+void FCPU_Z80::Cycle_InitCPU()
 {
-#ifndef NDEBUG
-	assert(Unprefixed[Opcode] != nullptr);
-#endif
-	Unprefixed[Opcode](*this);
-}
-
-void FCPU_Z80::CycleExecuteFetchedInstruction(uint8_t Opcode, DecoderStep::Type Step)
-{
-#ifndef NDEBUG
-	assert(Unprefixed_Cycle[Opcode] != nullptr);
-#endif
-	Unprefixed_Cycle[Opcode](*this, Step);
-}
-
-void FCPU_Z80::Cycle_InstructionFetch()
-{
-	switch (Registers.Step)
+	switch (Registers.DSCP)
 	{
-		case DecoderStep::T1_H1:
-		{
-			// the Program Counter is placed on the address bus
-			SB->SetDataOnAddressBus(*Registers.PC);
-			INCREMENT_HALF();
-			break;
-		}
-		case DecoderStep::T1_H2:
-		{
-			SB->SetActive(BUS_M1);
-			INCREMENT_HALF();
-			break;
-		}
-
-		case DecoderStep::T2_H1:
-		{
-			// one half clock cycle later, the MREQ and RD signals goes active
-			SB->SetActive(BUS_MREQ);
-			SB->SetActive(BUS_RD);
-			++Registers.PC;
-			INCREMENT_HALF();
-			break;
-		}
-		case DecoderStep::T2_H2:
-		{
-			// if the WAIT signal is active, wait for the next tick
-			if (SB->IsActive(BUS_WAIT))
-			{
-				Registers.Step = DecoderStep::TW_H1;
-			}
-			else
-			{
-				INCREMENT_HALF();
-			}
-			break;
-		}
-
-		case DecoderStep::TW_H1:
-		{
-			INCREMENT_HALF();
-			break;
-		}
-		case DecoderStep::TW_H2:
-		{
-			Registers.Step = DecoderStep::T2_H1;
-			break;
-		}
-
-		// clock states T3 and T4 of a fetch cycle are used to refresh dynamic memories
-		// the CPU uses this time to decode and execute the fetched instruction so that no other concurrent operation can be performed.
 		case DecoderStep::T3_H1:
 		{
-			INCREMENT_HALF();
 			break;
 		}
 		case DecoderStep::T3_H2:
 		{
-			// the CPU samples the data from the data bus with the rising edge of the clock of state T3,
-			// and this same edge is used by the CPU to turn off the RD and MREQ signals
+			break;
+		}
+		case DecoderStep::T4_H1:
+		{
+			break;
+		}
+		case DecoderStep::T4_H2:
+		{
+			Registers.bInitiCPU = false;
+			Registers.bInstrCycleDone = true;
+			Registers.NMC = MachineCycle::M1;
+			break;
+		}
+	}
 
-			Registers.Opcode = /*opcode*/ SB->GetDataOnDataBus();
-			DecodeAndAddInstruction(Registers.Opcode);
-			CycleExecuteFetchedInstruction(Registers.Opcode, Registers.Step);
+	INCREMENT_CP_HALF();
+}
+
+void FCPU_Z80::OpcodeDecode()
+{
+	Registers.bOpcodeDecoded = true;
+
+#ifndef NDEBUG
+	assert(Unprefixed[Registers.Opcode] != nullptr);
+#endif
+	Unprefixed[Registers.Opcode](*this);
+}
+
+//void FCPU_Z80::TickInstruction(FCPU_Z80& CPU)
+//{
+//#ifndef NDEBUG
+//	assert(Unprefixed_Tick[Registers.Opcode] != nullptr);
+//#endif
+//	Unprefixed_Tick[Registers.Opcode](*this);
+//}
+
+void FCPU_Z80::Cycle_OpcodeFetch(FCPU_Z80& CPU)
+{
+	switch (Registers.DSCP)
+	{
+		case DecoderStep::T1_H2:
+		{
+			SB->SetDataOnAddressBus(*Registers.PC);
+			SB->SetActive(BUS_M1);
+			break;
+		}
+		case DecoderStep::T2_H1:
+		{
+			SB->SetActive(BUS_MREQ);
+			SB->SetActive(BUS_RD);
+			++Registers.PC;
+			break;
+		}
+		case DecoderStep::T2_H2:
+		{
+			if (SB->IsActive(BUS_WAIT))
+			{
+				Registers.DSCP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			Registers.DSCP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H1:
+		{
+			Registers.Opcode = /*read opcode*/ SB->GetDataOnDataBus();
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			OpcodeDecode();
 
 			SB->SetInactive(BUS_M1);
 			SB->SetInactive(BUS_MREQ);
 			SB->SetInactive(BUS_RD);
 
-			// during T3 and T4, the lower seven bits of the address bus contain a memory refresh address and the RFSH signal becomes active,
-			// indicating that a refresh read of all dynamic memories must be performed.
-			SB->SetActive(BUS_RFSH);
-			// timer to set RFSH signal to inactive state after 4 clock cycles
-			ADD_EVENT_(CG, 4, "set inactive RFSH atafter 4 clock cycles", [&]() { SB->IsInactive(BUS_RFSH); });
 			SB->SetDataOnAddressBus(Registers.IR.Word);
-			INCREMENT_HALF();
+			SB->SetActive(BUS_RFSH);
+			ADD_EVENT_(CG, 4, "set inactive RFSH atafter 4 clock cycles", [&]() { SB->IsInactive(BUS_RFSH); });
 			break;
 		}
 		case DecoderStep::T4_H1:
 		{
-			CycleExecuteFetchedInstruction(Registers.Opcode, Registers.Step);
-			// one half clock cycle intro T3 later, the MREQ signals goes active.
 			SB->SetActive(BUS_MREQ);
 			ADD_EVENT_(CG, 2, "set inactive BUS_MREQ atafter 2 clock cycle", [&]() { SB->SetInactive(BUS_MREQ); });
 			Registers.IR.IncrementR();
-			INCREMENT_HALF();
 			break;
 		}
-
 		case DecoderStep::T4_H2:
 		{
-			CycleExecuteFetchedInstruction(Registers.Opcode, Registers.Step);
-			INCREMENT_HALF();
-			break;
-		}
-
-		default:
-		{
-			CycleExecuteFetchedInstruction(Registers.Opcode, Registers.Step);
-			INCREMENT_HALF_IF();
 			break;
 		}
 	}
+
+	INCREMENT_CP_HALF();
 }
 
-void FCPU_Z80::Cycle_MemoryRead(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback /*= nullptr*/)
+void FCPU_Z80::Cycle_MemoryRead(uint16_t Address, Register8& Register)
 {
-	switch (Registers.Step)
+	switch (Registers.DSCP)
 	{
-	case DecoderStep::T1_H1:
-		SB->SetDataOnAddressBus(Address);
-		INCREMENT_HALF();
-		break;
-	case DecoderStep::T1_H2:
-		// one half clock cycle later, the MREQ and RD signals goes active
-		SB->SetActive(BUS_MREQ);
-		SB->SetActive(BUS_RD);
-		INCREMENT_HALF();
-		break;
-
-	case DecoderStep::T2_H1:
-		++Registers.PC;
-		// if the WAIT signal is active, wait for the next tick
-		if (SB->IsInactive(BUS_WAIT))
+		case DecoderStep::T1_H1:
 		{
-			INCREMENT_HALF();
+			break;
 		}
-		break;
-	case DecoderStep::T2_H2:
-		INCREMENT_HALF();
-		break;
-
-	case DecoderStep::T3_H1:
-		// the CPU samples the data from the data bus with the rising edge of the clock of state T3
-		Register = SB->GetDataOnDataBus();
-		INCREMENT_HALF();
-		break;
-
-	case DecoderStep::T3_H2:
-		// one half clock cycle later, the MREQ and RD signals goes inactive
-		SB->SetInactive(BUS_MREQ);
-		SB->SetInactive(BUS_RD);
-		if (CompletedCallback) CompletedCallback(*this);
-		//COMPLETED();
-		break;
+		case DecoderStep::T1_H2:
+		{
+			SB->SetDataOnAddressBus(Address);
+			break;
+		}
+		case DecoderStep::T2_H1:
+		{
+			SB->SetActive(BUS_MREQ);
+			SB->SetActive(BUS_RD);
+			++Registers.PC;
+			break;
+		}
+		case DecoderStep::T2_H2:
+		{
+			if (SB->IsActive(BUS_WAIT))
+			{
+				Registers.DSCP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			Registers.DSCP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H1:
+		{
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			Register = SB->GetDataOnDataBus();
+			ADD_EVENT_(CG, 1, "set inactive BUS_MREQ in next clock cycle", [&]() { SB->SetInactive(BUS_MREQ); });
+			ADD_EVENT_(CG, 1, "set inactive BUS_RD in next clock cycle", [&]() { SB->SetInactive(BUS_RD); });
+			break;
+		}
 	}
+	INCREMENT_CP_HALF();
 }
 
 void FCPU_Z80::Cycle_MemoryWrite(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback /*= nullptr*/)
 {
-	switch (Registers.Step)
+	switch (Registers.DSCP)
 	{
 	case DecoderStep::T1_H1:
 		SB->SetDataOnAddressBus(Address);
-		INCREMENT_HALF();
+		INCREMENT_CP_HALF();
 		break;
 	case DecoderStep::T1_H2:
 		SB->SetActive(BUS_MREQ);
 		SB->SetDataOnDataBus(*Register);
-		INCREMENT_HALF();
+		INCREMENT_CP_HALF();
 		break;
 
 	case DecoderStep::T2_H1:
 		// if the WAIT signal is active, wait for the next tick
 		if (SB->IsInactive(BUS_WAIT))
 		{
-			INCREMENT_HALF();
+			INCREMENT_CP_HALF();
 		}
 		break;
 	case DecoderStep::T2_H2:
 		SB->SetActive(BUS_WR);
-		INCREMENT_HALF();
+		INCREMENT_CP_HALF();
 		break;
 
 	case DecoderStep::T3_H1:
-		INCREMENT_HALF();
+		INCREMENT_CP_HALF();
 		break;
 	case DecoderStep::T3_H2:
 		// one half clock cycle later, the MREQ and WR signals goes inactive
 		SB->SetInactive(BUS_MREQ);
 		SB->SetInactive(BUS_WR);
 		if (CompletedCallback) CompletedCallback(*this);
-		COMPLETED();
-		break;
-	}
-}
-
-void FCPU_Z80::Cycle_ALU_LoadWZ_AddWZ_UnloadWZ()
-{
-	// 1 tick, low register WZ stores relative offset
-	// 2 tick, high byte of WZ register is loaded with 0x00 if offset is positive, 0xFF if negative
-	// 3 tick, add WZ += PC (ALU)
-	// 4 tick, unload from WZ.L to PC.L
-	// 5 tick, unload from WZ.H to PC.H
-
-	switch (Registers.Step)
-	{
-	case DecoderStep::T1_H1:
-		INCREMENT_HALF();
-		break;
-
-	case DecoderStep::T2_H1:
-		Registers.WZ.H = Registers.WZ.L.GetBit(7) ? 0xFF : 0x00;
-		INCREMENT_HALF();
-		break;
-
-	case DecoderStep::T3_H1:
-		Registers.WZ += Registers.PC;
-		INCREMENT_HALF();
-		break;
-
-	case DecoderStep::T4_H1:
-		Registers.PC.L = Registers.WZ.L;
-		INCREMENT_HALF();
-		break;
-
-	case DecoderStep::T5_H1:
-		Registers.PC.H = Registers.WZ.H;
-		INCREMENT_HALF();
-		break;
-	case DecoderStep::T5_H2:
-		COMPLETED();
-		break;
-
-	default:
-		INCREMENT_HALF();
+		//COMPLETED();
 		break;
 	}
 }

@@ -1155,7 +1155,7 @@ void SDisassembler::Tick(float DeltaTime)
 		if (ClockCounter != LatestClockCounter || ClockCounter == INDEX_NONE)
 		{
 			Load_MemorySnapshot();
-			TimeElapsedCounter = LatestClockCounter == INDEX_NONE ? ClockCounter : ClockCounter - LatestClockCounter;
+			TimeElapsedCounter = ClockCounter - LatestClockCounter;
 			LatestClockCounter = ClockCounter;
 		}
 	}
@@ -2067,7 +2067,7 @@ void SDisassembler::Input_HotKeys()
 
 		{ ImGuiMod_Ctrl | ImGuiKey_G,				ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_GoToAddress, this)					},	// debugger: go to address
 
-		{ ImGuiKey_F4,								ImGuiInputFlags_Repeat, std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepTo)	},	// debugger: step into				(f4)
+		{ ImGuiKey_F5,								ImGuiInputFlags_Repeat, std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepTo)	},	// debugger: step into				(f4)
 		{ ImGuiKey_F7,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepInto)},	// debugger: step into				(f7)
 		{ ImGuiKey_F8,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepOver)},	// debugger: step over				(f8)
 		{ ImGuiKey_F11,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepOut)	},	// debugger: step out				(f11)

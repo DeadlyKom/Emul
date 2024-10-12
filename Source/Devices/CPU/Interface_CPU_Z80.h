@@ -30,4 +30,6 @@ public:
 	ICPU_Z80() {};
 	virtual ~ICPU_Z80() = default;
 	virtual FRegisters GetRegisters() const = 0;
+	virtual bool IsInstrCycleDone() const = 0;
+	virtual bool IsInstrExeDone() const = 0;
 };

@@ -261,6 +261,9 @@
     <ClInclude Include="Devices\CPU\Interface_CPU_Z80.h">
       <Filter>Source\Devices\CPU</Filter>
     </ClInclude>
+    <ClInclude Include="Utils\ProfilerScope.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Resource\Icons\ICONE.ico">

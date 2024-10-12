@@ -26,8 +26,7 @@ namespace DecoderStep
 		T6_H1,
 		T6_H2,
 
-		TW_H1,
-		TW_H2,
+		T_WAIT,
 
 		T1		= 0,
 		T2,
@@ -41,7 +40,6 @@ namespace DecoderStep
 }
 
 typedef void (*CMD_FUNC)(FCPU_Z80&);
-typedef void (*CMD_FUNC_CYCLE)(FCPU_Z80&, DecoderStep::Type Step);
 
 namespace MachineCycle
 {
@@ -84,20 +82,27 @@ namespace Prefix
 struct FInternalRegisters : public FRegisters
 {
 	// internal
-	uint8_t IM;			// maskable interrupt mode
-	Register16 WZ;		// temporary register
-	bool IFF1;
-	bool IFF2;
+	bool bIFF1;
+	bool bIFF2;
+	bool bInitiCPU;				// flag indicating to initialize CPU
+	bool bInstrCycleDone;		// flag indicating the end instruction cycle ended
+	bool bInstrExeDone;			// flag indicating the instruction execution completed
+	bool bOpcodeDecoded;		// flag indicating that the opcode has been decoded
+	uint8_t IM;					// maskable interrupt mode
+	Register16 WZ;				// temporary register
 
-	uint8_t Opcode;			// current opcode
-	uint8_t DataLatch;		// temporary store for data bus value
-	uint32_t CC;			// counter of clock cycles in one machine cycle
-	MachineCycle::Type MC;	// machine cycle counter
-	MachineCycle::Type NMC;	// next machine cycle
-	DecoderStep::Type Step;	// the currently active decoder step
+	uint8_t Opcode;				// current opcode
+	uint8_t DataLatch;			// temporary store for data bus value
+	uint32_t CC;				// counter of clock cycles in one machine cycle
+	MachineCycle::Type MC;		// machine cycle counter
+	MachineCycle::Type NMC;		// next machine cycle
 	Prefix::Type Prefix;
 
-	FCommandPipeline CP;
+	DecoderStep::Type DSCP;		// the currently active decoder step for command pipeline
+	DecoderStep::Type DSTP;		// the currently active decoder step for tick pipeline
+
+	FPipeline CP;				// command pipeline
+	FPipeline TP;				// tick pipeline
 };
 
 class FCPU_Z80 : public FDevice, public ICPU_Z80
@@ -110,22 +115,21 @@ public:
 	virtual void Tick() override;
 	virtual void Reset() override;
 	virtual FRegisters GetRegisters() const override;
+	virtual bool IsInstrCycleDone() const override { return Registers.bInstrCycleDone; }
+	virtual bool IsInstrExeDone() const override { return Registers.bInstrExeDone; }
 
-	void Cycle_InstructionFetch();
-	void Cycle_MemoryRead(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback = nullptr);
+	void Cycle_Reset();
+	void Cycle_InitCPU();
+	void Cycle_OpcodeFetch(FCPU_Z80& CPU);
+	void Cycle_MemoryRead(uint16_t Address, Register8& Register);
 	void Cycle_MemoryWrite(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback = nullptr);
-
-	// ALU operation of adding the Program Counter and relative offset using the intermediate register WZ
-	void Cycle_ALU_LoadWZ_AddWZ_UnloadWZ();
 
 	FInternalRegisters Registers;
 
 private:
-	void Cycle_Reset();
-	void DecodeAndAddInstruction(uint8_t Opcode);
-	void CycleExecuteFetchedInstruction(uint8_t Opcode, DecoderStep::Type Step);
+	void OpcodeDecode();
 
 	static const CMD_FUNC Unprefixed[256];
-	static const CMD_FUNC_CYCLE Unprefixed_Cycle[256];
-	std::function<void(FCPU_Z80& CPU)> Command;
+	std::function<void(FCPU_Z80& CPU)> Execute_Cycle;
+	std::function<void(FCPU_Z80& CPU)> Execute_Tick;
 };

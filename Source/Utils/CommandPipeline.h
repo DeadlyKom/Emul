@@ -2,14 +2,19 @@
 
 #include <CoreMinimal.h>
 
-#define PUT_CMD(command)					(CPU.Registers.CP.Put(command))
-#define GET_CMD()							(CPU.Registers.CP.Get())
-#define EXE_CMD()							(CPU.Registers.CP.Execute(CPU))
+#define PUT_PIPELINE(type, command)	(CPU.Registers.##type.Put(command))
+#define GET_PIPELINE(type)			(CPU.Registers.##type.Get())
+#define EXE_PIPELINE(type)			(CPU.Registers.##type.Execute(CPU))
 
 class FCPU_Z80;
 
-struct FCommandPipeline
+struct FPipeline
 {
+	FPipeline()
+		: Head(0)
+		, Trail(0)
+	{}
+
 	void Put(std::function<void(FCPU_Z80& CPU)>&& Command)
 	{
 		Buffer[Head] = std::move(Command);
@@ -28,7 +33,7 @@ struct FCommandPipeline
 		Get()(CPU);
 	}
 
-	bool IsEmpty()
+	bool IsEmpty() const
 	{
 		return Head == Trail;
 	}

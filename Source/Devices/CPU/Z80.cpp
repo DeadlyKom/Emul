@@ -25,6 +25,10 @@ void FCPU_Z80::Tick()
 	{
 		Cycle_Reset();
 	}
+	else if (Registers.bInitiCPU)
+	{
+		Cycle_InitCPU();
+	}
 	else if (false)
 	{
 		// ToDo handle signals in this sequence:
@@ -34,27 +38,44 @@ void FCPU_Z80::Tick()
 	}
 	else
 	{
-		// reset the internal counters
-		if (Registers.NMC != MachineCycle::None)
+		if (Registers.bInstrCycleDone || Registers.NMC != MachineCycle::None)
 		{
 			Registers.CC = 0;
-			Registers.MC = Registers.NMC;
+			Registers.MC = Registers.bInstrCycleDone ? MachineCycle::M1 : Registers.NMC;
 			Registers.NMC = MachineCycle::None;
-			Registers.Step = DecoderStep::T1;
+			Registers.DSCP = DecoderStep::T1;
+			Registers.bInstrCycleDone = false;
+			const bool bIsCyclyM1 = Registers.MC == MachineCycle::M1;
+			Registers.bOpcodeDecoded = !bIsCyclyM1;
+			Execute_Tick = nullptr;
 
-			if (Registers.CP.IsEmpty())
+			if (!Registers.CP.IsEmpty())
 			{
-				Command = [this](FCPU_Z80& CPU) -> void { Cycle_InstructionFetch(); };
+				Execute_Cycle = Registers.CP.Get();
+			}
+			else if (bIsCyclyM1)
+			{
+				Execute_Cycle = std::bind(&FCPU_Z80::Cycle_OpcodeFetch, this, *this);
 			}
 			else
 			{
-				Command = Registers.CP.Get();
+				Execute_Cycle = nullptr;
 			}
 		}
+		if (Execute_Cycle) { Execute_Cycle(*this); }
 
-		if (Command)
+		if (Registers.bOpcodeDecoded)
 		{
-			Command(*this);
+			if (Registers.bInstrExeDone || !Execute_Tick)
+			{
+				Registers.DSTP = Registers.MC == MachineCycle::M1 ? DecoderStep::T3_H1 : DecoderStep::T1_H1;
+				Registers.bInstrExeDone = false;
+				if (!Registers.TP.IsEmpty())
+				{
+					Execute_Tick = Registers.TP.Get();
+				}
+			}
+			if (Execute_Tick) { Execute_Tick(*this); }
 		}
 	}
 	Registers.CC++;

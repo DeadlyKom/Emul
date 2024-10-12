@@ -2,21 +2,16 @@
 #include "Utils/SignalsBus.h"
 #include "Motherboard/Motherboard_ClockGenerator.h"
 
-#define COMPLETED()		 { CPU.Registers.Step = DecoderStep::Completed; }
+#define INCREMENT_TP_HALF()	{ CPU.GetClockGenerator().Increment(reinterpret_cast<uint32_t&>(CPU.Registers.DSTP)); }
 
 static uint8_t UpdateFlags_SZ(uint8_t Value)
 {
 	return (Value != 0) ? (Value & Z80_SF) : Z80_ZF;
 }
 
-static void CMD_Complite(FCPU_Z80& CPU)
+static void _def(FCPU_Z80& CPU)
 {
-	CPU.Registers.NMC = CPU.Registers.MC++;
-}
-
-static void _def(FCPU_Z80& CPU, DecoderStep::Type Step)
-{
-	switch (Step)
+	switch (CPU.Registers.DSTP)
 	{
 		case DecoderStep::T3_H1:
 		{
@@ -33,15 +28,17 @@ static void _def(FCPU_Z80& CPU, DecoderStep::Type Step)
 		}
 		case DecoderStep::T4_H2:
 		{
-			CPU.Registers.NMC = MachineCycle::M1;
+			CPU.Registers.bInstrCycleDone = true;
+			CPU.Registers.bInstrExeDone = true;
 			break;
 		}
 	}
+	INCREMENT_TP_HALF();
 }
 
-static void _inc8(FCPU_Z80& CPU, DecoderStep::Type Step, Register8& Register)
+static void _inc8(FCPU_Z80& CPU, Register8& Register)
 {
-	switch (Step)
+	switch (CPU.Registers.DSTP)
 	{
 		case DecoderStep::T3_H1:
 		{
@@ -74,15 +71,15 @@ static void _inc8(FCPU_Z80& CPU, DecoderStep::Type Step, Register8& Register)
 			Register = Result;
 
 			++CPU.Registers.PC;
-			COMPLETED();
+			//COMPLETED();
 			break;
 		}
 	}
 }
 
-static void _dec8(FCPU_Z80& CPU, DecoderStep::Type Step, Register8& Register)
+static void _dec8(FCPU_Z80& CPU, Register8& Register)
 {
-	switch (Step)
+	switch (CPU.Registers.DSTP)
 	{
 		case DecoderStep::T3_H1:
 		{
@@ -115,7 +112,7 @@ static void _dec8(FCPU_Z80& CPU, DecoderStep::Type Step, Register8& Register)
 			Register = Result;
 
 			++CPU.Registers.PC;
-			COMPLETED();
+			//COMPLETED();
 			break;
 		}
 	}
@@ -123,28 +120,31 @@ static void _dec8(FCPU_Z80& CPU, DecoderStep::Type Step, Register8& Register)
 
 // nop
 void _00(FCPU_Z80& CPU)
-{}
+{
+	//CPU.Registers.SETMC = MachineCycle::M1;
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void {  _def(CPU); });
+}
 
 // ld bc, nn
 void _01(FCPU_Z80& CPU)
 {
-	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.L, std::move(CMD_Complite)); });
-	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.H, std::move(CMD_Complite)); });
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.L); });
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.H); });
 }
 
 // ld (bc), a
 void _02(FCPU_Z80& CPU)
 {
-	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryWrite(*CPU.Registers.BC, CPU.Registers.AF.H); });
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryWrite(*CPU.Registers.BC, CPU.Registers.AF.H); });
 }
 
 // inc bc
 void _03(FCPU_Z80& CPU)
 {}
 
-void _03c(FCPU_Z80& CPU, DecoderStep::Type Step)
+void _03c(FCPU_Z80& CPU)
 {
-	switch (Step)
+	switch (CPU.Registers.DSTP)
 	{
 		case DecoderStep::T3_H1:
 		{
@@ -185,7 +185,7 @@ void _03c(FCPU_Z80& CPU, DecoderStep::Type Step)
 		{
 			// increment PC and end M1
 			++CPU.Registers.PC;
-			COMPLETED();
+			//COMPLETED();
 			break;
 		}
 	}
@@ -195,33 +195,33 @@ void _03c(FCPU_Z80& CPU, DecoderStep::Type Step)
 void _04(FCPU_Z80& CPU)
 {}
 
-void _04c(FCPU_Z80& CPU, DecoderStep::Type Step)
+void _04c(FCPU_Z80& CPU)
 {
-	_inc8(CPU, Step, CPU.Registers.BC.H);
+	_inc8(CPU, CPU.Registers.BC.H);
 }
 
 // dec b
 void _05(FCPU_Z80& CPU)
 {}
 
-void _05c(FCPU_Z80& CPU, DecoderStep::Type Step)
+void _05c(FCPU_Z80& CPU)
 {
-	_dec8(CPU, Step, CPU.Registers.BC.H);
+	_dec8(CPU, CPU.Registers.BC.H);
 }
 
 // ld b, n
 void _06(FCPU_Z80& CPU)
 {
-	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.H, std::move(CMD_Complite)); });
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.H); });
 }
 
 // rlca
 void _07(FCPU_Z80& CPU)
 {}
 
-void _07c(FCPU_Z80& CPU, DecoderStep::Type Step)
+void _07c(FCPU_Z80& CPU)
 {
-	switch (Step)
+	switch (CPU.Registers.DSTP)
 	{
 		case DecoderStep::T3_H1:
 		{
@@ -251,7 +251,7 @@ void _07c(FCPU_Z80& CPU, DecoderStep::Type Step)
 		case DecoderStep::T4_H2:
 		{
 			++CPU.Registers.PC;
-			COMPLETED();
+			//COMPLETED();
 			break;
 		}
 	}
@@ -261,9 +261,9 @@ void _07c(FCPU_Z80& CPU, DecoderStep::Type Step)
 void _08(FCPU_Z80& CPU)
 {}
 
-void _08c(FCPU_Z80& CPU, DecoderStep::Type Step)
+void _08c(FCPU_Z80& CPU)
 {
-	switch (Step)
+	switch (CPU.Registers.DSTP)
 	{
 	case DecoderStep::T3_H1:
 	{
@@ -285,7 +285,7 @@ void _08c(FCPU_Z80& CPU, DecoderStep::Type Step)
 		CPU.Registers.AF.Exchange(CPU.Registers.AF_);
 
 		++CPU.Registers.PC;
-		COMPLETED();
+		//COMPLETED();
 		break;
 	}
 	}
@@ -352,10 +352,80 @@ void _17(FCPU_Z80& CPU)
 {}
 
 // jr $
+void _18_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M2;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _18_m2(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M3;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _18_m3(FCPU_Z80& CPU)
+{
+	// 1 tick, low register WZ stores relative offset
+	// 2 tick, high byte of WZ register is loaded with 0x00 if offset is positive, 0xFF if negative
+	// 3 tick, add WZ += PC (ALU)
+	// 4 tick, unload from WZ.L to PC.L
+	// 5 tick, unload from WZ.H to PC.H
+
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H1:
+		{
+			CPU.Registers.WZ.H = CPU.Registers.WZ.L.GetBit(7) ? 0xFF : 0x00;
+			break;
+		}
+		case DecoderStep::T3_H1:
+		{
+			CPU.Registers.WZ += CPU.Registers.PC;
+			break;
+		}
+		case DecoderStep::T4_H1:
+		{
+			CPU.Registers.PC.L = CPU.Registers.WZ.L;
+			break;
+		}
+		case DecoderStep::T5_H1:
+		{
+			CPU.Registers.PC.H = CPU.Registers.WZ.H;
+			break;
+		}
+		case DecoderStep::T5_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			CPU.Registers.bInstrExeDone = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _18(FCPU_Z80& CPU)
 {
-	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.WZ.L, std::move(CMD_Complite)); });
-	PUT_CMD([](FCPU_Z80& CPU) -> void { CPU.Cycle_ALU_LoadWZ_AddWZ_UnloadWZ(); });
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.WZ.L); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void {  _18_m1(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void {  _18_m2(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void {  _18_m3(CPU); });
+}
+
+void _18c(FCPU_Z80& CPU)
+{
+	
 }
 
 // add hl, de
@@ -1302,22 +1372,22 @@ const CMD_FUNC FCPU_Z80::Unprefixed[256] =
 	_f0, _f1, _f2, _f3, _f4, _f5, _f6, _f7, _f8, _f9, _fa, _fb, _fc, _fd, _fe, _ff,
 };
 
-const CMD_FUNC_CYCLE FCPU_Z80::Unprefixed_Cycle[256] =
-{
-	_def, _def, _def, _03c, _04c, _05c, _def, _07c, _08c, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-};
+//const CMD_FUNC FCPU_Z80::Unprefixed_Tick[256] =
+//{
+//	_def, _def, _def, _03c, _04c, _05c, _def, _07c, _08c, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _18c, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
+//};
