@@ -209,41 +209,49 @@ void FCPU_Z80::Cycle_MemoryRead(uint16_t Address, Register8& Register)
 	INCREMENT_CP_HALF();
 }
 
-void FCPU_Z80::Cycle_MemoryWrite(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback /*= nullptr*/)
+void FCPU_Z80::Cycle_MemoryWrite(uint16_t Address, Register8& Register)
 {
 	switch (Registers.DSCP)
 	{
-	case DecoderStep::T1_H1:
-		SB->SetDataOnAddressBus(Address);
-		INCREMENT_CP_HALF();
-		break;
-	case DecoderStep::T1_H2:
-		SB->SetActive(BUS_MREQ);
-		SB->SetDataOnDataBus(*Register);
-		INCREMENT_CP_HALF();
-		break;
-
-	case DecoderStep::T2_H1:
-		// if the WAIT signal is active, wait for the next tick
-		if (SB->IsInactive(BUS_WAIT))
+		case DecoderStep::T1_H1:
 		{
-			INCREMENT_CP_HALF();
+			break;
 		}
-		break;
-	case DecoderStep::T2_H2:
-		SB->SetActive(BUS_WR);
-		INCREMENT_CP_HALF();
-		break;
-
-	case DecoderStep::T3_H1:
-		INCREMENT_CP_HALF();
-		break;
-	case DecoderStep::T3_H2:
-		// one half clock cycle later, the MREQ and WR signals goes inactive
-		SB->SetInactive(BUS_MREQ);
-		SB->SetInactive(BUS_WR);
-		if (CompletedCallback) CompletedCallback(*this);
-		//COMPLETED();
-		break;
+		case DecoderStep::T1_H2:
+		{
+			break;
+		}
+		case DecoderStep::T2_H1:
+		{
+			SB->SetDataOnAddressBus(Address);
+			SB->SetDataOnDataBus(*Register);
+			SB->SetActive(BUS_MREQ);
+			ADD_EVENT_(CG, 1, "set active BUS_WR in next clock cycle", [&]() { SB->SetActive(BUS_WR); });
+			break;
+		}
+		case DecoderStep::T2_H2:
+		{
+			if (SB->IsActive(BUS_WAIT))
+			{
+				Registers.DSCP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			Registers.DSCP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H1:
+		{
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			ADD_EVENT_(CG, 1, "set inactive BUS_MREQ in next clock cycle", [&]() { SB->SetInactive(BUS_MREQ); });
+			ADD_EVENT_(CG, 1, "set inactive BUS_WR in next clock cycle", [&]() { SB->SetInactive(BUS_WR); });
+			break;
+		}
 	}
+	INCREMENT_CP_HALF();
 }

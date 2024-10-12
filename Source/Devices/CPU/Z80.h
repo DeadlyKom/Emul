@@ -122,7 +122,7 @@ public:
 	void Cycle_InitCPU();
 	void Cycle_OpcodeFetch(FCPU_Z80& CPU);
 	void Cycle_MemoryRead(uint16_t Address, Register8& Register);
-	void Cycle_MemoryWrite(uint16_t Address, Register8& Register, std::function<void(FCPU_Z80& CPU)>&& CompletedCallback = nullptr);
+	void Cycle_MemoryWrite(uint16_t Address, Register8& Register);
 
 	FInternalRegisters Registers;
 

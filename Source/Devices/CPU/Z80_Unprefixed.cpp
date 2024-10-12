@@ -21,7 +21,6 @@ static void _def(FCPU_Z80& CPU)
 		{
 			break;
 		}
-
 		case DecoderStep::T4_H1:
 		{
 			break;
@@ -125,16 +124,122 @@ void _00(FCPU_Z80& CPU)
 }
 
 // ld bc, nn
+void _01_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M2;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _01_m2(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H2:
+		{
+			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
+			{
+				CPU.Registers.DSTP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			CPU.Registers.DSTP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M3;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _01_m3(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H2:
+		{
+			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
+			{
+				CPU.Registers.DSTP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			CPU.Registers.DSTP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			CPU.Registers.bInstrExeDone = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _01(FCPU_Z80& CPU)
 {
 	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.L); });
 	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.H); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _01_m1(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _01_m2(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _01_m3(CPU); });
 }
 
 // ld (bc), a
+void _02_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M4;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _02_m4(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H2:
+		{
+			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
+			{
+				CPU.Registers.DSTP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			CPU.Registers.DSTP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			CPU.Registers.bInstrExeDone = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _02(FCPU_Z80& CPU)
 {
 	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryWrite(*CPU.Registers.BC, CPU.Registers.AF.H); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _02_m1(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _02_m4(CPU); });
 }
 
 // inc bc
@@ -417,14 +522,9 @@ void _18_m3(FCPU_Z80& CPU)
 void _18(FCPU_Z80& CPU)
 {
 	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.WZ.L); });
-	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void {  _18_m1(CPU); });
-	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void {  _18_m2(CPU); });
-	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void {  _18_m3(CPU); });
-}
-
-void _18c(FCPU_Z80& CPU)
-{
-	
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _18_m1(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _18_m2(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _18_m3(CPU); });
 }
 
 // add hl, de
@@ -1370,23 +1470,3 @@ const CMD_FUNC FCPU_Z80::Unprefixed[256] =
 	_e0, _e1, _e2, _e3, _e4, _e5, _e6, _e7, _e8, _e9, _ea, _eb, _ec, _ed, _ee, _ef,
 	_f0, _f1, _f2, _f3, _f4, _f5, _f6, _f7, _f8, _f9, _fa, _fb, _fc, _fd, _fe, _ff,
 };
-
-//const CMD_FUNC FCPU_Z80::Unprefixed_Tick[256] =
-//{
-//	_def, _def, _def, _03c, _04c, _05c, _def, _07c, _08c, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _18c, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//	_def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def, _def,
-//};
