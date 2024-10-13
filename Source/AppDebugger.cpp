@@ -24,7 +24,7 @@ void FAppDebugger::Initialize()
 {
 	FAppFramework::Initialize();
 
-	LOG_CONSOLE("Initialize.");
+	LOG("Initialize.");
 
 	FImageBase& Images = FImageBase::Get();
 	Images.Initialize(Device);
@@ -46,12 +46,12 @@ void FAppDebugger::Initialize()
 		{
 			std::make_shared<FCPU_Z80>(),
 			std::make_shared<FAccessToROM>(),
-			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, 0, std::vector<uint8_t>({ 0x00, 0x18, 0xFD, 0x00 }), ESignalState::Low),
+			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, 0, std::vector<uint8_t>({ 0x00, 0x01, 0x002, 0x03, 0x02, 0x18, 0xf9 }), ESignalState::Low),
 		}, 3.5_MHz);
 
 		// load ROM
-		std::filesystem::path FIlePath = "D:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";// std::filesystem::current_path();
-		Motherboard->LoadRawData(NAME_MainBoard, NAME_EPROM, FIlePath);
+		//std::filesystem::path FIlePath = "D:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";// std::filesystem::current_path();
+		//Motherboard->LoadRawData(NAME_MainBoard, NAME_EPROM, FIlePath);
 
 		Motherboard->Reset();
 		Motherboard->Inut_Debugger();
@@ -77,7 +77,7 @@ void FAppDebugger::Shutdown()
 		Motherboard.reset();
 	}
 
-	LOG_CONSOLE("Shutdown.");
+	LOG("Shutdown.");
 
 	FAppFramework::Shutdown();
 }

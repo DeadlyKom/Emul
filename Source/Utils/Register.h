@@ -71,42 +71,36 @@ struct Register8
 	{
 		return Byte == Other.Byte;
 	}
-
 	void operator=(const Register8& Other)
 	{
 		Byte = Other.Byte;
-	}
-	void operator+(const Register8& Other)
-	{
-		Byte += Other.Byte;
 	}
 	void operator+=(const Register8& Other)
 	{
 		Byte += Other.Byte;
 	}
-	void operator+(uint8_t Value)
-	{
-		Byte += Value;
-	}
 	void operator+=(uint8_t Value)
 	{
 		Byte += Value;
-	}
-	void operator-(const Register8& Other)
-	{
-		Byte -= Other.Byte;
 	}
 	void operator-=(const Register8& Other)
 	{
 		Byte -= Other.Byte;
 	}
-	void operator-(uint8_t Value)
-	{
-		Byte -= Value;
-	}
 	void operator-=(uint8_t Value)
 	{
 		Byte -= Value;
+	}
+
+	friend std::ostream& operator<<(std::ostream& os, const Register8& Register)
+	{
+		os.write(reinterpret_cast<const char*>(&Register), sizeof(Register8));
+		return os;
+	}
+	friend std::istream& operator>>(std::istream& is, Register8& Register)
+	{
+		is.read(reinterpret_cast<char*>(&Register), sizeof(Register8));
+		return is;
 	}
 
 	uint8_t Byte;
@@ -156,37 +150,32 @@ struct Register16
 	{
 		Word = Other.Word;
 	}
-	void operator+(const Register16& Other)
-	{
-		Word += Other.Word;
-	}
 	void operator+=(const Register16& Other)
 	{
 		Word += Other.Word;
-	}
-	void operator+(uint16_t Value)
-	{
-		Word += Value;
 	}
 	void operator+=(uint16_t Value)
 	{
 		Word += Value;
 	}
-	void operator-(const Register16& Other)
-	{
-		Word -= Other.Word;
-	}
 	void operator-=(const Register16& Other)
 	{
 		Word -= Other.Word;
 	}
-	void operator-(uint16_t Value)
-	{
-		Word -= Value;
-	}
 	void operator-=(uint16_t Value)
 	{
 		Word -= Value;
+	}
+
+	friend std::ostream& operator<<(std::ostream& os, const Register16& Register)
+	{
+		os << Register.L << Register.H;
+		return os;
+	}
+	friend std::istream& operator>>(std::istream& is, Register16& Register)
+	{
+		is >> Register.L >> Register.H;
+		return is;
 	}
 
 	union

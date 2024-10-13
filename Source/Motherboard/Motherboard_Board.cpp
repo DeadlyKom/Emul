@@ -54,7 +54,7 @@ void FBoard::SetFrequency(double _Frequency)
 	Frequency = _Frequency;
 	Thread->SetFrequency(Frequency);
 
-	LOG_CONSOLE("[{}] : Set frequency: {}Hz", BoardName.ToString(), Frequency);
+	LOG("[{}] : Set frequency: {}Hz", BoardName.ToString(), Frequency);
 }
 
 void FBoard::Inut_Debugger(bool bEnterDebugger)

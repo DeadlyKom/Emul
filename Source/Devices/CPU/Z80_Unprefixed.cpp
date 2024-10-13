@@ -28,7 +28,7 @@ static void _def(FCPU_Z80& CPU)
 		case DecoderStep::T4_H2:
 		{
 			CPU.Registers.bInstrCycleDone = true;
-			CPU.Registers.bInstrExeDone = true;
+			CPU.Registers.bInstrCompleted = true;
 			break;
 		}
 	}
@@ -131,6 +131,7 @@ void _01_m1(FCPU_Z80& CPU)
 		case DecoderStep::T4_H2:
 		{
 			CPU.Registers.NMC = MachineCycle::M2;
+			CPU.Registers.bNextTickPipeline = true;
 			break;
 		}
 	}
@@ -158,6 +159,11 @@ void _01_m2(FCPU_Z80& CPU)
 			CPU.Registers.NMC = MachineCycle::M3;
 			break;
 		}
+		case DecoderStep::T4_H1:
+		{
+			CPU.Registers.BC.L = CPU.Registers.WZ.L;
+			CPU.Registers.bNextTickPipeline = true;
+		}
 	}
 	INCREMENT_TP_HALF();
 }
@@ -181,16 +187,20 @@ void _01_m3(FCPU_Z80& CPU)
 		case DecoderStep::T3_H2:
 		{
 			CPU.Registers.bInstrCycleDone = true;
-			CPU.Registers.bInstrExeDone = true;
 			break;
+		}
+		case DecoderStep::T4_H1:
+		{
+			CPU.Registers.BC.H = CPU.Registers.WZ.H;
+			CPU.Registers.bInstrCompleted = true;
 		}
 	}
 	INCREMENT_TP_HALF();
 }
 void _01(FCPU_Z80& CPU)
 {
-	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.L); });
-	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.H); });
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.WZ.L); });
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.WZ.H); });
 	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _01_m1(CPU); });
 	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _01_m2(CPU); });
 	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _01_m3(CPU); });
@@ -204,6 +214,7 @@ void _02_m1(FCPU_Z80& CPU)
 		case DecoderStep::T4_H2:
 		{
 			CPU.Registers.NMC = MachineCycle::M4;
+			CPU.Registers.bNextTickPipeline = true;
 			break;
 		}
 	}
@@ -229,7 +240,7 @@ void _02_m4(FCPU_Z80& CPU)
 		case DecoderStep::T3_H2:
 		{
 			CPU.Registers.bInstrCycleDone = true;
-			CPU.Registers.bInstrExeDone = true;
+			CPU.Registers.bInstrCompleted = true;
 			break;
 		}
 	}
@@ -463,6 +474,7 @@ void _18_m1(FCPU_Z80& CPU)
 		case DecoderStep::T4_H2:
 		{
 			CPU.Registers.NMC = MachineCycle::M2;
+			CPU.Registers.bNextTickPipeline = true;
 			break;
 		}
 	}
@@ -475,6 +487,7 @@ void _18_m2(FCPU_Z80& CPU)
 		case DecoderStep::T3_H2:
 		{
 			CPU.Registers.NMC = MachineCycle::M3;
+			CPU.Registers.bNextTickPipeline = true;
 			break;
 		}
 	}
@@ -513,7 +526,7 @@ void _18_m3(FCPU_Z80& CPU)
 		case DecoderStep::T5_H2:
 		{
 			CPU.Registers.bInstrCycleDone = true;
-			CPU.Registers.bInstrExeDone = true;
+			CPU.Registers.bInstrCompleted = true;
 			break;
 		}
 	}

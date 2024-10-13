@@ -86,12 +86,12 @@ int32_t FAppFramework::Launch(const std::map<std::string, std::string>& Args)
 {
 	if (Args.contains("help"))
 	{
-		LOG_CONSOLE("help:\n");
-		LOG_CONSOLE("   -log \t\t\t\t enable logging.\n");
-		LOG_CONSOLE("   -resolution <width>x<height> \t set the required resolution.\n");
-		LOG_CONSOLE("   -fullscreen \t\t\t set resolution to fullscreen.\n");
+		LOG("help:\n");
+		LOG("   -log \t\t\t\t enable logging.\n");
+		LOG("   -resolution <width>x<height> \t set the required resolution.\n");
+		LOG("   -fullscreen \t\t\t set resolution to fullscreen.\n");
 
-		LOG_CONSOLE("ToDo: add command list.");
+		LOG("ToDo: add command list.");
 
 		return 0;
 	}
@@ -103,7 +103,7 @@ int32_t FAppFramework::Launch(const std::map<std::string, std::string>& Args)
 		return 1;
 	}
 
-	LOG_CONSOLE("Launch...");
+	LOG("Launch...");
 
 	Register();
 
@@ -134,7 +134,7 @@ bool FAppFramework::Startup(const std::map<std::string, std::string>& Args)
 		{
 			Flags.bLog = true;
 
-			LOG_CONSOLE("[*] enable logging.");
+			LOG("[*] enable logging.");
 		}
 		else if (!Key.compare("resolution"))
 		{
@@ -149,7 +149,7 @@ bool FAppFramework::Startup(const std::map<std::string, std::string>& Args)
 				WindowHeight = atoi(NewWindowHeight.data());
 			}
 
-			LOG_CONSOLE("[*] set the resolution {}x{}", WindowWidth, WindowHeight);
+			LOG("[*] set the resolution {}x{}", WindowWidth, WindowHeight);
 		}
 		else if (!Key.compare("fullscreen"))
 		{
@@ -158,20 +158,20 @@ bool FAppFramework::Startup(const std::map<std::string, std::string>& Args)
 			WindowWidth = ScreenWidth;
 			WindowHeight = ScreenHeight;
 
-			LOG_CONSOLE("[*] set resolution to fullscreen.");
+			LOG("[*] set resolution to fullscreen.");
 		}
 	}
 
 	if (!InitField())
 	{
-		LOG_CONSOLE("Startup fail.");
+		LOG("Startup fail.");
 		return false;
 	}
 
 	// setup Dear ImGui context
 	if (!IMGUI_CHECKVERSION())
 	{
-		LOG_CONSOLE("Startup fail.");
+		LOG("Startup fail.");
 		return false;
 	}
 
@@ -206,7 +206,7 @@ bool FAppFramework::Startup(const std::map<std::string, std::string>& Args)
 
 void FAppFramework::Initialize()
 {
-	LOG_CONSOLE("Initialize.");
+	LOG("Initialize.");
 	Time.Initialize();
 }
 
@@ -216,7 +216,7 @@ void FAppFramework::Shutdown()
 	DestroyWindow(hwndAppFramework);
 	Release();
 
-	LOG_CONSOLE("Shutdown.");
+	LOG("Shutdown.");
 }
 
 void FAppFramework::Tick(float DeltaTime)
@@ -254,7 +254,7 @@ void FAppFramework::Release()
 
 void FAppFramework::Register()
 {
-	LOG_CONSOLE("Register.");
+	LOG("Register.");
 
 	WNDCLASSEX wcex;
 	hInstance = GetModuleHandle(nullptr);
@@ -277,7 +277,7 @@ void FAppFramework::Register()
 
 bool FAppFramework::Create(int32_t Width, int32_t Height)
 {
-	LOG_CONSOLE("Create windows.");
+	LOG("Create windows.");
 
 	const uint32_t WindowWidth = Width > 0 ? Width : ScreenWidth >> 1;
 	const uint32_t WindowHeight = Height > 0 ? Height : ScreenHeight >> 1;
@@ -297,20 +297,20 @@ bool FAppFramework::Create(int32_t Width, int32_t Height)
 
 	if (!CreateDeviceD3D())
 	{
-		LOG_CONSOLE("Create windows failed.");
+		LOG("Create windows failed.");
 		return false;
 	}
 
 	UpdateWindow(hwndAppFramework);
 	GetClientRect(hwndAppFramework, &RectWindow);
 
-	LOG_CONSOLE("Create windows success.");
+	LOG("Create windows success.");
 	return true;
 }
 
 int32_t FAppFramework::Run()
 {
-	LOG_CONSOLE("Run.");
+	LOG("Run.");
 
 	MSG msg;
 	bool bRun = true;
@@ -408,7 +408,7 @@ bool FAppFramework::CreateDeviceD3D()
 	const D3D_FEATURE_LEVEL FeatureLevelArray[3] = { D3D_FEATURE_LEVEL_11_1, D3D_FEATURE_LEVEL_11_0, D3D_FEATURE_LEVEL_10_0, };
 	if (FAILED(D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, NULL, CreateDeviceFlags, FeatureLevelArray, 3, D3D11_SDK_VERSION, &sd, &SwapChain, &Device, &FeatureLevel, &DeviceContext)))
 	{
-		LOG_CONSOLE("Create device and swap chain.");
+		LOG("Create device and swap chain.");
 		return false;
 	}
 
@@ -490,7 +490,7 @@ void FAppFramework::SaveDefaultImGuiIni()
 
 bool FAppFramework::StartupGUI()
 {
-	LOG_CONSOLE("Startup ImGui.");
+	LOG("Startup ImGui.");
 
 	ImGuiIO& IO = ImGui::GetIO();
 	IO.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard;       // Enable Keyboard Controls
@@ -515,12 +515,12 @@ bool FAppFramework::StartupGUI()
 	// Setup Platform/Renderer backends
 	if (!ImGui_ImplWin32_Init(hwndAppFramework))
 	{
-		LOG_CONSOLE("ImGui_ImplWin32_Init.");
+		LOG("ImGui_ImplWin32_Init.");
 		return false;
 	}
 	if (!ImGui_ImplDX11_Init(Device, DeviceContext))
 	{
-		LOG_CONSOLE("ImGui_ImplDX11_Init.");
+		LOG("ImGui_ImplDX11_Init.");
 		return false;
 	}
 

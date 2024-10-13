@@ -37,7 +37,7 @@ void FMotherboard::AddBoard(FName Name, EName::Type UniqueID, std::vector<std::s
 void FMotherboard::Inut_Debugger()
 {
 	bFlipFlopDebugger = !bFlipFlopDebugger;
-	LOG_CONSOLE(bFlipFlopDebugger ? "Enter debugger" : "Escepe debugger");
+	LOG(bFlipFlopDebugger ? "Enter debugger" : "Escepe debugger");
 
 	for (auto& [Name, Board] : Boards)
 	{
@@ -54,10 +54,10 @@ void FMotherboard::Input_Step(FCPU_StepType Type)
 
 	switch (Type)
 	{
-	case FCPU_StepType::StepTo:		LOG_CONSOLE("Step to");		break;
-	case FCPU_StepType::StepInto:	LOG_CONSOLE("Step into");	break;
-	case FCPU_StepType::StepOver:	LOG_CONSOLE("Step over");	break;
-	case FCPU_StepType::StepOut:	LOG_CONSOLE("Step out");	break;
+	case FCPU_StepType::StepTo:		LOG("Step to");		break;
+	case FCPU_StepType::StepInto:	LOG("Step into");	break;
+	case FCPU_StepType::StepOver:	LOG("Step over");	break;
+	case FCPU_StepType::StepOut:	LOG("Step out");	break;
 	}
 
 	for (auto& [Name, Board] : Boards)
@@ -80,7 +80,7 @@ void FMotherboard::LoadRawData(EName::Type BoardID, EName::Type DeviceID, std::f
 
 void FMotherboard::Reset()
 {
-	LOG_CONSOLE("Reset");
+	LOG("Reset");
 
 	for (auto& [Name, Board] : Boards)
 	{
@@ -95,7 +95,7 @@ void FMotherboard::NonmaskableInterrupt()
 		return;
 	}
 	
-	LOG_CONSOLE("Nonmaskable interrupt");
+	LOG("Nonmaskable interrupt");
 
 	for (auto& [Name, Board] : Boards)
 	{

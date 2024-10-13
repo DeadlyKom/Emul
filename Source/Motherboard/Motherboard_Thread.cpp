@@ -94,7 +94,7 @@ void FThread::Device_Registration(const std::vector<std::shared_ptr<FDevice>>& _
 		}
 		else
 		{
-			LOG_CONSOLE("[{}] : The device cannot be reinitialized.", ThreadName.ToString());
+			LOG("[{}] : The device cannot be reinitialized.", ThreadName.ToString());
 		}
 	}
 
@@ -154,7 +154,7 @@ std::any FThread::Device_ThreadRequestResult(EName::Type DeviceID, const std::ty
 
 void FThread::Thread_Execution()
 {
-	LOG_CONSOLE("[{}] : Thread started.", ThreadName.ToString());
+	LOG("[{}] : Thread started.", ThreadName.ToString());
 
 	// main loop
 	while (ThreadStatus != EThreadStatus::Quit)
@@ -163,6 +163,12 @@ void FThread::Thread_Execution()
 		{
 			TM.Tick();
 			Thread_RequestHandling();
+		}
+
+		if (!SerializedDataCPU.empty())
+		{
+			DeserializeCPU(SerializedDataCPU);
+			SerializedDataCPU.clear();
 		}
 
 		PROFILER_SCOPE(INDEX_NONE, [this]() -> bool
@@ -210,7 +216,7 @@ void FThread::Thread_Execution()
 		}
 	};
 
-	LOG_CONSOLE("[{}] : Thread shutdown.", ThreadName.ToString());
+	LOG("[{}] : Thread shutdown.", ThreadName.ToString());
 }
 
 void FThread::Thread_RequestHandling()
@@ -251,20 +257,25 @@ bool FThread::ThreadRequest_StopCondition(std::shared_ptr<FDevice> Device)
 	{
 		return false;
 	}
-
-	switch (StepType)
+	const bool bInstrCycleDone = CPU->IsInstrCycleDone();
+	if (bInstrCycleDone)
 	{
-	case FCPU_StepType::StepTo:
-		break;
-	case FCPU_StepType::StepInto:
-		break;
-	case FCPU_StepType::StepOver:
-		break;
-	case FCPU_StepType::StepOut:
-		break;
+		SerializeCPU(SerializedDataCPU);
+		CPU->Flush();
 	}
+	return bInstrCycleDone;
 
-	return CPU->IsInstrCycleDone();
+	//switch (StepType)
+	//{
+	//case FCPU_StepType::StepTo:
+	//	break;
+	//case FCPU_StepType::StepInto:
+	//	break;
+	//case FCPU_StepType::StepOver:
+	//	break;
+	//case FCPU_StepType::StepOut:
+	//	break;
+	//}
 }
 
 void FThread::ThreadRequest_ExecuteTask(const Callback&& Task)
@@ -429,4 +440,30 @@ void FThread::LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath)
 		{
 			ThreadRequest_LoadRawData(DeviceID, FilePath);
 		});
+}
+
+void FThread::SerializeCPU(std::string& Output)
+{
+	ICPU_Z80* ICPU = GetDevice<ICPU_Z80>();
+	if (ICPU == nullptr)
+	{
+		LOG_ERROR("[{}]\t failed to find device.", (__FUNCTION__));
+		return;
+	}
+	std::ostringstream os(std::ios::binary);
+	ICPU->Serialize(os);
+	Output = os.str();
+}
+
+void FThread::DeserializeCPU(const std::string& Input)
+{
+	ICPU_Z80* ICPU = GetDevice<ICPU_Z80>();
+	if (ICPU == nullptr)
+	{
+		LOG_ERROR("[{}]\t failed to find device.", (__FUNCTION__));
+		return;
+	}
+
+	std::istringstream is(SerializedDataCPU);
+	ICPU->Deserialize(is);
 }

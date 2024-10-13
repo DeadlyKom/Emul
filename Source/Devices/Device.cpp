@@ -21,7 +21,7 @@ void FDevice::InternalRegister(FSignalsBus& _SB, FClockGenerator& _CG)
 	bRegistered = true;
 	CG = &_CG;
 	SB = &_SB;
-	LOG_CONSOLE(("[Device] : {} is registered."), DeviceName.ToString());
+	LOG(("[Device] : {} is registered."), DeviceName.ToString());
 
 	Register();
 }
@@ -29,7 +29,7 @@ void FDevice::InternalRegister(FSignalsBus& _SB, FClockGenerator& _CG)
 void FDevice::InternalUnregister()
 {
 	bRegistered = false;
-	LOG_CONSOLE(("[Device] : {} is unregistered."), DeviceName.ToString());
+	LOG(("[Device] : {} is unregistered."), DeviceName.ToString());
 
 	Unregister();
 }

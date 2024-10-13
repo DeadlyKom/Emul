@@ -46,9 +46,9 @@ struct FProfilerScope
 			{
 				std::chrono::duration<int64_t, std::nano> ElapsedTime = std::chrono::system_clock::now() - Container.StartTime;
 				double TimeDurationSec = ElapsedTime.count() / 1000000000.0;
-				LOG_CONSOLE("--------------------------------"); 
-				LOG_CONSOLE("[{}] : {}", Container.Counter, TimeDurationSec);
-				LOG_CONSOLE("--------------------------------\n");
+				LOG("--------------------------------"); 
+				LOG("[{}] : {}", Container.Counter, TimeDurationSec);
+				LOG("--------------------------------\n");
 			}
 		}
 	};

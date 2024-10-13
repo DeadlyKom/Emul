@@ -95,6 +95,8 @@ private:
 	void SetState_RequestHandler(EName::Type DeviceID, const std::type_index& Type, const std::any& Value);
 
 	void LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath);
+	void SerializeCPU(std::string& Output);
+	void DeserializeCPU(const std::string& Input);
 
 	template<typename T>
 	T GetState(EName::Type DeviceID)
@@ -117,6 +119,19 @@ private:
 		Device_ThreadRequest(DeviceID, std::type_index(typeid(T)), Value);
 	}
 
+	template<typename T>
+	T* GetDevice()
+	{
+		for (std::shared_ptr<FDevice>& Device : Devices)
+		{
+			if (std::shared_ptr<T> FoundDevice = std::dynamic_pointer_cast<T>(Device))
+			{
+				return FoundDevice.get();
+			}
+		}
+		return nullptr;
+	}
+
 	FName ThreadName;
 
 	FSignalsBus SB;
@@ -124,6 +139,7 @@ private:
 	FClockGenerator CG;
 
 	FCPU_StepType StepType;
+	std::string SerializedDataCPU;
 
 	std::thread Thread;
 	std::atomic<EThreadStatus> ThreadStatus;

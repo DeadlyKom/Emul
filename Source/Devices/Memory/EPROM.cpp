@@ -166,14 +166,14 @@ void FEPROM::Load(const std::filesystem::path& FilePath)
 {
 	if (!std::filesystem::exists(FilePath))
 	{
-		LOG_CONSOLE("File does not exist: %s", FilePath.string().c_str());
+		LOG("File does not exist: %s", FilePath.string().c_str());
 		return;
 	}
 
 	std::ifstream File(FilePath, std::ios::in | std::ios::binary);
 	if (!File.is_open())
 	{
-		LOG_CONSOLE("Could not open the file: %s", FilePath.string().c_str());
+		LOG("Could not open the file: %s", FilePath.string().c_str());
 		return;
 	}
 

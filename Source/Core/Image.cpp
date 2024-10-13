@@ -194,7 +194,7 @@ bool FImageBase::ResizeRegion(const uint8_t* ImageData, const ImVec2& OriginalSi
 							nullptr,
 							uv0.x, uv0.y, uv1.x, uv1.y) == 0)
 	{
-		LOG_CONSOLE("issue resizing region texture");
+		LOG("issue resizing region texture");
 
 		assert(false);
 		delete[] ImageData;

@@ -86,7 +86,8 @@ struct FInternalRegisters : public FRegisters
 	bool bIFF2;
 	bool bInitiCPU;				// flag indicating to initialize CPU
 	bool bInstrCycleDone;		// flag indicating the end instruction cycle ended
-	bool bInstrExeDone;			// flag indicating the instruction execution completed
+	bool bInstrCompleted;		// flag indicating that tick pipeline instruction is completed
+	bool bNextTickPipeline;		// flag indicating the fetch of next tick pipeline
 	bool bOpcodeDecoded;		// flag indicating that the opcode has been decoded
 	uint8_t IM;					// maskable interrupt mode
 	Register16 WZ;				// temporary register
@@ -103,6 +104,17 @@ struct FInternalRegisters : public FRegisters
 
 	FPipeline CP;				// command pipeline
 	FPipeline TP;				// tick pipeline
+
+	friend std::ostream& operator<<(std::ostream& os, const FInternalRegisters& Registers)
+	{
+		os.write(reinterpret_cast<const char*>(&Registers), sizeof(FInternalRegisters));
+		return os;
+	}
+	friend std::istream& operator>>(std::istream& is, FInternalRegisters& Registers)
+	{
+		is.read(reinterpret_cast<char*>(&Registers), sizeof(FInternalRegisters));
+		return is;
+	}
 };
 
 class FCPU_Z80 : public FDevice, public ICPU_Z80
@@ -114,9 +126,13 @@ public:
 
 	virtual void Tick() override;
 	virtual void Reset() override;
+
+	virtual void Flush() override;
 	virtual FRegisters GetRegisters() const override;
 	virtual bool IsInstrCycleDone() const override { return Registers.bInstrCycleDone; }
-	virtual bool IsInstrExeDone() const override { return Registers.bInstrExeDone; }
+	virtual bool IsInstrExecuteDone() const override { return Registers.bInstrCompleted; }
+	virtual std::ostream& Serialize(std::ostream& os) const override { os << Registers; return os; }
+	virtual std::istream& Deserialize(std::istream& is) override { is >> Registers; return is; }
 
 	void Cycle_Reset();
 	void Cycle_InitCPU();

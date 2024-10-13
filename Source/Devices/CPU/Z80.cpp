@@ -45,15 +45,12 @@ void FCPU_Z80::Tick()
 			Registers.NMC = MachineCycle::None;
 			Registers.DSCP = DecoderStep::T1;
 			Registers.bInstrCycleDone = false;
-			const bool bIsCyclyM1 = Registers.MC == MachineCycle::M1;
-			Registers.bOpcodeDecoded = !bIsCyclyM1;
-			Execute_Tick = nullptr;
 
 			if (!Registers.CP.IsEmpty())
 			{
 				Execute_Cycle = std::move(Registers.CP.Get());
 			}
-			else if (bIsCyclyM1)
+			else if (/*is cycle M1*/Registers.MC == MachineCycle::M1)
 			{
 				Execute_Cycle = [this](FCPU_Z80& CPU) { Cycle_OpcodeFetch(CPU); };
 			}
@@ -66,15 +63,24 @@ void FCPU_Z80::Tick()
 
 		if (Registers.bOpcodeDecoded)
 		{
-			if (Registers.bInstrExeDone || !Execute_Tick)
+			if (Registers.bNextTickPipeline)
 			{
-				Registers.DSTP = Registers.MC == MachineCycle::M1 ? DecoderStep::T3_H1 : DecoderStep::T1_H1;
-				Registers.bInstrExeDone = false;
+				Registers.DSTP = Registers.MC == MachineCycle::M1 ? DecoderStep::T3_H2 : DecoderStep::T1_H1;
+				Registers.bNextTickPipeline = false;
+				Registers.bInstrCompleted = false;
+
 				if (!Registers.TP.IsEmpty())
 				{
 					Execute_Tick = std::move(Registers.TP.Get());
 				}
 			}
+			else if (Registers.bInstrCompleted)
+			{
+				Execute_Tick = nullptr;
+				Registers.bOpcodeDecoded = false;
+				Registers.bInstrCompleted = false;
+			}
+
 			if (Execute_Tick) { Execute_Tick(*this); }
 		}
 	}
@@ -84,6 +90,15 @@ void FCPU_Z80::Tick()
 void FCPU_Z80::Reset()
 {
 	memset(&Registers, 0, sizeof(Registers));
+}
+
+void FCPU_Z80::Flush()
+{
+	while (!Registers.bInstrCompleted)
+	{
+		if (Execute_Tick) { Execute_Tick(*this); }
+		Registers.CC++;
+	}
 }
 
 FRegisters FCPU_Z80::GetRegisters() const
