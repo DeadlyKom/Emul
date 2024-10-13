@@ -39,16 +39,17 @@ static void _inc8(FCPU_Z80& CPU, Register8& Register)
 {
 	switch (CPU.Registers.DSTP)
 	{
-		case DecoderStep::T3_H1:
+		case DecoderStep::T4_H2:
 		{
+			CPU.Registers.bInstrCycleDone = true;
 			break;
 		}
-		case DecoderStep::T3_H2:
+		case DecoderStep::T5_H1:
 		{
 			// update flags
 			uint8_t& F = CPU.Registers.AF.L.Byte;
 			uint8_t& Result = CPU.Registers.DataLatch;
-			
+
 			Result = Register.Byte + 1;
 			uint8_t ResultFlags = UpdateFlags_SZ(Result) | (Result & (Z80_XF | Z80_YF)) | ((Result ^ Register.Byte) & Z80_HF);
 			if (Result == 0x80)
@@ -56,35 +57,25 @@ static void _inc8(FCPU_Z80& CPU, Register8& Register)
 				ResultFlags |= Z80_VF;
 			}
 			F = ResultFlags | (F & Z80_CF);
-			break;
-		}
 
-		case DecoderStep::T4_H1:
-		{
-			break;
-		}
-		case DecoderStep::T4_H2:
-		{
-			// update register
-			uint8_t& Result = CPU.Registers.DataLatch;
-			Register = Result;
-
-			++CPU.Registers.PC;
-			//COMPLETED();
+			Register = CPU.Registers.DataLatch;
+			CPU.Registers.bInstrCompleted = true;
 			break;
 		}
 	}
+	INCREMENT_TP_HALF();
 }
 
 static void _dec8(FCPU_Z80& CPU, Register8& Register)
 {
 	switch (CPU.Registers.DSTP)
 	{
-		case DecoderStep::T3_H1:
+		case DecoderStep::T4_H2:
 		{
+			CPU.Registers.bInstrCycleDone = true;
 			break;
 		}
-		case DecoderStep::T3_H2:
+		case DecoderStep::T5_H1:
 		{
 			// update flags
 			uint8_t& F = CPU.Registers.AF.L.Byte;
@@ -97,24 +88,13 @@ static void _dec8(FCPU_Z80& CPU, Register8& Register)
 				ResultFlags |= Z80_VF;
 			}
 			F = ResultFlags | (F & Z80_CF);
-			break;
-		}
 
-		case DecoderStep::T4_H1:
-		{
-			break;
-		}
-		case DecoderStep::T4_H2:
-		{
-			// update register
-			uint8_t& Result = CPU.Registers.DataLatch;
-			Register = Result;
-
-			++CPU.Registers.PC;
-			//COMPLETED();
+			Register = CPU.Registers.DataLatch;
+			CPU.Registers.bInstrCompleted = true;
 			break;
 		}
 	}
+	INCREMENT_TP_HALF();
 }
 
 // nop
@@ -254,91 +234,98 @@ void _02(FCPU_Z80& CPU)
 }
 
 // inc bc
-void _03(FCPU_Z80& CPU)
-{}
-
-void _03c(FCPU_Z80& CPU)
+void _03_m1(FCPU_Z80& CPU)
 {
 	switch (CPU.Registers.DSTP)
 	{
-		case DecoderStep::T3_H1:
-		{
-			break;
-		}
-		case DecoderStep::T3_H2:
-		{
-			// update flags ?
-			break;
-		}
-
-		case DecoderStep::T4_H1:
-		{
-			break;
-		}
-		case DecoderStep::T4_H2:
-		{
-			// read register bc and increment in alu
-			break;
-		}
-
 		case DecoderStep::T5_H1:
 		{
-			break;
-		}
-		case DecoderStep::T5_H2:
-		{
-			// write to register bc
 			++CPU.Registers.BC;
-			break;
-		}
-
-		case DecoderStep::T6_H1:
-		{
 			break;
 		}
 		case DecoderStep::T6_H2:
 		{
-			// increment PC and end M1
-			++CPU.Registers.PC;
-			//COMPLETED();
+			CPU.Registers.bInstrCycleDone = true;
+			CPU.Registers.bInstrCompleted = true;
 			break;
 		}
 	}
+	INCREMENT_TP_HALF();
+}
+void _03(FCPU_Z80& CPU)
+{
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _03_m1(CPU); });
 }
 
 // inc b
 void _04(FCPU_Z80& CPU)
-{}
-
-void _04c(FCPU_Z80& CPU)
 {
-	_inc8(CPU, CPU.Registers.BC.H);
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _inc8(CPU, CPU.Registers.BC.H); });
 }
 
 // dec b
 void _05(FCPU_Z80& CPU)
-{}
-
-void _05c(FCPU_Z80& CPU)
 {
-	_dec8(CPU, CPU.Registers.BC.H);
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _dec8(CPU, CPU.Registers.BC.H); });
 }
 
 // ld b, n
-void _06(FCPU_Z80& CPU)
-{
-	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.BC.H); });
-}
-
-// rlca
-void _07(FCPU_Z80& CPU)
-{}
-
-void _07c(FCPU_Z80& CPU)
+void _06_m1(FCPU_Z80& CPU)
 {
 	switch (CPU.Registers.DSTP)
 	{
-		case DecoderStep::T3_H1:
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M2;
+			CPU.Registers.bNextTickPipeline = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _06_m2(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H2:
+		{
+			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
+			{
+				CPU.Registers.DSTP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			CPU.Registers.DSTP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			break;
+		}
+		case DecoderStep::T5_H2:
+		{
+			CPU.Registers.BC.H = CPU.Registers.WZ.H;
+			CPU.Registers.bInstrCompleted = true;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _06(FCPU_Z80& CPU)
+{
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.WZ.H); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _06_m1(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _06_m2(CPU); });
+}
+
+// rlca
+void _07_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H1:
 		{
 			// update flags
 			uint8_t& A = CPU.Registers.AF.H.Byte;
@@ -348,62 +335,49 @@ void _07c(FCPU_Z80& CPU)
 			Result = (A << 1) | (A >> 7);
 			F = ((A >> 7) & Z80_CF) | (F & (Z80_SF | Z80_ZF | Z80_PF)) | (Result & (Z80_YF | Z80_XF));
 
-			break;
-		}
-		case DecoderStep::T3_H2:
-		{
-			break;
-		}
-
-		case DecoderStep::T4_H1:
-		{
-			// update register
-			uint8_t& A = CPU.Registers.AF.H.Byte;
-			uint8_t& Result = CPU.Registers.DataLatch;
 			A = Result;
 			break;
 		}
 		case DecoderStep::T4_H2:
 		{
-			++CPU.Registers.PC;
-			//COMPLETED();
+			CPU.Registers.bInstrCycleDone = true;
+			break;
+		}
+		case DecoderStep::T5_H1:
+		{
+			CPU.Registers.bInstrCompleted = true;
 			break;
 		}
 	}
+	INCREMENT_TP_HALF();
+}
+void _07(FCPU_Z80& CPU)
+{
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _07_m1(CPU); });
 }
 
 // ex af, af'
-void _08(FCPU_Z80& CPU)
-{}
-
-void _08c(FCPU_Z80& CPU)
+void _08_m1(FCPU_Z80& CPU)
 {
 	switch (CPU.Registers.DSTP)
 	{
-	case DecoderStep::T3_H1:
-	{
-		break;
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			break;
+		}
+		case DecoderStep::T6_H2:
+		{
+			CPU.Registers.AF.Exchange(CPU.Registers.AF_);
+			CPU.Registers.bInstrCompleted = true;
+			break;
+		}
 	}
-	case DecoderStep::T3_H2:
-	{
-		// update flags
-		break;
-	}
-
-	case DecoderStep::T4_H1:
-	{
-		break;
-	}
-	case DecoderStep::T4_H2:
-	{
-		// update register
-		CPU.Registers.AF.Exchange(CPU.Registers.AF_);
-
-		++CPU.Registers.PC;
-		//COMPLETED();
-		break;
-	}
-	}
+	INCREMENT_TP_HALF();
+}
+void _08(FCPU_Z80& CPU)
+{
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _08_m1(CPU); });
 }
 
 // add hl, bc
