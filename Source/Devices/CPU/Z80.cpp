@@ -71,7 +71,8 @@ void FCPU_Z80::Tick()
 		{
 			if (Registers.bNextTickPipeline)
 			{
-				Registers.DSTP = Registers.MC == MachineCycle::M1 ? DecoderStep::T4_H2 : ADD_STEP(DecoderStep::T1_H1, (Registers.DSTP >= DecoderStep::OLP1_H1 ? Registers.DSTP - DecoderStep::OLP1_H1 : 0));
+				Registers.DSTP = Registers.MC == MachineCycle::M1 ? DecoderStep::T4_H2 : 
+					ADD_STEP(DecoderStep::T1_H1, (Registers.DSTP >= DecoderStep::OLP1_H1 ? Registers.DSTP - DecoderStep::OLP1_H1 : 0));
 				Registers.bNextTickPipeline = false;
 				Registers.bInstrCompleted = false;
 

@@ -872,11 +872,11 @@ namespace Disassembler
 			}
 			case 2:
 			{
-				uint8_t z = OCTAL_Z(Opcode);
-				uint8_t y = OCTAL_Y(Opcode);
-				if ((OCTAL_Z(Opcode) <= 3) && (OCTAL_Y(Opcode) >= 4))
+				const uint8_t z = OCTAL_Z(Opcode);
+				const uint8_t y = OCTAL_Y(Opcode);
+				if ((z <= 3) && (y >= 4))
 				{
-					Instruction = BlockInstructions[OCTAL_Y(Opcode) - 4][OCTAL_Z(Opcode)];
+					Instruction = BlockInstructions[y - 4][z];
 				}
 				else
 				{

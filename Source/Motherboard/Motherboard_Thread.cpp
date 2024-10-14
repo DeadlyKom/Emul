@@ -79,7 +79,7 @@ void FThread::Input_Step(FCPU_StepType Type)
 
 void FThread::Device_Registration(const std::vector<std::shared_ptr<FDevice>>& _Devices)
 {
-	for (const std::shared_ptr<FDevice> Device : _Devices)
+	for (const std::shared_ptr<FDevice>& Device : _Devices)
 	{
 		auto It = std::find_if(Devices.begin(), Devices.end(),
 			[=](const std::shared_ptr<FDevice>& _Device) -> bool
@@ -124,7 +124,7 @@ std::vector<std::shared_ptr<FDevice>> FThread::Device_GetByType(EDeviceType Type
 			Result.push_back(Device);
 		}
 	}
-	return std::move(Result);
+	return Result;
 }
 
 void FThread::Thread_Request(EThreadTypeRequest TypeRequest, Callback&& Task/* = nullptr*/)
@@ -135,7 +135,7 @@ void FThread::Thread_Request(EThreadTypeRequest TypeRequest, Callback&& Task/* =
 void FThread::Device_ThreadRequest(EName::Type DeviceID, const std::type_index& Type, std::any Value)
 {
 	Thread_Request(EThreadTypeRequest::ExecuteTask,
-		[=]()
+		[=, this]()
 		{
 			SetState_RequestHandler(DeviceID, Type, Value);
 		});
@@ -144,7 +144,7 @@ void FThread::Device_ThreadRequest(EName::Type DeviceID, const std::type_index& 
 std::any FThread::Device_ThreadRequestResult(EName::Type DeviceID, const std::type_index& Type)
 {
 	Thread_Request(EThreadTypeRequest::ExecuteTask,
-		[=]()
+		[=, this]()
 		{
 			GetState_RequestHandler(DeviceID, Type);
 		});
@@ -171,7 +171,7 @@ void FThread::Thread_Execution()
 			SerializedDataCPU.clear();
 		}
 
-		PROFILER_SCOPE(INDEX_NONE, [this]() -> bool
+		PROFILER_SCOPE(28'000'000, [this]() -> bool
 			{
 				if (ThreadStatus == EThreadStatus::Run)
 				{
@@ -197,7 +197,7 @@ void FThread::Thread_Execution()
 				if (Device) Device->Tick();
 			}
 			// ToDo check request at end of frame
-			Thread_RequestHandling();
+			//Thread_RequestHandling();
 		};
 
 		while (ThreadStatus == EThreadStatus::Trace)
@@ -436,7 +436,7 @@ void FThread::SetState_RequestHandler(EName::Type DeviceID, const std::type_inde
 void FThread::LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath)
 {
 	Thread_Request(EThreadTypeRequest::ExecuteTask,
-		[=]()
+		[=, this]()
 		{
 			ThreadRequest_LoadRawData(DeviceID, FilePath);
 		});
