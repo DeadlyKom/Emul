@@ -251,3 +251,20 @@ public:
 		Word = Other.Word;
 	}
 };
+
+class RegisterF : public Register8
+{
+public:
+	void operator=(uint8_t Value)
+	{
+		Byte = Value;
+	}	
+	void operator=(const Register8& Other)
+	{
+		Byte = Other.Byte;
+	}
+	void operator=(const RegisterF& Other)
+	{
+		Byte = Other.Byte;
+	}
+};

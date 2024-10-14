@@ -26,6 +26,16 @@ namespace DecoderStep
 		T6_H1,
 		T6_H2,
 
+		// clock tick overlap stage
+		OLP1_H1,
+		OLP1_H2,
+		OLP2_H1,
+		OLP2_H2,
+		OLP3_H1,
+		OLP3_H2,
+		OLP4_H1,
+		OLP4_H2,	// none
+
 		T_WAIT,
 
 		T1		= 0,
@@ -90,10 +100,13 @@ struct FInternalRegisters : public FRegisters
 	bool bNextTickPipeline;		// flag indicating the fetch of next tick pipeline
 	bool bOpcodeDecoded;		// flag indicating that the opcode has been decoded
 	uint8_t IM;					// maskable interrupt mode
+	RegisterF Flags;			// previous operation status flags
+	Register8 LBUS;				// temporary store for low bus value
+	Register8 HBUS;				// temporary store for hight bus value
+	Register8 ALU_BUS;			// temporary store for alu bus value
 	Register16 WZ;				// temporary register
 
 	uint8_t Opcode;				// current opcode
-	uint8_t DataLatch;			// temporary store for data bus value
 	uint32_t CC;				// counter of clock cycles in one machine cycle
 	MachineCycle::Type MC;		// machine cycle counter
 	MachineCycle::Type NMC;		// next machine cycle

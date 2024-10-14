@@ -3,6 +3,7 @@
 #include "Motherboard/Motherboard_ClockGenerator.h"
 
 #define DEVICE_NAME() FName(std::format("{}", ThisDeviceName))
+#define ADD_STEP(a,b)		(static_cast<DecoderStep::Type>(static_cast<int32_t>(a) + static_cast<int32_t>(b)))
 
 namespace
 {
@@ -52,7 +53,12 @@ void FCPU_Z80::Tick()
 			}
 			else if (/*is cycle M1*/Registers.MC == MachineCycle::M1)
 			{
-				Execute_Cycle = [this](FCPU_Z80& CPU) { Cycle_OpcodeFetch(CPU); };
+				Execute_Cycle =
+					[this](FCPU_Z80& CPU)
+					{
+						Registers.bNextTickPipeline = Registers.bOpcodeDecoded && Registers.DSCP == DecoderStep::T4_H2;
+						Cycle_OpcodeFetch(CPU);
+					};
 			}
 			else
 			{
@@ -61,11 +67,11 @@ void FCPU_Z80::Tick()
 		}
 		if (Execute_Cycle) { Execute_Cycle(*this); }
 
-		if (Registers.bOpcodeDecoded)
+		if (!Registers.bInstrCompleted || Registers.bNextTickPipeline)
 		{
 			if (Registers.bNextTickPipeline)
 			{
-				Registers.DSTP = Registers.MC == MachineCycle::M1 ? DecoderStep::T3_H2 : DecoderStep::T1_H1;
+				Registers.DSTP = Registers.MC == MachineCycle::M1 ? DecoderStep::T4_H2 : ADD_STEP(DecoderStep::T1_H1, (Registers.DSTP >= DecoderStep::OLP1_H1 ? Registers.DSTP - DecoderStep::OLP1_H1 : 0));
 				Registers.bNextTickPipeline = false;
 				Registers.bInstrCompleted = false;
 
@@ -74,13 +80,6 @@ void FCPU_Z80::Tick()
 					Execute_Tick = std::move(Registers.TP.Get());
 				}
 			}
-			else if (Registers.bInstrCompleted)
-			{
-				Execute_Tick = nullptr;
-				Registers.bOpcodeDecoded = false;
-				Registers.bInstrCompleted = false;
-			}
-
 			if (Execute_Tick) { Execute_Tick(*this); }
 		}
 	}

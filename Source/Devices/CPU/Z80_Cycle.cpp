@@ -90,7 +90,6 @@ void FCPU_Z80::Cycle_InitCPU()
 void FCPU_Z80::OpcodeDecode()
 {
 	Registers.bOpcodeDecoded = true;
-	Registers.bNextTickPipeline = true;
 
 #ifndef NDEBUG
 	assert(Unprefixed[Registers.Opcode] != nullptr);
@@ -155,6 +154,7 @@ void FCPU_Z80::Cycle_OpcodeFetch(FCPU_Z80& CPU)
 		}
 		case DecoderStep::T4_H2:
 		{
+			Registers.bOpcodeDecoded = false;
 			break;
 		}
 	}
