@@ -171,7 +171,7 @@ void FThread::Thread_Execution()
 			SerializedDataCPU.clear();
 		}
 
-		PROFILER_SCOPE(28'000'000, [this]() -> bool
+		PROFILER_SCOPE(INDEX_NONE, [this]() -> bool
 			{
 				if (ThreadStatus == EThreadStatus::Run)
 				{
@@ -197,7 +197,7 @@ void FThread::Thread_Execution()
 				if (Device) Device->Tick();
 			}
 			// ToDo check request at end of frame
-			//Thread_RequestHandling();
+			Thread_RequestHandling();
 		};
 
 		while (ThreadStatus == EThreadStatus::Trace)

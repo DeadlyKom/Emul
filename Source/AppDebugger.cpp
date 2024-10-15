@@ -46,7 +46,20 @@ void FAppDebugger::Initialize()
 		{
 			std::make_shared<FCPU_Z80>(),
 			std::make_shared<FAccessToROM>(),
-			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, 0, std::vector<uint8_t>({ 0x00, 0x01, 0x002, 0x03, 0x02, 0x03, 0x04, 0x05, 0x06, 0x55, 0x07, 0x08, 0x18, 0xf2 }), ESignalState::Low),
+			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, 0, std::vector<uint8_t>({ 
+				0x00,
+				0x01, 0x002, 0x03,
+				0x02,
+				0x03,
+				0x04,
+				0x05,
+				0x06, 0x55,
+				0x07,
+				0x08,
+				0x09,
+				0x09,
+				0x18, 0xf0
+				}), ESignalState::Low),
 		}, 3.5_MHz);
 
 		// load ROM

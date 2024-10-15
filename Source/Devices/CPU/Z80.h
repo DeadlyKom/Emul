@@ -75,17 +75,25 @@ inline MachineCycle::Type operator++(MachineCycle::Type& Value, int32_t)
 	return ++Value;
 }
 
-namespace Prefix
+enum class EPrefix
 {
-	enum Type : int32_t
+	None = 0,
+	CB,
+	ED,
+	DD,
+	FD,
+	DDCB,
+	FDCB,
+};
+
+namespace ERegMap
+{
+	enum Type : uint8_t
 	{
-		None = 0,
-		CB,
-		ED,
-		DD,
-		FD,
-		DDCB,
-		FDCB,
+		HL = 0,
+		IX,
+		IY,
+		MAX,
 	};
 }
 
@@ -94,23 +102,25 @@ struct FInternalRegisters : public FRegisters
 	// internal
 	bool bIFF1;
 	bool bIFF2;
-	bool bInitiCPU;				// flag indicating to initialize CPU
-	bool bInstrCycleDone;		// flag indicating the end instruction cycle ended
-	bool bInstrCompleted;		// flag indicating that tick pipeline instruction is completed
-	bool bNextTickPipeline;		// flag indicating the fetch of next tick pipeline
-	bool bOpcodeDecoded;		// flag indicating that the opcode has been decoded
-	uint8_t IM;					// maskable interrupt mode
-	RegisterF Flags;			// previous operation status flags
-	Register8 LBUS;				// temporary store for low bus value
-	Register8 HBUS;				// temporary store for hight bus value
-	Register8 ALU_BUS;			// temporary store for alu bus value
-	Register16 WZ;				// temporary register
+	bool bInitiCPU;					// flag indicating to initialize CPU
+	bool bInstrCycleDone;			// flag indicating the end instruction cycle ended
+	bool bInstrCompleted;			// flag indicating that tick pipeline instruction is completed
+	bool bNextTickPipeline;			// flag indicating the fetch of next tick pipeline
+	bool bOpcodeDecoded;			// flag indicating that the opcode has been decoded
+	uint8_t IM;						// maskable interrupt mode
+	RegisterF Flags;				// previous operation status flags
+	Register8 LBUS;					// temporary store for low bus value
+	Register8 HBUS;					// temporary store for hight bus value
+	Register8 ALU_BUS;				// temporary store for alu bus value
+	Register16 WZ;					// temporary register
+	Register16 RegisterLatch;
 
-	uint8_t Opcode;				// current opcode
-	uint32_t CC;				// counter of clock cycles in one machine cycle
-	MachineCycle::Type MC;		// machine cycle counter
-	MachineCycle::Type NMC;		// next machine cycle
-	Prefix::Type Prefix;
+	uint8_t Opcode;					// current opcode
+	uint32_t CC;					// counter of clock cycles in one machine cycle
+	MachineCycle::Type MC;			// machine cycle counter
+	MachineCycle::Type NMC;			// next machine cycle
+	EPrefix Prefix;
+	ERegMap::Type Map;
 
 	DecoderStep::Type DSCP;		// the currently active decoder step for command pipeline
 	DecoderStep::Type DSTP;		// the currently active decoder step for tick pipeline

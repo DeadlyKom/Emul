@@ -71,9 +71,17 @@ struct Register8
 	{
 		return Byte == Other.Byte;
 	}
+	void operator=(const uint16_t& Other)
+	{
+		Byte = static_cast<uint8_t>(Other);
+	}
 	void operator=(const Register8& Other)
 	{
 		Byte = Other.Byte;
+	}
+	uint16_t operator+(const Register8& Other)
+	{
+		return static_cast<uint16_t>(Byte) + static_cast<uint16_t>(Other.Byte);
 	}
 	void operator+=(const Register8& Other)
 	{
@@ -103,7 +111,21 @@ struct Register8
 		return is;
 	}
 
-	uint8_t Byte;
+	union
+	{
+		uint8_t Byte;
+		struct
+		{
+			uint8_t Carry : 1;
+			uint8_t Add_Subtract : 1;
+			uint8_t Parity_Overflow : 1;
+			uint8_t X : 1;
+			uint8_t Half_Carry : 1;
+			uint8_t Y : 1;
+			uint8_t Zero : 1;
+			uint8_t Sign : 1;
+		};
+	};
 };
 
 struct Register16
@@ -266,5 +288,17 @@ public:
 	void operator=(const RegisterF& Other)
 	{
 		Byte = Other.Byte;
+	}
+	void operator&=(uint8_t Value)
+	{
+		Byte &= Value;
+	}
+	void operator|=(uint8_t Value)
+	{
+		Byte |= Value;
+	}
+	void operator|=(const Register8& Other)
+	{
+		Byte |= Other.Byte;
 	}
 };

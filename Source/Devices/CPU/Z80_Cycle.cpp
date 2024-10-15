@@ -154,6 +154,7 @@ void FCPU_Z80::Cycle_OpcodeFetch(FCPU_Z80& CPU)
 		}
 		case DecoderStep::T4_H2:
 		{
+			CPU.Registers.Flags = Registers.AF.L;
 			Registers.bOpcodeDecoded = false;
 			break;
 		}

@@ -6,11 +6,33 @@
 #define TRANSITION_TO_OVERLAP()	{ CPU.Registers.DSTP = DecoderStep::OLP1_H1; return; }
 #define INSTRUCTION_COMPLETED()	{ CPU.Registers.bInstrCompleted = true; return; }
 
-static uint8_t UpdateFlags_SZ(uint8_t Value)
+static inline uint8_t Flags_SZ_(uint8_t Value)
 {
 	return (Value != 0) ? (Value & Z80_SF) : Z80_ZF;
 }
-static void _inc8(FCPU_Z80& CPU, Register8& Register)
+static inline uint8_t Flags_SZYHXC_(const Register8& Accumulator, const Register8& Value, uint16_t Result)
+{
+	return Flags_SZ_(
+		static_cast<uint8_t>(Result)) |
+		(Result & (Z80_YF | Z80_XF)) |
+		((Result >> 8) & Z80_CF) |
+		((Accumulator.Byte ^ Value.Byte ^ static_cast<uint8_t>(Result)) & Z80_HF);
+}
+static inline Register8 Flags_SZYHXVC_Add(const Register8& Accumulator, const Register8& Value, uint16_t Result)
+{
+	return Register8(
+		Flags_SZYHXC_(Accumulator, Value, Result) |
+		((((Value.Byte ^ Accumulator.Byte ^ 0x80) & (Value.Byte ^ Result)) >> 5) & Z80_VF));
+}
+
+static inline Register8 Flags_YHXC_Add(const Register8& Accumulator, const Register8& Value, uint16_t Result)
+{
+	return Register8(
+		(Result & (Z80_YF | Z80_XF)) |
+		((Result >> 8) & Z80_CF) |
+		((Accumulator.Byte ^ Value.Byte ^ static_cast<uint8_t>(Result)) & Z80_HF));
+}
+static inline void _inc8(FCPU_Z80& CPU, Register8& Register)
 {
 	switch (CPU.Registers.DSTP)
 	{
@@ -35,7 +57,7 @@ static void _inc8(FCPU_Z80& CPU, Register8& Register)
 			Result += 1;
 
 			// update flags
-			uint8_t ResultFlags = UpdateFlags_SZ(Result) | (Result & (Z80_XF | Z80_YF)) | ((Result ^ Register.Byte) & Z80_HF);
+			uint8_t ResultFlags = Flags_SZ_(Result) | (Result & (Z80_XF | Z80_YF)) | ((Result ^ Register.Byte) & Z80_HF);
 			if (Result == 0x80)
 			{
 				ResultFlags |= Z80_VF;
@@ -55,7 +77,7 @@ static void _inc8(FCPU_Z80& CPU, Register8& Register)
 	}
 	INCREMENT_TP_HALF();
 }
-static void _dec8(FCPU_Z80& CPU, Register8& Register)
+static inline void _dec8(FCPU_Z80& CPU, Register8& Register)
 {
 	switch (CPU.Registers.DSTP)
 	{
@@ -80,7 +102,7 @@ static void _dec8(FCPU_Z80& CPU, Register8& Register)
 			Result -= 1;
 
 			// update flags
-			uint8_t ResultFlags = Z80_NF | UpdateFlags_SZ(Result) | (Result & (Z80_XF | Z80_YF)) | ((Result ^ Register.Byte) & Z80_HF);
+			uint8_t ResultFlags = Z80_NF | Flags_SZ_(Result) | (Result & (Z80_XF | Z80_YF)) | ((Result ^ Register.Byte) & Z80_HF);
 			if (Result == 0x7F)
 			{
 				ResultFlags |= Z80_VF;
@@ -162,6 +184,7 @@ void _01_m2(FCPU_Z80& CPU)
 		{
 			CPU.Registers.BC.L = CPU.Registers.WZ.L;
 			CPU.Registers.bNextTickPipeline = true;
+			break;
 		}
 	}
 	INCREMENT_TP_HALF();
@@ -419,8 +442,119 @@ void _08(FCPU_Z80& CPU)
 }
 
 // add hl, bc
+void _09_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M4;
+			CPU.Registers.bNextTickPipeline = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _09_m4(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T1_H1:
+		{
+			switch (CPU.Registers.Map)
+			{
+				case ERegMap::HL: CPU.Registers.RegisterLatch = CPU.Registers.HL; break;
+				case ERegMap::IX: CPU.Registers.RegisterLatch = CPU.Registers.IX; break;
+				case ERegMap::IY: CPU.Registers.RegisterLatch = CPU.Registers.IY; break;
+			}
+			CPU.Registers.ALU_BUS = CPU.Registers.RegisterLatch.L;
+			break;
+		}
+		case DecoderStep::T2_H1:
+		{
+			uint16_t Result = CPU.Registers.ALU_BUS + CPU.Registers.BC.L;
+			CPU.Registers.Flags &= Z80_SF | Z80_ZF | Z80_VF;
+			CPU.Registers.Flags |= Flags_YHXC_Add(CPU.Registers.ALU_BUS, CPU.Registers.BC.L, Result);
+			CPU.Registers.RegisterLatch.L = Result;
+			break;
+		}
+		case DecoderStep::T4_H1:
+		{
+			switch (CPU.Registers.Map)
+			{
+				case ERegMap::HL: CPU.Registers.HL.L = CPU.Registers.RegisterLatch.L; break;
+				case ERegMap::IX: CPU.Registers.IX.L = CPU.Registers.RegisterLatch.L; break;
+				case ERegMap::IY: CPU.Registers.IY.L = CPU.Registers.RegisterLatch.L; break;
+			}
+			break;
+		}
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.bNextTickPipeline = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _09_m5(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T1_H1:
+		{
+			switch (CPU.Registers.Map)
+			{
+				case ERegMap::HL: CPU.Registers.RegisterLatch = CPU.Registers.HL; break;
+				case ERegMap::IX: CPU.Registers.RegisterLatch = CPU.Registers.IX; break;
+				case ERegMap::IY: CPU.Registers.RegisterLatch = CPU.Registers.IY; break;
+			}
+			CPU.Registers.ALU_BUS = CPU.Registers.RegisterLatch.H;
+			break;
+		}
+		case DecoderStep::T2_H1:
+		{
+			CPU.Registers.HBUS = CPU.Registers.BC.H;
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+
+			uint16_t Result = CPU.Registers.ALU_BUS + CPU.Registers.HBUS + CPU.Registers.Flags.Carry;
+			CPU.Registers.Flags &= Z80_SF | Z80_ZF | Z80_VF | Z80_CF;
+			CPU.Registers.Flags |= Flags_YHXC_Add(CPU.Registers.ALU_BUS, CPU.Registers.HBUS, Result);
+			CPU.Registers.RegisterLatch.H = Result;
+
+			CPU.Registers.bInstrCycleDone = true;
+			// transition to the overlapping stage of the pipeline tick
+			TRANSITION_TO_OVERLAP();
+		}
+
+		// clock tick overlap stage
+		case DecoderStep::OLP1_H1:
+		{
+			switch (CPU.Registers.Map)
+			{
+				case ERegMap::HL: CPU.Registers.HL.H = CPU.Registers.RegisterLatch.H; break;
+				case ERegMap::IX: CPU.Registers.IX.H = CPU.Registers.RegisterLatch.H; break;
+				case ERegMap::IY: CPU.Registers.IY.H = CPU.Registers.RegisterLatch.H; break;
+			}
+			break;
+		}
+		case DecoderStep::OLP4_H1:
+		{
+			// update flags
+			CPU.Registers.AF.L = CPU.Registers.Flags;
+			INSTRUCTION_COMPLETED();
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _09(FCPU_Z80& CPU)
-{}
+{
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _09_m1(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _09_m4(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _09_m5(CPU); });
+}
 
 // ld a, (bc)
 void _0a(FCPU_Z80& CPU)
