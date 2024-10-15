@@ -58,7 +58,8 @@ void FAppDebugger::Initialize()
 				0x08,
 				0x09,
 				0x09,
-				0x18, 0xf0
+				0x37,
+				0x18, 0xef
 				}), ESignalState::Low),
 		}, 3.5_MHz);
 

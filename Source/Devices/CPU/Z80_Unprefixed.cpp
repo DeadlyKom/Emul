@@ -51,7 +51,7 @@ static inline void _inc8(FCPU_Z80& CPU, Register8& Register)
 		}
 		case DecoderStep::OLP3_H1:
 		{
-			uint8_t& F = CPU.Registers.AF.L.Byte;
+			uint8_t& F = CPU.Registers.Flags.Byte;
 			uint8_t& Result = CPU.Registers.LBUS.Byte;
 			
 			Result += 1;
@@ -96,7 +96,7 @@ static inline void _dec8(FCPU_Z80& CPU, Register8& Register)
 		}
 		case DecoderStep::OLP3_H1:
 		{
-			uint8_t& F = CPU.Registers.AF.L.Byte;
+			uint8_t& F = CPU.Registers.Flags.Byte;
 			uint8_t& Result = CPU.Registers.LBUS.Byte;
 
 			Result -= 1;
@@ -383,7 +383,7 @@ void _07_m1(FCPU_Z80& CPU)
 		{
 			// read registers
 			CPU.Registers.HBUS = CPU.Registers.AF.H;
-			CPU.Registers.LBUS = CPU.Registers.AF.L;
+			CPU.Registers.LBUS = CPU.Registers.Flags;
 			CPU.Registers.Flags = CPU.Registers.LBUS;
 			break;
 		}
@@ -806,8 +806,40 @@ void _36(FCPU_Z80& CPU)
 {}
 
 // scf
+void _37_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			// transition to the overlapping stage of the pipeline tick
+			TRANSITION_TO_OVERLAP();
+		}
+
+		// clock tick overlap stage
+		case DecoderStep::OLP3_H1:
+		{
+			uint8_t& F = CPU.Registers.Flags.Byte;
+			uint8_t& A = CPU.Registers.AF.H.Byte;
+
+			// update flags
+			F = (F & ~(Z80_HF | Z80_NF)) | (A & (Z80_YF | Z80_XF)) | Z80_CF;
+			break;
+		}
+		case DecoderStep::OLP4_H1:
+		{
+			// update flags
+			CPU.Registers.AF.L = CPU.Registers.Flags;
+			INSTRUCTION_COMPLETED();
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _37(FCPU_Z80& CPU)
-{}
+{
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _37_m1(CPU); });
+}
 
 // jr c, $
 void _38(FCPU_Z80& CPU)
