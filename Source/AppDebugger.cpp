@@ -57,7 +57,7 @@ void FAppDebugger::Initialize()
 				0x07,
 				0x08,
 				0x09,
-				0x09,
+				0x0a,
 				0x37,
 				0x18, 0xef
 				}), ESignalState::Low),

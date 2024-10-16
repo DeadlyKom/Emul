@@ -159,6 +159,11 @@ void _01_m2(FCPU_Z80& CPU)
 {
 	switch (CPU.Registers.DSTP)
 	{
+		case DecoderStep::T2_H1:
+		{
+			++CPU.Registers.PC;
+			break;
+		}
 		case DecoderStep::T2_H2:
 		{
 			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
@@ -193,6 +198,11 @@ void _01_m3(FCPU_Z80& CPU)
 {
 	switch (CPU.Registers.DSTP)
 	{
+		case DecoderStep::T2_H1:
+		{
+			++CPU.Registers.PC;
+			break;
+		}
 		case DecoderStep::T2_H2:
 		{
 			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
@@ -330,6 +340,11 @@ void _06_m2(FCPU_Z80& CPU)
 {
 	switch (CPU.Registers.DSTP)
 	{
+		case DecoderStep::T2_H1:
+		{
+			++CPU.Registers.PC;
+			break;
+		}
 		case DecoderStep::T2_H2:
 		{
 			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
@@ -557,8 +572,58 @@ void _09(FCPU_Z80& CPU)
 }
 
 // ld a, (bc)
+void _0a_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M4;
+			CPU.Registers.bNextTickPipeline = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _0a_m4(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H2:
+		{
+			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
+			{
+				CPU.Registers.DSTP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			CPU.Registers.DSTP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			// transition to the overlapping stage of the pipeline tick
+			TRANSITION_TO_OVERLAP();
+		}
+
+		// clock tick overlap stage
+		case DecoderStep::OLP1_H1:
+		{
+			CPU.Registers.AF.H = CPU.Registers.LBUS;
+			INSTRUCTION_COMPLETED();
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _0a(FCPU_Z80& CPU)
-{}
+{
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.BC, CPU.Registers.LBUS); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _0a_m1(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _0a_m4(CPU); });
+}
 
 // dec bc
 void _0b(FCPU_Z80& CPU)
@@ -630,6 +695,11 @@ void _18_m2(FCPU_Z80& CPU)
 {
 	switch (CPU.Registers.DSTP)
 	{
+		case DecoderStep::T2_H1:
+		{
+			++CPU.Registers.PC;
+			break;
+		}
 		case DecoderStep::T3_H2:
 		{
 			CPU.Registers.NMC = MachineCycle::M3;

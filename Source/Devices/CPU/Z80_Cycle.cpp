@@ -180,7 +180,6 @@ void FCPU_Z80::Cycle_MemoryRead(uint16_t Address, Register8& Register)
 		{
 			SB->SetActive(BUS_MREQ);
 			SB->SetActive(BUS_RD);
-			++Registers.PC;
 			break;
 		}
 		case DecoderStep::T2_H2:
