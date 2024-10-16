@@ -151,6 +151,10 @@ struct Register16
 	{
 		return ++Word, *this;
 	}
+	Register16& operator--()
+	{
+		return --Word, *this;
+	}
 	uint16_t operator*()
 	{
 		return Word;

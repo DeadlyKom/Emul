@@ -163,9 +163,15 @@ void FCPU_Z80::Cycle_OpcodeFetch(FCPU_Z80& CPU)
 	INCREMENT_CP_HALF();
 }
 
-void FCPU_Z80::Cycle_MemoryRead(uint16_t Address, Register8& Register)
+void FCPU_Z80::Cycle_MemoryRead(uint16_t Address, Register8& Register, int32_t Delay /*= 0*/)
 {
-	switch (Registers.DSCP)
+	if (Registers.DSCP < Delay)
+	{
+		INCREMENT_CP_HALF();
+		return;
+	}
+
+	switch (Registers.DSCP - Delay)
 	{
 		case DecoderStep::T1_H1:
 		{
