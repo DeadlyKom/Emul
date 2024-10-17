@@ -83,6 +83,6 @@ namespace UI
 	void DrawTooltip(const char* Text);
 	void DrawProperty(const char* PropertyName, const char* Value,const char* Tooltip = nullptr, const ImVec4& Color = COL_CONST(COLOR_WHITE));
 
-	int32_t GetVisibleLines(EFont::Type FontName);
+	int32_t GetVisibleLines(EFont::Type FontName, float CutHeight = 0.0f);
 	void TextAligned(const char* Text, const ImVec2& Aligment, const ImVec2* _Padding = nullptr);
 }

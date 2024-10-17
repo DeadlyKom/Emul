@@ -1190,6 +1190,18 @@ FMotherboard& SDisassembler::GetMotherboard() const
 	return *FAppFramework::Get<FAppDebugger>().Motherboard;
 }
 
+float SDisassembler::InaccessibleHeight(int32_t LineNum) const
+{
+	float FooterHeight = 0;
+	const float HeightSeparator = ImGui::GetStyle().ItemSpacing.y;
+	if (bShowStatusBar)
+	{
+		FooterHeight += HeightSeparator + ImGui::GetFrameHeightWithSpacing() * (float)LineNum;
+	}
+
+	return FooterHeight;
+}
+
 void SDisassembler::Load_MemorySnapshot()
 {
 
@@ -1247,11 +1259,7 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 		ImGui::PopStyleColor();
 	}
 
-	float FooterHeight = 0;
-	const float HeightSeparator = ImGui::GetStyle().ItemSpacing.y;
-	if (bShowStatusBar)
-		FooterHeight += HeightSeparator + ImGui::GetFrameHeightWithSpacing() * 1;
-
+	float FooterHeight = InaccessibleHeight(1);
 	ImGui::BeginChild("##Scrolling", ImVec2(0, -FooterHeight), false, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration);
 	ImGui::PushFont(FFonts::Get().GetFont(NAME_DISASSEMBLER_16));
 	ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, { 5.0f, 0.0f });
@@ -2082,7 +2090,7 @@ void SDisassembler::Input_Step(FCPU_StepType Type)
 	GetMotherboard().Input_Step(Type);
 
 	const uint16_t PC = GetProgramCounter();
-	const int32_t Lines = UI::GetVisibleLines(FontName);
+	const int32_t Lines = UI::GetVisibleLines(FontName, InaccessibleHeight(2));
 	if (!Disassembler::IsAddressInArea(PC, TopCursorAtAddress, AddressSpace, Lines))
 	{
 		TopCursorAtAddress = INDEX_NONE;

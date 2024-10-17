@@ -68,6 +68,7 @@ public:
 
 private:
 	FORCEINLINE FMotherboard& GetMotherboard() const;
+	float InaccessibleHeight(int32_t LineNum) const;
 
 	void Load_MemorySnapshot();
 	void Upload_MemorySnapshot();

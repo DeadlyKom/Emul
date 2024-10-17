@@ -100,14 +100,12 @@ namespace ERegMap
 struct FInternalRegisters : public FRegisters
 {
 	// internal
-	bool bIFF1;
-	bool bIFF2;
 	bool bInitiCPU;					// flag indicating to initialize CPU
 	bool bInstrCycleDone;			// flag indicating the end instruction cycle ended
 	bool bInstrCompleted;			// flag indicating that tick pipeline instruction is completed
 	bool bNextTickPipeline;			// flag indicating the fetch of next tick pipeline
 	bool bOpcodeDecoded;			// flag indicating that the opcode has been decoded
-	uint8_t IM;						// maskable interrupt mode
+
 	RegisterF Flags;				// previous operation status flags
 	Register8 LBUS;					// temporary store for low bus value
 	Register8 HBUS;					// temporary store for hight bus value

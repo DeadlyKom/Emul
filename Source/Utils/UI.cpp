@@ -57,15 +57,16 @@ void UI::DrawProperty(const char* PropertyName, const char* Value, const char* T
 	}
 }
 
-int32_t UI::GetVisibleLines(EFont::Type FontName)
+int32_t UI::GetVisibleLines(EFont::Type FontName, float CutHeight /*= 0.0f*/)
 {
 	ImFont* FoundFont = FFonts::Get().GetFont(FontName);
 	if (FoundFont == nullptr)
 	{
 		return INDEX_NONE;
 	}
-
-	return int32_t(((ImGui::GetWindowSize().y - ImGui::GetCursorPosY()) / FoundFont->ConfigData->SizePixels) * (1.0 / FoundFont->Scale));
+	const ImVec2 AvailableSpace = ImGui::GetContentRegionAvail();
+	const float Number = ((AvailableSpace.y - CutHeight) / FoundFont->ConfigData->SizePixels) * (1.0f / FoundFont->Scale);
+	return int32_t(Number) + (std::fmod(Number, 1.0f) == 0.0f ? -1 : 0);
 }
 
 void UI::TextAligned(const char* Text, const ImVec2& Aligment, const ImVec2* _Padding /*= nullptr*/)

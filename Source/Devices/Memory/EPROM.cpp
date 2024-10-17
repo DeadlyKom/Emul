@@ -84,7 +84,7 @@ void FEPROM::Tick()
 	}
 
 	const uint16_t Address = SB->GetDataOnAddressBus();
-	if (ReadMode == ESignalState::Low || bReadOnlyMode)
+	if (ReadMode == ESignalState::Low)
 	{
 		if (Address < Firmware.size())
 		{
@@ -114,7 +114,7 @@ void FEPROM::Tick()
 		#endif
 		}
 	}
-	else if (WriteMode == ESignalState::Low)
+	else if (!bReadOnlyMode && WriteMode == ESignalState::Low)
 	{
 		if (Address < Firmware.size())
 		{
@@ -192,6 +192,7 @@ void FEPROM::Load(const std::filesystem::path& FilePath)
 
 	// read the data
 	Firmware.insert(Firmware.begin(), std::istream_iterator<BYTE>(File), std::istream_iterator<BYTE>());
+	std::memcpy(Firmware.data(), Firmware.data() + 0x4000, 0x4000);
 
 	File.close();
 }

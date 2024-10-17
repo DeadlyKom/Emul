@@ -1538,32 +1538,452 @@ void _1f(FCPU_Z80& CPU)
 }
 
 // jr nz, $
+void _20_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M2;
+			CPU.Registers.bNextTickPipeline = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+/*forward declaration*/void _20_m3(FCPU_Z80& CPU);
+void _20_m2(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H1:
+		{
+			++CPU.Registers.PC;
+			break;
+		}
+		case DecoderStep::T3_H1:
+		{
+			if (!CPU.Registers.Flags.Zero)
+			{
+				PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _20_m3(CPU); });
+			}
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			if (!CPU.Registers.Flags.Zero)
+			{
+				CPU.Registers.NMC = MachineCycle::M3;
+				CPU.Registers.bNextTickPipeline = true;
+			}
+			else
+			{
+				CPU.Registers.bInstrCycleDone = true;
+				INSTRUCTION_COMPLETED();
+			}
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _20_m3(FCPU_Z80& CPU) 
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H2:
+		{
+			const uint16_t Result = CPU.Registers.PC.Word + ((CPU.Registers.ALU_BUS.GetBit(7) ? 0xFF00 : 0x0000) | CPU.Registers.ALU_BUS.Byte);
+			CPU.Registers.HBUS = Result >> 8;
+			CPU.Registers.LBUS = Result;
+			break;
+		}
+		case DecoderStep::T3_H1:
+		{
+			CPU.Registers.WZ.L = CPU.Registers.LBUS;
+			break;
+		}
+		case DecoderStep::T5_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			// transition to the overlapping stage of the pipeline tick
+			TRANSITION_TO_OVERLAP();
+		}
+
+		// clock tick overlap stage
+		case DecoderStep::OLP1_H1:
+		{
+			CPU.Registers.WZ.H = CPU.Registers.HBUS;
+			CPU.Registers.PC = CPU.Registers.WZ;
+			INSTRUCTION_COMPLETED();
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _20(FCPU_Z80& CPU)
-{}
+{
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.ALU_BUS); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _20_m1(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _20_m2(CPU); });
+}
 
 // ld hl, nn
+void _21_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M2;
+			CPU.Registers.bNextTickPipeline = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _21_m2(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H1:
+		{
+			++CPU.Registers.PC;
+			break;
+		}
+		case DecoderStep::T2_H2:
+		{
+			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
+			{
+				CPU.Registers.DSTP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			CPU.Registers.DSTP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M3;
+			// transition to the overlapping stage of the pipeline tick
+			TRANSITION_TO_OVERLAP();
+		}
+
+		// clock tick overlap stage
+		case DecoderStep::OLP1_H1:
+		{
+			CPU.Registers.HL.L = CPU.Registers.LBUS;
+			CPU.Registers.bNextTickPipeline = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _21_m3(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H1:
+		{
+			++CPU.Registers.PC;
+			break;
+		}
+		case DecoderStep::T2_H2:
+		{
+			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
+			{
+				CPU.Registers.DSTP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			CPU.Registers.DSTP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			// transition to the overlapping stage of the pipeline tick
+			TRANSITION_TO_OVERLAP();
+		}
+
+		// clock tick overlap stage
+		case DecoderStep::OLP1_H1:
+		{
+			CPU.Registers.HL.H = CPU.Registers.HBUS;
+			INSTRUCTION_COMPLETED();
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _21(FCPU_Z80& CPU)
-{}
+{
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.LBUS); });
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.HBUS); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _21_m1(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _21_m2(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _21_m3(CPU); });
+}
 
 // ld (nn), hl
+void _22_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M2;
+			CPU.Registers.bNextTickPipeline = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _22_m2(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H1:
+		{
+			++CPU.Registers.PC;
+			break;
+		}
+		case DecoderStep::T2_H2:
+		{
+			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
+			{
+				CPU.Registers.DSTP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			CPU.Registers.DSTP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M3;
+			// transition to the overlapping stage of the pipeline tick
+			TRANSITION_TO_OVERLAP();
+		}
+
+		// clock tick overlap stage
+		case DecoderStep::OLP1_H1:
+		{
+			CPU.Registers.WZ.L = CPU.Registers.LBUS;
+			CPU.Registers.bNextTickPipeline = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _22_m3(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H1:
+		{
+			++CPU.Registers.PC;
+			break;
+		}
+		case DecoderStep::T2_H2:
+		{
+			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
+			{
+				CPU.Registers.DSTP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			CPU.Registers.DSTP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M4;
+			// transition to the overlapping stage of the pipeline tick
+			TRANSITION_TO_OVERLAP();
+		}
+
+		// clock tick overlap stage
+		case DecoderStep::OLP1_H1:
+		{
+			CPU.Registers.WZ.H = CPU.Registers.HBUS;
+			CPU.Registers.bNextTickPipeline = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _22_m4(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H2:
+		{
+			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
+			{
+				CPU.Registers.DSTP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			CPU.Registers.DSTP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H1:
+		{
+			++CPU.Registers.WZ;
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M5;
+			CPU.Registers.bNextTickPipeline = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _22_m5(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H2:
+		{
+			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
+			{
+				CPU.Registers.DSTP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			CPU.Registers.DSTP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H1:
+		{
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			INSTRUCTION_COMPLETED();
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _22(FCPU_Z80& CPU)
-{}
+{
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.LBUS); });
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.HBUS); });
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryWrite(*CPU.Registers.WZ, CPU.Registers.HL.L); });
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryWrite(*CPU.Registers.WZ, CPU.Registers.HL.H); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _22_m1(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _22_m2(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _22_m3(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _22_m4(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _22_m5(CPU); });
+}
 
 // inc hl
+void _23_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T5_H1:
+		{
+			++CPU.Registers.HL;
+			break;
+		}
+		case DecoderStep::T6_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			INSTRUCTION_COMPLETED();
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _23(FCPU_Z80& CPU)
-{}
+{
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _23_m1(CPU); });
+}
 
 // inc h
 void _24(FCPU_Z80& CPU)
-{}
+{
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _inc8(CPU, CPU.Registers.HL.H); });
+}
 
 // dec h
 void _25(FCPU_Z80& CPU)
-{}
+{
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _dec8(CPU, CPU.Registers.HL.H); });
+}
 
 // ld h, n
+void _26_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M2;
+			CPU.Registers.bNextTickPipeline = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _26_m2(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H1:
+		{
+			++CPU.Registers.PC;
+			break;
+		}
+		case DecoderStep::T2_H2:
+		{
+			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
+			{
+				CPU.Registers.DSTP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			CPU.Registers.DSTP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			// transition to the overlapping stage of the pipeline tick
+			TRANSITION_TO_OVERLAP();
+		}
+
+		// clock tick overlap stage
+		case DecoderStep::OLP3_H1:
+		{
+			CPU.Registers.HL.H = CPU.Registers.LBUS;
+			INSTRUCTION_COMPLETED();
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _26(FCPU_Z80& CPU)
-{}
+{
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.LBUS); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _26_m1(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _26_m2(CPU); });
+}
 
 // daa
 void _27(FCPU_Z80& CPU)
@@ -1690,8 +2110,63 @@ void _3d(FCPU_Z80& CPU)
 {}
 
 // ld a, n
+void _3e_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.NMC = MachineCycle::M2;
+			CPU.Registers.bNextTickPipeline = true;
+			break;
+		}
+	}
+	INCREMENT_TP_HALF();
+}
+void _3e_m2(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T2_H1:
+		{
+			++CPU.Registers.PC;
+			break;
+		}
+		case DecoderStep::T2_H2:
+		{
+			if (CPU.GetSignalsBus().IsActive(BUS_WAIT))
+			{
+				CPU.Registers.DSTP = DecoderStep::T_WAIT;
+			}
+			break;
+		}
+		case DecoderStep::T_WAIT:
+		{
+			CPU.Registers.DSTP = DecoderStep::T2_H2;
+			break;
+		}
+		case DecoderStep::T3_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			// transition to the overlapping stage of the pipeline tick
+			TRANSITION_TO_OVERLAP();
+		}
+
+		// clock tick overlap stage
+		case DecoderStep::OLP3_H1:
+		{
+			CPU.Registers.AF.H = CPU.Registers.LBUS;
+			INSTRUCTION_COMPLETED();
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _3e(FCPU_Z80& CPU)
-{}
+{
+	PUT_PIPELINE(CP, [](FCPU_Z80& CPU) -> void { CPU.Cycle_MemoryRead(*CPU.Registers.PC, CPU.Registers.LBUS); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _3e_m1(CPU); });
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _3e_m2(CPU); });
+}
 
 // ccf
 void _3f(FCPU_Z80& CPU)
@@ -2414,8 +2889,31 @@ void _f2(FCPU_Z80& CPU)
 {}
 
 //  di
+void _f3_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			// transition to the overlapping stage of the pipeline tick
+			TRANSITION_TO_OVERLAP();
+		}
+
+		// clock tick overlap stage
+		case DecoderStep::OLP2_H1:
+		{
+			CPU.Registers.bIFF1 = false;
+			CPU.Registers.bIFF2 = false;
+			INSTRUCTION_COMPLETED();
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _f3(FCPU_Z80& CPU)
-{}
+{
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _f3_m1(CPU); });
+}
 
 // call p, nn
 void _f4(FCPU_Z80& CPU)
@@ -2446,8 +2944,31 @@ void _fa(FCPU_Z80& CPU)
 {}
 
 // ei
+void _fb_m1(FCPU_Z80& CPU)
+{
+	switch (CPU.Registers.DSTP)
+	{
+		case DecoderStep::T4_H2:
+		{
+			CPU.Registers.bInstrCycleDone = true;
+			// transition to the overlapping stage of the pipeline tick
+			TRANSITION_TO_OVERLAP();
+		}
+
+		// clock tick overlap stage
+		case DecoderStep::OLP2_H1:
+		{
+			CPU.Registers.bIFF1 = true;
+			CPU.Registers.bIFF2 = true;
+			INSTRUCTION_COMPLETED();
+		}
+	}
+	INCREMENT_TP_HALF();
+}
 void _fb(FCPU_Z80& CPU)
-{}
+{
+	PUT_PIPELINE(TP, [](FCPU_Z80& CPU) -> void { _fb_m1(CPU); });
+}
 
 // call m, nn
 void _fc(FCPU_Z80& CPU)

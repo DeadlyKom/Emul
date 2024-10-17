@@ -22,6 +22,10 @@ struct FRegisters
 	Register16 HL_;		// register pair HL'
 	Register16 DE_;		// register pair DE'
 	Register16 BC_;		// register pair BC'
+
+	bool bIFF1;
+	bool bIFF2;
+	uint8_t IM;			// maskable interrupt mode
 };
 
 class ICPU_Z80
