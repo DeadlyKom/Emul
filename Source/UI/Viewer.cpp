@@ -32,7 +32,7 @@ void SViewer::NativeInitialize(const FNativeDataInitialize& _Data)
 	Windows = { 
 				{ EWindowsType::CallStack,			std::make_shared<SCallStack>(NAME_DOS_12)				},
 				{ EWindowsType::CPU_State,			std::make_shared<SCPU_State>(NAME_DOS_14)				},
-				{ EWindowsType::MemoryDump,			std::make_shared<SMemoryDump>(NAME_DOS_12)				},
+				{ EWindowsType::MemoryDump,			std::make_shared<SMemoryDump>(NAME_MEMORY_DUMP_16)		},
 				{ EWindowsType::Disassembler,		std::make_shared<SDisassembler>(NAME_DISASSEMBLER_16)	},
 			  };
 

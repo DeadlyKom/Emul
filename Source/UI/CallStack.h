@@ -9,6 +9,7 @@ class SCallStack : public SViewerChild
 	using ThisClass = SCallStack;
 public:
 	SCallStack(EFont::Type _FontName);
+	virtual ~SCallStack() = default;
 
 	virtual void Initialize() override;
 	virtual void Render() override;

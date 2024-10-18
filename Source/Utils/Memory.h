@@ -5,7 +5,7 @@
 
 namespace Memory
 {
-	void ToAddressSpace(const FMemorySnapshot& Snapshot, std::vector<uint8_t>& OutRawData, uint32_t MemoryAreaSize = 65536)
+	static inline void ToAddressSpace(const FMemorySnapshot& Snapshot, std::vector<uint8_t>& OutRawData, uint32_t MemoryAreaSize = 65536)
 	{
 		OutRawData.resize(MemoryAreaSize);
 		for (const FDataBlock& DataBlock : Snapshot.DataBlocks)
@@ -15,7 +15,7 @@ namespace Memory
 		}
 	}
 
-	void ToSnapshot(FMemorySnapshot& Snapshot, const std::vector<uint8_t>& InRawData, uint32_t MemoryAreaSize = 65536)
+	static inline void ToSnapshot(FMemorySnapshot& Snapshot, const std::vector<uint8_t>& InRawData, uint32_t MemoryAreaSize = 65536)
 	{
 		for (FDataBlock& DataBlock : Snapshot.DataBlocks)
 		{
@@ -23,7 +23,7 @@ namespace Memory
 		}
 	}
 
-	bool GetNameByAddress(FMemorySnapshot& Snapshot, uint32_t Address, std::string& Output)
+	static inline bool GetNameByAddress(FMemorySnapshot& Snapshot, uint32_t Address, std::string& Output)
 	{
 		for (FDataBlock& DataBlock : Snapshot.DataBlocks)
 		{
@@ -36,7 +36,7 @@ namespace Memory
 		return  false;
 	}
 
-	bool GetAccessMode(FMemorySnapshot& Snapshot, uint32_t Address, bool& Output)
+	static inline bool GetAccessMode(FMemorySnapshot& Snapshot, uint32_t Address, bool& Output)
 	{
 		for (FDataBlock& DataBlock : Snapshot.DataBlocks)
 		{
@@ -49,7 +49,7 @@ namespace Memory
 		return  false;
 	}
 	
-	bool SetAccessMode(FMemorySnapshot& Snapshot, uint32_t Address, bool NewAccessMode)
+	static inline bool SetAccessMode(FMemorySnapshot& Snapshot, uint32_t Address, bool NewAccessMode)
 	{
 		for (FDataBlock& DataBlock : Snapshot.DataBlocks)
 		{

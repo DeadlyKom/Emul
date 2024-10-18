@@ -32,6 +32,7 @@ class SCPU_State : public SViewerChild
 	using ThisClass = SCPU_State;
 public:
 	SCPU_State(EFont::Type _FontName);
+	virtual ~SCPU_State() = default;
 
 	virtual void Initialize() override;
 	virtual void Tick(float DeltaTime) override;

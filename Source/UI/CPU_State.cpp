@@ -19,7 +19,7 @@ namespace
 SCPU_State::SCPU_State(EFont::Type _FontName)
 	: Super(FWindowInitializer()
 		.SetName(ThisWindowName)
-		.SetFontName(FontName)
+		.SetFontName(_FontName)
 		.SetIncludeInWindows(true))
 	, LatestFlags(0)
 	, NewFlags(0)
@@ -93,8 +93,9 @@ void SCPU_State::Render()
 	{
 		Input_HotKeys();
 		Draw_States(Status == EThreadStatus::Stop);
+
+		ImGui::End();
 	}
-	ImGui::End();
 }
 
 FMotherboard& SCPU_State::GetMotherboard() const

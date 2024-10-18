@@ -21,6 +21,7 @@ class SViewer : public SWindow
 	friend SViewerChild;
 public:
 	SViewer(EFont::Type _FontName, uint32_t _Width, uint32_t _Height);
+	virtual ~SViewer() = default;
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
 	virtual void Initialize() override;
@@ -54,6 +55,7 @@ public:
 	SViewerChild(FWindowInitializer& WindowInitializer)
 		: SWindow(WindowInitializer)
 	{}
+	virtual ~SViewerChild() = default;
 
 	std::shared_ptr<SViewer> GetParent() const
 	{

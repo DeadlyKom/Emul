@@ -61,6 +61,7 @@ class SDisassembler : public SViewerChild, public IWindowEventNotification
 	using ThisClass = SDisassembler;
 public:
 	SDisassembler(EFont::Type _FontName);
+	virtual ~SDisassembler() = default;
 
 	virtual void Initialize() override;
 	virtual void Tick(float DeltaTime) override;
@@ -68,11 +69,11 @@ public:
 
 private:
 	FORCEINLINE FMotherboard& GetMotherboard() const;
-	float InaccessibleHeight(int32_t LineNum) const;
+	FORCEINLINE float InaccessibleHeight(int32_t LineNum) const;
+	FORCEINLINE uint16_t GetProgramCounter() const;
 
 	void Load_MemorySnapshot();
 	void Upload_MemorySnapshot();
-	uint16_t GetProgramCounter();
 
 	void Draw_CodeDisassembler(EThreadStatus Status);
 	void Draw_Breakpoint(uint16_t Address);

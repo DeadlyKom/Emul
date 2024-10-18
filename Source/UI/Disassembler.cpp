@@ -1181,8 +1181,9 @@ void SDisassembler::Render()
 		Input_HotKeys();
 		Input_Mouse();
 		Draw_CodeDisassembler(Status);
+
+		ImGui::End();
 	}
-	ImGui::End();
 }
 
 FMotherboard& SDisassembler::GetMotherboard() const
@@ -1202,9 +1203,14 @@ float SDisassembler::InaccessibleHeight(int32_t LineNum) const
 	return FooterHeight;
 }
 
+uint16_t SDisassembler::GetProgramCounter() const
+{
+	const FRegisters RegistersState = GetMotherboard().GetState<FRegisters>(NAME_MainBoard, NAME_Z80);
+	return *RegistersState.PC;
+}
+
 void SDisassembler::Load_MemorySnapshot()
 {
-
 	Snapshot = GetMotherboard().GetState<FMemorySnapshot>(NAME_MainBoard, NAME_Memory);
 	Memory::ToAddressSpace(Snapshot, AddressSpace);
 }
@@ -1213,12 +1219,6 @@ void SDisassembler::Upload_MemorySnapshot()
 {
 	Memory::ToSnapshot(Snapshot, AddressSpace);
 	GetMotherboard().SetState<FMemorySnapshot>(NAME_MainBoard, NAME_Memory, Snapshot);
-}
-
-uint16_t SDisassembler::GetProgramCounter()
-{
-	const FRegisters RegistersState = GetMotherboard().GetState<FRegisters>(NAME_MainBoard, NAME_Z80);
-	return *RegistersState.PC;
 }
 
 void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
@@ -1260,34 +1260,38 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 	}
 
 	float FooterHeight = InaccessibleHeight(1);
-	ImGui::BeginChild("##Scrolling", ImVec2(0, -FooterHeight), false, ImGuiWindowFlags_NoMove | ImGuiWindowFlags_NoNav | ImGuiWindowFlags_NoDecoration);
-	ImGui::PushFont(FFonts::Get().GetFont(NAME_DISASSEMBLER_16));
-	ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, { 5.0f, 0.0f });
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
-
-	CodeDisassemblerID = ImGui::GetCurrentWindow()->ID;
-
-	const int32_t ColumnsNum = 3 + bMemoryArea + bShowOpcode;
-	if (ImGui::BeginTable("##Disassembler", ColumnsNum,
-		ImGuiTableFlags_NoPadOuterX |
-		ImGuiTableFlags_NoClip |
-		ImGuiTableFlags_NoBordersInBodyUntilResize |
-		ImGuiTableFlags_Resizable
-	))
+	if (ImGui::BeginChild("##Scrolling", ImVec2(0, -FooterHeight), false,
+		ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_NoNav |
+		ImGuiWindowFlags_NoDecoration))
 	{
-		ImGui::TableSetupColumn("Breakpoint", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, ColumnWidth_Breakpoint * CodeDisassemblerScale);
-		if (bMemoryArea) ImGui::TableSetupColumn("PrefixAddress", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, ColumnWidth_PrefixAddress * CodeDisassemblerScale);
-		ImGui::TableSetupColumn("Address", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, ColumnWidth_Address * CodeDisassemblerScale);
-		if (bShowOpcode) ImGui::TableSetupColumn("Opcode", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, ColumnWidth_Opcode * CodeDisassemblerScale);
-		ImGui::TableSetupColumn("Instruction", ImGuiTableColumnFlags_WidthStretch , ColumnWidth_Instruction * CodeDisassemblerScale);
+		ImGui::PushFont(FFonts::Get().GetFont(FontName));
+		ImGui::PushStyleVar(ImGuiStyleVar_CellPadding, { 5.0f, 0.0f });
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.0f, 0.0f));
 
-		const int32_t Lines = UI::GetVisibleLines(FontName);
-		ImGuiWindow* Window = ImGui::GetCurrentWindow();
+		CodeDisassemblerID = ImGui::GetCurrentWindow()->ID;
 
-		// handler input steps up/down
+		const int32_t ColumnsNum = 3 + bMemoryArea + bShowOpcode;
+		if (ImGui::BeginTable("##Disassembler", ColumnsNum,
+			ImGuiTableFlags_NoPadOuterX |
+			ImGuiTableFlags_NoClip |
+			ImGuiTableFlags_NoBordersInBodyUntilResize |
+			ImGuiTableFlags_Resizable
+		))
 		{
-			switch (InputActionEvent.Type)
+			ImGui::TableSetupColumn("Breakpoint", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, ColumnWidth_Breakpoint * CodeDisassemblerScale);
+			if (bMemoryArea) ImGui::TableSetupColumn("PrefixAddress", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, ColumnWidth_PrefixAddress * CodeDisassemblerScale);
+			ImGui::TableSetupColumn("Address", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, ColumnWidth_Address * CodeDisassemblerScale);
+			if (bShowOpcode) ImGui::TableSetupColumn("Opcode", ImGuiTableColumnFlags_WidthFixed | ImGuiTableColumnFlags_NoResize, ColumnWidth_Opcode * CodeDisassemblerScale);
+			ImGui::TableSetupColumn("Instruction", ImGuiTableColumnFlags_WidthStretch, ColumnWidth_Instruction * CodeDisassemblerScale);
+
+			const int32_t Lines = UI::GetVisibleLines(FontName);
+			ImGuiWindow* Window = ImGui::GetCurrentWindow();
+
+			// handler input steps up/down
 			{
+				switch (InputActionEvent.Type)
+				{
 				case EDisassemblerInput::MouseWheelUp:
 				{
 					uint16_t TmpAddress = TopCursorAtAddress;
@@ -1308,7 +1312,7 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 				case EDisassemblerInput::Input_Enter:
 				{
 					Enter_EditColumn();
-					InputActionEvent.Type = EDisassemblerInput::None; 
+					InputActionEvent.Type = EDisassemblerInput::None;
 					break;
 				}
 				case EDisassemblerInput::Input_UpArrow:
@@ -1390,70 +1394,71 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 					InputActionEvent.Type = EDisassemblerInput::None;
 					break;
 				}
+				}
 			}
-		}
 
-		// draw disassembler
-		{
-			const ImVec2 ContentSize = ImGui::GetWindowContentRegionMax();
-			const ImVec2 ScreenPos = ImGui::GetCursorScreenPos();
-			const float TextHeight = ImGui::GetTextLineHeight();
-			ImDrawList* DrawList = ImGui::GetWindowDrawList();
-
-			std::string Opcodes;
-			std::string Command;
-			uint16_t Address = TopCursorAtAddress;
-			for (int32_t i = 0; i < Lines + 1; ++i)
+			// draw disassembler
 			{
-				const uint16_t StartAddress = Address;
-				const uint32_t Length = Disassembler::Instruction(Command, Opcodes, Address, AddressSpace.data());
+				const ImVec2 ContentSize = ImGui::GetWindowContentRegionMax();
+				const ImVec2 ScreenPos = ImGui::GetCursorScreenPos();
+				const float TextHeight = ImGui::GetTextLineHeight();
+				ImDrawList* DrawList = ImGui::GetWindowDrawList();
 
-				ImGui::TableNextRow();
-
-				Draw_Breakpoint(StartAddress);
-				Draw_Address(StartAddress, i);
-				if (bShowOpcode)
+				std::string Opcodes;
+				std::string Command;
+				uint16_t Address = TopCursorAtAddress;
+				for (int32_t i = 0; i < Lines + 1; ++i)
 				{
-					Draw_OpcodeInstruction(StartAddress, Opcodes, i);
-				}
-				if (Status != EThreadStatus::Run)
-				{
-					Draw_ProgramCounter(StartAddress);
-				}
-				Draw_Instruction(StartAddress, Command, i);
+					const uint16_t StartAddress = Address;
+					const uint32_t Length = Disassembler::Instruction(Command, Opcodes, Address, AddressSpace.data());
 
-				// any interaction rectangle cursore
-				{
-					const ImVec2 Start = ImVec2(ScreenPos.x + ColumnWidth_PrefixAddress, ScreenPos.y + TextHeight * i);
-					const ImVec2 End = ImVec2(Start.x + ContentSize.x - ColumnWidth_PrefixAddress, Start.y + TextHeight);
-					const ImRect bb(Start, End);
+					ImGui::TableNextRow();
 
-					std::string UniqueID_Instructon = std::format("#{:04X}_{}", Address, Command);
-					const ImGuiID GuiID = Window->GetID(UniqueID_Instructon.c_str());
-					if (ImGui::ItemAdd(bb, GuiID) && (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0, true)))
+					Draw_Breakpoint(StartAddress);
+					Draw_Address(StartAddress, i);
+					if (bShowOpcode)
 					{
-						UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, i, AddressSpace);
-						UserCursorAtLine = i;
+						Draw_OpcodeInstruction(StartAddress, Opcodes, i);
+					}
+					if (Status != EThreadStatus::Run)
+					{
+						Draw_ProgramCounter(StartAddress);
+					}
+					Draw_Instruction(StartAddress, Command, i);
+
+					// any interaction rectangle cursore
+					{
+						const ImVec2 Start = ImVec2(ScreenPos.x + ColumnWidth_PrefixAddress, ScreenPos.y + TextHeight * i);
+						const ImVec2 End = ImVec2(Start.x + ContentSize.x - ColumnWidth_PrefixAddress, Start.y + TextHeight);
+						const ImRect bb(Start, End);
+
+						std::string UniqueID_Instructon = std::format("#{:04X}_{}", Address, Command);
+						const ImGuiID GuiID = Window->GetID(UniqueID_Instructon.c_str());
+						if (ImGui::ItemAdd(bb, GuiID) && (ImGui::IsItemHovered() && ImGui::IsMouseClicked(0, true)))
+						{
+							UserCursorAtAddress = Disassembler::GetAddressToLine(TopCursorAtAddress, i, AddressSpace);
+							UserCursorAtLine = i;
+						}
+					}
+
+					// highlight the line
+					if (StartAddress == UserCursorAtAddress)
+					{
+						const ImVec2 Start = ImVec2(ScreenPos.x + ColumnWidth_PrefixAddress, ScreenPos.y + TextHeight * i);
+						const ImVec2 End = ImVec2(Start.x + ContentSize.x - ColumnWidth_PrefixAddress, Start.y + TextHeight);
+						DrawList->AddRectFilled(Start, End, false ? 0x40000000 : 0x40808080);
+						DrawList->AddRect(Start, End, 0x40A0A0A0, 1.0f);
 					}
 				}
 
-				// highlight the line
-				if (StartAddress == UserCursorAtAddress)
-				{
-					const ImVec2 Start = ImVec2(ScreenPos.x + ColumnWidth_PrefixAddress, ScreenPos.y + TextHeight * i);
-					const ImVec2 End = ImVec2(Start.x + ContentSize.x - ColumnWidth_PrefixAddress, Start.y + TextHeight);
-					DrawList->AddRectFilled(Start, End, false ? 0x40000000 : 0x40808080);
-					DrawList->AddRect(Start, End, 0x40A0A0A0, 1.0f);
-				}
 			}
-
+			ImGui::EndTable();
 		}
-		ImGui::EndTable();
-	}
 
-	ImGui::PopStyleVar(2);
-	ImGui::PopFont();
-	ImGui::EndChild();
+		ImGui::PopStyleVar(2);
+		ImGui::PopFont();
+		ImGui::EndChild();
+	}
 
 	ImGui::Separator();
 
@@ -2111,7 +2116,7 @@ void SDisassembler::Input_Mouse()
 	if (MouseWheel != 0.0f && Context.IO.KeyCtrl && !Context.IO.FontAllowUserScaling)
 	{
 		CodeDisassemblerScale += MouseWheel * 0.0625f;
-		CodeDisassemblerScale = FFonts::Get().SetSize(NAME_DISASSEMBLER_16, CodeDisassemblerScale, 0.5f, 1.5f);
+		CodeDisassemblerScale = FFonts::Get().SetSize(FontName, CodeDisassemblerScale, 0.5f, 1.5f);
 		InputActionEvent.Type = EDisassemblerInput::None;
 	}
 	else if (MouseWheel != 0)

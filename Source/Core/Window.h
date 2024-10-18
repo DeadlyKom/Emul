@@ -59,6 +59,7 @@ public:
 		, Name(WindowInitializer.Name)
 		, FontName(WindowInitializer.FontName)
 	{}
+	virtual ~SWindow() = default;
 
 	virtual void NativeInitialize(const FNativeDataInitialize& _Data)
 	{

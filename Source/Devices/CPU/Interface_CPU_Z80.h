@@ -31,8 +31,9 @@ struct FRegisters
 class ICPU_Z80
 {
 public:
-	ICPU_Z80() {};
+	ICPU_Z80() = default;
 	virtual ~ICPU_Z80() = default;
+
 	virtual void Flush() = 0;
 	virtual FRegisters GetRegisters() const = 0;
 	virtual bool IsInstrCycleDone() const = 0;

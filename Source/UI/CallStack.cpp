@@ -8,7 +8,7 @@ namespace
 SCallStack::SCallStack(EFont::Type _FontName)
 	: Super(FWindowInitializer()
 		.SetName(ThisWindowName)
-		.SetFontName(FontName)
+		.SetFontName(_FontName)
 		.SetIncludeInWindows(true))
 {}
 

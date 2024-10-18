@@ -92,8 +92,8 @@ void FAppDebugger::Initialize()
 		}, 3.5_MHz);
 
 		// load ROM
-		//std::filesystem::path FIlePath = "D:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";// std::filesystem::current_path();
-		//Motherboard->LoadRawData(NAME_MainBoard, NAME_EPROM, FIlePath);
+		std::filesystem::path FIlePath = "D:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";// std::filesystem::current_path();
+		Motherboard->LoadRawData(NAME_MainBoard, NAME_EPROM, FIlePath);
 
 		Motherboard->Reset();
 		Motherboard->Inut_Debugger();
@@ -102,6 +102,7 @@ void FAppDebugger::Initialize()
 	FFonts& Fonts = FFonts::Get();
 	Fonts.LoadFont(NAME_DOS_12, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 12.0f, 0);
 	Fonts.LoadFont(NAME_DOS_14, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 14.0f, 0);
+	Fonts.LoadFont(NAME_MEMORY_DUMP_16, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 16.0f, 0);
 	Fonts.LoadFont(NAME_DISASSEMBLER_16, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 16.0f, 0);
 }
 
