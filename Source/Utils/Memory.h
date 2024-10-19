@@ -10,7 +10,7 @@ namespace Memory
 		OutRawData.resize(MemoryAreaSize);
 		for (const FDataBlock& DataBlock : Snapshot.DataBlocks)
 		{
-			const size_t CopySize = Math::Min(DataBlock.Data.size(), OutRawData.size() - DataBlock.PlacementAddress);
+			const size_t CopySize = FMath::Min(DataBlock.Data.size(), OutRawData.size() - DataBlock.PlacementAddress);
 			std::ranges::copy(DataBlock.Data.begin(), DataBlock.Data.begin() + CopySize, OutRawData.begin() + DataBlock.PlacementAddress);
 		}
 	}

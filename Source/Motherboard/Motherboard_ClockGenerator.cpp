@@ -7,7 +7,7 @@ namespace
 
 FClockGenerator::FClockGenerator()
 	: Sampling(1)
-	, FrequencyInv(1.0 / 3.5_MHz)
+	, FrequencyInv(1.0)
 	, ClockCounter(-1)
 	, ElementCount(CapacityStep)
 	, LastElementIndex(0)

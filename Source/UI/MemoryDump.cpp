@@ -126,7 +126,7 @@ void SMemoryDump::Draw_DumpMemory()
 				ImDrawList* DrawList = ImGui::GetWindowDrawList();
 
 				const int LineTotalCount = (int32_t)((AddressSpace.size() + ColumnsToDisplay - 1) / ColumnsToDisplay);
-				const float TextHeight = ImGui::GetTextLineHeight();
+				const float TextHeight = ImGui::GetTextLineHeight() - MemoryDumpScale;
 				const float GlyphWidth = ImGui::CalcTextSize("F").x;
 				const float HexCellWidth = (float)(int)(GlyphWidth * 2.5f);
 				const float SpacingBetweenMidCols = (float)(int)(HexCellWidth * 0.25f);
@@ -192,17 +192,16 @@ void SMemoryDump::Draw_DumpMemory()
 					}
 				}
 			}
-
 			ImGui::PopStyleVar(2);
 			ImGui::PopFont();
-			ImGui::EndChild();
 		}
-		
+
+		ImGui::EndChild();
 		ImGui::Separator();
 		ImGui::PopStyleVar(2);
 		ImGui::PopFont();
-		ImGui::EndChild();
 	}
+	ImGui::EndChild();
 
 	// draw current scale
 	{

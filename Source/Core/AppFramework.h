@@ -4,13 +4,6 @@
 #include "Fonts.h"
 #include "SystemTime.h"
 
-struct FFrameworkFlags
-{
-	bool bLog = false;
-	bool bVsync = false;
-	bool bFullscreen = false;
-};
-
 class FAppFramework
 {
 public:
@@ -34,8 +27,6 @@ public:
 	virtual void Render();
 	virtual bool IsOver();
 	virtual void SetRectWindow(uint16_t Width, uint16_t Height);
-
-	static FFrameworkFlags Flags;
 
 protected:
 	// internal variables
@@ -77,7 +68,6 @@ private:
 	ID3D11RenderTargetView* RenderTargetView;
 
 	ImVec4 BackgroundColor;
-	ImFont* Font;
 
 	std::string ClassName;
 	std::string WindowName;

@@ -10,8 +10,8 @@ namespace
 	static const char* ThisDeviceName = "CPU Z80";
 }
 
-FCPU_Z80::FCPU_Z80()
-	: FDevice(DEVICE_NAME(), EName::Z80, EDeviceType::CPU)
+FCPU_Z80::FCPU_Z80(double _Frequency)
+	: FDevice(DEVICE_NAME(), EName::Z80, EDeviceType::CPU, _Frequency)
 {}
 
 void FCPU_Z80::Tick()
@@ -92,13 +92,29 @@ void FCPU_Z80::Reset()
 	memset(&Registers, 0, sizeof(Registers));
 }
 
-void FCPU_Z80::Flush()
+void FCPU_Z80::CalculateFrequency(double MainFrequency)
+{
+	FrequencyDivider = FMath::CeilLogTwo(FMath::RoundToInt32(MainFrequency / Frequency));
+}
+
+bool FCPU_Z80::Flush()
 {
 	while (!Registers.bInstrCompleted)
 	{
-		if (Execute_Tick) { Execute_Tick(*this); }
+		if (!Execute_Tick)
+		{
+			return false;
+		}
+
+		Execute_Tick(*this);
 		Registers.CC++;
 	}
+	return true;
+}
+
+double FCPU_Z80::GetFrequency() const
+{
+	return Frequency;
 }
 
 FRegisters FCPU_Z80::GetRegisters() const

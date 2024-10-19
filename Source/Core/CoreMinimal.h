@@ -30,6 +30,7 @@
 #include "imgui.h"
 #include "imgui_internal.h"
 
+#include "Transform.h"
 #include "Utils/Log.h"
 #include "Utils/Name.h"
 #include "Utils/Char.h"
@@ -46,3 +47,10 @@ constexpr double operator""_MHz(long double Frequency)
 {
 	return Frequency * 1'000'000.0;
 }
+
+extern struct FFrameworkFlags
+{
+	bool bLog = false;
+	bool bVsync = false;
+	bool bFullscreen = false;
+} FrameworkFlags;

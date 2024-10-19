@@ -20,8 +20,9 @@ class FDevice : public std::enable_shared_from_this<FDevice>
 {
 	friend FThread;
 	friend FMotherboard;
+
 public:
-	FDevice(FName Name, EName::Type UniqueID, EDeviceType Type);
+	FDevice(FName Name, EName::Type UniqueID, EDeviceType Type, double _Frequency = 0.0f);
 	FDevice() = default;
 	virtual ~FDevice() = default;
 
@@ -32,22 +33,29 @@ public:
 
 	// virtual methods
 	virtual void Tick() {};
+	virtual bool MainTick();
 	virtual bool TickStopCondition(std::function<bool(std::shared_ptr<FDevice>)>&& Condition);
 	virtual void Reset() {};
+	virtual void CalculateFrequency(double MainFrequency) {};
 
 protected:
+	virtual void Register() {}
+	virtual void Unregister() {}
+
 	FName DeviceName;
 	EName::Type UniqueDeviceID;
 	EDeviceType DeviceType;
+
+	uint32_t FrequencyDivider;
+	double Frequency;
+
 	FSignalsBus* SB;
 	FClockGenerator* CG;
-
-	virtual void Register() {}
-	virtual void Unregister() {}
 
 private:
 	void InternalRegister(FSignalsBus& _SB, FClockGenerator& _CG);
 	void InternalUnregister();
 
+	uint64_t OldClockCounter;
 	bool bRegistered;
 };

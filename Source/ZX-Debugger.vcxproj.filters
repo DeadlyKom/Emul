@@ -92,6 +92,9 @@
     <ClCompile Include="Core\Image.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
+    <ClCompile Include="UI\Screen.cpp">
+      <Filter>Source\UI</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source">
@@ -132,6 +135,9 @@
     </Filter>
     <Filter Include="Source\Devices\ControlUnit">
       <UniqueIdentifier>{3c14826d-21c9-4dd2-a31f-63d36f80b033}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Resource\Shader">
+      <UniqueIdentifier>{f7dfec79-173a-4415-89e7-381d1e7fd4e3}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -264,6 +270,21 @@
     <ClInclude Include="Utils\ProfilerScope.h">
       <Filter>Source\Utils</Filter>
     </ClInclude>
+    <ClInclude Include="UI\Screen.h">
+      <Filter>Source\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Shader.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Resource.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Transform.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Devices\ControlUnit\Interface_Display.h">
+      <Filter>Source\Devices\ControlUnit</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Resource\Icons\ICONE.ico">
@@ -290,6 +311,9 @@
     </None>
     <None Include="Core\Font_DefaultNames.inl">
       <Filter>Source\Core</Filter>
+    </None>
+    <None Include="..\Resource\Shader\Grid.hlsl">
+      <Filter>Resource\Shader</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

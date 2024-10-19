@@ -32,6 +32,6 @@ float FFonts::SetSize(EFont::Type FontName, float Scale, float Min, float Max)
 	{
 		return -1.0f;
 	}
-	FoundFont->Scale = Math::Clamp<float>(Scale, Min, Max);
+	FoundFont->Scale = FMath::Clamp<float>(Scale, Min, Max);
 	return FoundFont->Scale;
 }

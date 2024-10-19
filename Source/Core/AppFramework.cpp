@@ -13,7 +13,7 @@ namespace Path
 	static const char* IniFilename = "imgui.ini";
 }
 
-FFrameworkFlags FAppFramework::Flags;
+FFrameworkFlags FrameworkFlags;
 
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -132,7 +132,7 @@ bool FAppFramework::Startup(const std::map<std::string, std::string>& Args)
 	{
 		if (!Key.compare("log"))
 		{
-			Flags.bLog = true;
+			FrameworkFlags.bLog = true;
 
 			LOG("[*] enable logging.");
 		}
@@ -153,7 +153,7 @@ bool FAppFramework::Startup(const std::map<std::string, std::string>& Args)
 		}
 		else if (!Key.compare("fullscreen"))
 		{
-			Flags.bFullscreen = true;
+			FrameworkFlags.bFullscreen = true;
 
 			WindowWidth = ScreenWidth;
 			WindowHeight = ScreenHeight;
@@ -379,7 +379,7 @@ void FAppFramework::Idle()
 			ImGui::UpdatePlatformWindows();
 			ImGui::RenderPlatformWindowsDefault();
 		}
-		SwapChain->Present(!!Flags.bVsync, 0);
+		SwapChain->Present(!!FrameworkFlags.bVsync, 0);
 	}
 }
 

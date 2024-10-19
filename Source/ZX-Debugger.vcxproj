@@ -233,6 +233,7 @@
     <ClCompile Include="UI\Disassembler.cpp" />
     <ClCompile Include="UI\CPU_State.cpp" />
     <ClCompile Include="UI\MemoryDump.cpp" />
+    <ClCompile Include="UI\Screen.cpp" />
     <ClCompile Include="UI\Viewer.cpp" />
     <ClCompile Include="Utils\Delegate.cpp" />
     <ClCompile Include="Utils\Name.cpp" />
@@ -247,8 +248,10 @@
     <ClInclude Include="Core\Image.h" />
     <ClInclude Include="Core\SystemTime.h" />
     <ClInclude Include="Core\TimerManager.h" />
+    <ClInclude Include="Core\Transform.h" />
     <ClInclude Include="Core\Window.h" />
     <ClInclude Include="Devices\ControlUnit\AccessToROM.h" />
+    <ClInclude Include="Devices\ControlUnit\Interface_Display.h" />
     <ClInclude Include="Devices\ControlUnit\ULA.h" />
     <ClInclude Include="Devices\CPU\Interface_CPU_Z80.h" />
     <ClInclude Include="Devices\CPU\Z80.h" />
@@ -268,11 +271,14 @@
     <ClInclude Include="UI\CPU_State.h" />
     <ClInclude Include="UI\Interface_WindowEventNotification.h" />
     <ClInclude Include="UI\MemoryDump.h" />
+    <ClInclude Include="UI\Screen.h" />
     <ClInclude Include="UI\Viewer.h" />
     <ClInclude Include="Utils\Pipeline.h" />
     <ClInclude Include="Utils\Memory.h" />
     <ClInclude Include="Utils\ProfilerScope.h" />
+    <ClInclude Include="Utils\Resource.h" />
     <ClInclude Include="Utils\ScopeExit.h" />
+    <ClInclude Include="Utils\Shader.h" />
     <ClInclude Include="Utils\SignalsBus.h" />
     <ClInclude Include="Utils\Char.h" />
     <ClInclude Include="Utils\Delegates.h" />
@@ -299,6 +305,11 @@
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\test.natvis" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\Resource\Shader\Grid.hlsl">
+      <FileType>Document</FileType>
+    </None>
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

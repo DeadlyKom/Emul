@@ -4,6 +4,7 @@
 #include "UI/Viewer.h"
 #include "Devices/Device.h"
 #include "Devices/CPU/Z80.h"
+#include "Devices/ControlUnit/ULA.h"
 #include "Devices/ControlUnit/AccessToROM.h"
 #include "Devices/Memory/EPROM.h"
 #include "Motherboard/Motherboard.h"
@@ -27,7 +28,7 @@ void FAppDebugger::Initialize()
 	LOG("Initialize.");
 
 	FImageBase& Images = FImageBase::Get();
-	Images.Initialize(Device);
+	Images.Initialize(Device, DeviceContext);
 
 	Viewer = std::make_shared<SViewer>(NAME_DOS_12, WindowWidth, WindowHeight);
 	if (Viewer)
@@ -44,7 +45,10 @@ void FAppDebugger::Initialize()
 		Motherboard->Initialize();
 		Motherboard->AddBoard(MainBoardName, EName::MainBoard,
 		{
-			std::make_shared<FCPU_Z80>(),
+			std::make_shared<FCPU_Z80>(3.5_MHz),
+			std::make_shared<FULA>(FDisplayCycles{
+				/*FlybackH*/96, /*BorderL*/48, /*DisplayH*/256, /*BorderR*/48,
+				/*FlybackV*/16, /*BorderT*/48, /*DisplayV*/192, /*BorderB*/56}, 7.0_MHz),
 			std::make_shared<FAccessToROM>(),
 			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, 0, std::vector<uint8_t>({ 
 				0x00,
@@ -89,11 +93,11 @@ void FAppDebugger::Initialize()
 				0x37,
 				0x18, 0xc8
 				}), ESignalState::Low),
-		}, 3.5_MHz);
+		}, 7.0_MHz);
 
 		// load ROM
-		std::filesystem::path FIlePath = "D:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";// std::filesystem::current_path();
-		Motherboard->LoadRawData(NAME_MainBoard, NAME_EPROM, FIlePath);
+		//std::filesystem::path FIlePath = "D:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";// std::filesystem::current_path();
+		//Motherboard->LoadRawData(NAME_MainBoard, NAME_EPROM, FIlePath);
 
 		Motherboard->Reset();
 		Motherboard->Inut_Debugger();

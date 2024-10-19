@@ -27,7 +27,7 @@ struct FImageHandle
 
 struct FImage
 {
-	FImage(FImageHandle _Handle, int32_t _Width = INDEX_NONE, int32_t _Height = INDEX_NONE)
+	FImage(FImageHandle _Handle = INDEX_NONE, int32_t _Width = INDEX_NONE, int32_t _Height = INDEX_NONE)
 		: Width((float)_Width)
 		, Height((float)_Height)
 		, Handle(_Handle)
@@ -42,7 +42,8 @@ struct FImage
 		return *this;
 	}
 
-	void* GetShaderResourceView() const { return ShaderResourceView; }
+	uint32_t GetLength() const { return (uint32_t)Size.x * (uint32_t)Size.y; }
+	uint32_t GetFormatSize() const { return sizeof(uint32_t); }
 	void Release()
 	{
 		if (ShaderResourceView != nullptr)
@@ -74,14 +75,15 @@ class FImageBase
 {
 public:
 	static FImageBase& Get();
-	static bool FromResource(std::vector<uint8_t>& OutData, WORD ResourceID, std::string Folder = "");
 	static FImageHandle LoadImageFromResource(WORD ID, std::string Folder);
 
 	~FImageBase();
-	void Initialize(ID3D11Device* _Device);
+	void Initialize(ID3D11Device* _Device, ID3D11DeviceContext* _DeviceContext);
 
 	FImageHandle LoadFromFile(const std::filesystem::path& FilePath);
 	FImageHandle FromMemory(std::vector<uint8_t> Memory);
+	FImage& CreateTexture(void* ImageData, int32_t Width, int32_t Height, UINT CPUAccessFlags = 0, D3D11_USAGE Usage = D3D11_USAGE::D3D11_USAGE_DEFAULT);
+	void UpdateTexture(FImageHandle _Handle, void* ImageData);
 	FImage& GetImage(FImageHandle _Handle);
 
 private:
@@ -89,7 +91,10 @@ private:
 	uint8_t* LoadToMemory(const std::filesystem::path& FilePath, int32_t& Width, int32_t& Height);
 	bool ResizeRegion(const uint8_t* ImageData, const ImVec2& OriginalSize, const ImVec2& RequiredSize, uint8_t*& OutputImageData, const ImVec2& uv0, const ImVec2& uv1);
 	void FreeToMemory(uint8_t* Data);
+	bool Lock(ID3D11ShaderResourceView* ShaderResourceView, ID3D11Resource*& TextureResource, ID3D11Texture2D*& Texture, D3D11_MAPPED_SUBRESOURCE& MappedResource);
+	void Unlock(ID3D11Resource*& TextureResource, ID3D11Texture2D*& Texture);
 
 	ID3D11Device* Device;
+	ID3D11DeviceContext* DeviceContext;
 	std::unordered_map<int32_t, FImage> Images;
 };

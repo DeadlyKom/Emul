@@ -142,13 +142,15 @@ class FCPU_Z80 : public FDevice, public ICPU_Z80
 {
 	using ThisClass = FCPU_Z80;
 public:
-	FCPU_Z80();
+	FCPU_Z80(double _Frequency);
 	virtual ~FCPU_Z80() = default;
 
 	virtual void Tick() override;
 	virtual void Reset() override;
+	virtual void CalculateFrequency(double MainFrequency) override;
 
-	virtual void Flush() override;
+	virtual bool Flush() override;
+	virtual double GetFrequency() const override;
 	virtual FRegisters GetRegisters() const override;
 	virtual bool IsInstrCycleDone() const override { return Registers.bInstrCycleDone; }
 	virtual bool IsInstrExecuteDone() const override { return Registers.bInstrCompleted; }

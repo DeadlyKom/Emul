@@ -1,6 +1,7 @@
 #include "Viewer.h"
 
 #include "AppDebugger.h"
+#include "UI/Screen.h"
 #include "UI/CallStack.h"
 #include "UI/CPU_State.h"
 #include "UI/MemoryDump.h"
@@ -30,6 +31,7 @@ void SViewer::NativeInitialize(const FNativeDataInitialize& _Data)
 	SWindow::NativeInitialize(_Data);
 
 	Windows = { 
+				{ EWindowsType::Screen,				std::make_shared<SScreen>(NAME_DOS_12)					},
 				{ EWindowsType::CallStack,			std::make_shared<SCallStack>(NAME_DOS_12)				},
 				{ EWindowsType::CPU_State,			std::make_shared<SCPU_State>(NAME_DOS_14)				},
 				{ EWindowsType::MemoryDump,			std::make_shared<SMemoryDump>(NAME_MEMORY_DUMP_16)		},

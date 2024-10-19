@@ -3,11 +3,11 @@
 #include <CoreMinimal.h>
 
 #ifdef NDEBUG
-#define ADD_EVENT(clock_generator, Rate, DebugName, EventCallback) (clock_generator.AddEvent(Rate, EventCallback))
-#define ADD_EVENT_(clock_generator, Rate, DebugName, EventCallback) (clock_generator->AddEvent(Rate, EventCallback))
+#define ADD_EVENT(clock_generator, Rate, FrequencyDivider, DebugName, EventCallback) (clock_generator.AddEvent((uint64_t)Rate << FrequencyDivider, EventCallback))
+#define ADD_EVENT_(clock_generator, Rate, FrequencyDivider, DebugName, EventCallback) (clock_generator->AddEvent((uint64_t)Rate << FrequencyDivider, EventCallback))
 #else
-#define ADD_EVENT(clock_generator, Rate, DebugName, EventCallback) (clock_generator.AddEvent(Rate, EventCallback, DebugName))
-#define ADD_EVENT_(clock_generator, Rate, DebugName, EventCallback) (clock_generator->AddEvent(Rate, EventCallback, DebugName))
+#define ADD_EVENT(clock_generator, Rate, FrequencyDivider, DebugName, EventCallback) (clock_generator.AddEvent((uint64_t)Rate << FrequencyDivider, EventCallback, DebugName))
+#define ADD_EVENT_(clock_generator, Rate, FrequencyDivider, DebugName, EventCallback) (clock_generator->AddEvent((uint64_t)Rate << FrequencyDivider, EventCallback, DebugName))
 #endif
 
 struct FEventData
@@ -32,9 +32,6 @@ public:
 	void SetSampling(uint32_t _Sampling) { Sampling = _Sampling; }
 	void SetFrequency(double _Frequency) { FrequencyInv = 1.0 / (_Frequency * (double)Sampling); }
 	FORCEINLINE uint64_t GetClockCounter() const { return ClockCounter; }
-	FORCEINLINE void Increment(uint32_t& Counter) const { Counter++; }
-	FORCEINLINE uint32_t ToFullCycles(uint32_t Counter) const { return Counter / Sampling; }
-	//FORCEINLINE void IncrementByDiscreteness(uint32_t& Counter) const { Counter += Sampling; }
 
 #ifndef NDEBUG
 	void AddEvent(uint64_t Rate, std::function<void()>&& EventCallback, const std::string& _DebugName = "");

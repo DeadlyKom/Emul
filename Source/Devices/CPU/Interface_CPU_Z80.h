@@ -34,7 +34,8 @@ public:
 	ICPU_Z80() = default;
 	virtual ~ICPU_Z80() = default;
 
-	virtual void Flush() = 0;
+	virtual bool Flush() = 0;
+	virtual double GetFrequency() const = 0;
 	virtual FRegisters GetRegisters() const = 0;
 	virtual bool IsInstrCycleDone() const = 0;
 	virtual bool IsInstrExecuteDone() const = 0;

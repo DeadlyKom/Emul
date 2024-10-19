@@ -2,7 +2,7 @@
 #include "Utils/SignalsBus.h"
 #include "Motherboard/Motherboard_ClockGenerator.h"
 
-#define INCREMENT_TP_HALF()		{ CPU.GetClockGenerator().Increment(reinterpret_cast<uint32_t&>(CPU.Registers.DSTP)); }
+#define INCREMENT_TP_HALF()		{ ++(reinterpret_cast<uint32_t&>(CPU.Registers.DSTP)); }
 #define TRANSITION_TO_OVERLAP()	{ CPU.Registers.DSTP = DecoderStep::OLP1_H1; return; }
 #define INSTRUCTION_COMPLETED()	{ CPU.Registers.bInstrCompleted = true; return; }
 

@@ -47,6 +47,10 @@ void FThread::SetFrequency(double Frequency)
 		[=, this]() -> void
 		{
 			CG.SetFrequency(Frequency);
+			for (std::shared_ptr<FDevice>& Device : Devices)
+			{
+				Device->CalculateFrequency(Frequency);
+			}
 		});
 }
 
@@ -194,7 +198,7 @@ void FThread::Thread_Execution()
 			CG.Tick();		// internal clock generator
 			for (std::shared_ptr<FDevice>& Device : Devices)
 			{
-				if (Device) Device->Tick();
+				if (Device) Device->MainTick();
 			}
 			// ToDo check request at end of frame
 			Thread_RequestHandling();
@@ -209,10 +213,17 @@ void FThread::Thread_Execution()
 			{
 				if (Device)
 				{
-					bStopTrace |= Device->TickStopCondition([this](std::shared_ptr<FDevice> _Device) -> bool { return ThreadRequest_StopCondition(_Device); });
+					bStopTrace |= Device->TickStopCondition(
+						[this](std::shared_ptr<FDevice> _Device) -> bool
+						{
+							return ThreadRequest_StopCondition(_Device);
+						});
 				}
 			}
-			if (bStopTrace) { StepType = FCPU_StepType::None; ThreadRequest_SetStatus(EThreadStatus::Stop); }
+			if (bStopTrace)
+			{
+				StepType = FCPU_StepType::None; ThreadRequest_SetStatus(EThreadStatus::Stop);
+			}
 		}
 	};
 
@@ -257,11 +268,12 @@ bool FThread::ThreadRequest_StopCondition(std::shared_ptr<FDevice> Device)
 	{
 		return false;
 	}
-	const bool bInstrCycleDone = CPU->IsInstrCycleDone();
+
+	bool bInstrCycleDone = CPU->IsInstrCycleDone();
 	if (bInstrCycleDone)
 	{
 		SerializeCPU(SerializedDataCPU);
-		CPU->Flush();
+		bInstrCycleDone = CPU->Flush();
 	}
 	return bInstrCycleDone;
 
@@ -294,7 +306,7 @@ void FThread::ThreadRequest_Reset()
 
 	ThreadRequest_SetStatus(EThreadStatus::Run);
 	SB.SetActive(BUS_RESET);
-	ADD_EVENT(CG, 4, "End signal RESET",
+	ADD_EVENT(CG, 16, 0, "End signal RESET",
 		[&]()
 		{
 			SB.SetInactive(BUS_RESET);
@@ -350,6 +362,43 @@ void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_inde
 			}
 			break;
 		}
+		case EName::Z80:
+		{
+			if (Type == typeid(double))
+			{
+				double Frequency = 0.0f;
+				ICPU_Z80* ICPU = GetDevice<ICPU_Z80>();
+				if (ICPU == nullptr)
+				{
+					LOG_ERROR("[{}]\t failed to find device.", (__FUNCTION__));
+				}
+				else
+				{
+					Frequency = ICPU->GetFrequency();
+				}
+				return ThreadRequestResult.Push(Frequency);
+			}
+			else
+			{
+				for (std::shared_ptr<FDevice>& Device : Devices)
+				{
+					if (Device->UniqueDeviceID != DeviceID)
+					{
+						continue;
+					}
+
+					if (Type == typeid(FRegisters))
+					{
+						if (std::shared_ptr<ICPU_Z80> CPU = std::dynamic_pointer_cast<ICPU_Z80>(Device))
+						{
+							return ThreadRequestResult.Push(CPU->GetRegisters());
+						}
+					}
+				}
+				break;
+			}
+			break;
+		}
 		case EName::Memory:
 		{
 			FMemorySnapshot MS(CG.GetClockCounter());
@@ -367,22 +416,7 @@ void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_inde
 		}
 		default:
 		{
-			for (std::shared_ptr<FDevice>& Device : Devices)
-			{
-				if (Device->UniqueDeviceID != DeviceID)
-				{
-					continue;
-				}
-
-				if (Type == typeid(FRegisters))
-				{
-					if (std::shared_ptr<ICPU_Z80> CPU = std::dynamic_pointer_cast<ICPU_Z80>(Device))
-					{
-						return ThreadRequestResult.Push(CPU->GetRegisters());
-					}
-				}
-			}
-			break;
+			
 		}
 	}
 	assert(false);

@@ -8,6 +8,7 @@ class SViewerChild;
 
 enum class EWindowsType
 {
+	Screen,
 	CPU_State,
 	CallStack,
 	MemoryDump,

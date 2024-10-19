@@ -1,4 +1,5 @@
 #include "AccessToROM.h"
+
 #include "Devices/Device.h"
 #include "Utils/SignalsBus.h"
 #include "Motherboard/Motherboard_ClockGenerator.h"
@@ -11,7 +12,7 @@ namespace
 }
 
 FAccessToROM::FAccessToROM()
-	: FDevice(DEVICE_NAME(), EName::AccessToROM, EDeviceType::ControlUnit)
+	: FDevice(DEVICE_NAME(), NAME_AccessToROM, EDeviceType::ControlUnit)
 {}
 
 void FAccessToROM::Tick()

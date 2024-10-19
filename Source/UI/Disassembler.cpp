@@ -1450,16 +1450,14 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 						DrawList->AddRect(Start, End, 0x40A0A0A0, 1.0f);
 					}
 				}
-
 			}
 			ImGui::EndTable();
 		}
-
 		ImGui::PopStyleVar(2);
 		ImGui::PopFont();
-		ImGui::EndChild();
 	}
 
+	ImGui::EndChild();
 	ImGui::Separator();
 
 	// draw time passed
@@ -1673,7 +1671,7 @@ void SDisassembler::Draw_OpcodeInstruction(uint16_t Address, const std::string& 
 		{
 			ImGui::SetKeyboardFocusHere(0);
 			assert(Opcodes.size() < 256);
-			std::memcpy(OpcodeInstructioBuffer, Opcodes.data(), Math::Min<size_t>(Opcodes.size() + 1, 256));
+			std::memcpy(OpcodeInstructioBuffer, Opcodes.data(), FMath::Min<size_t>(Opcodes.size() + 1, 256));
 
 			if (bEditingTakeFocusReset)
 			{
@@ -1742,7 +1740,6 @@ void SDisassembler::Draw_OpcodeInstruction(uint16_t Address, const std::string& 
 
 		ImGui::PopStyleVar(2);
 	}
-	
 }
 
 void SDisassembler::Draw_Instruction(uint16_t Address, const std::string& _Command, int32_t CurrentLine)
@@ -1857,7 +1854,7 @@ void SDisassembler::Draw_ProgramCounter(uint16_t Address)
 
 	const ImVec2 Position = ImVec2(Window->DC.CursorPos.x, Window->DC.CursorPosPrevLine.y) + ImVec2(OffsetX, OffsetY) * CodeDisassemblerScale;
 	const ImRect bb(Position, Position + Size);
-	Window->DrawList->AddImage(Image.GetShaderResourceView(), bb.Min, bb.Max, ImVec2(0.0, 0.0f), ImVec2(1.0, 1.0f), COL_CONST32(UI::COLOR_WHITE));
+	Window->DrawList->AddImage(Image.ShaderResourceView, bb.Min, bb.Max, ImVec2(0.0, 0.0f), ImVec2(1.0, 1.0f), COL_CONST32(UI::COLOR_WHITE));
 }
 
 void SDisassembler::Enter_EditColumn()
