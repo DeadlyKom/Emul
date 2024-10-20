@@ -59,7 +59,7 @@
     <ClCompile Include="Devices\Memory\EPROM.cpp">
       <Filter>Source\Devices\Memory</Filter>
     </ClCompile>
-    <ClCompile Include="Devices\Memory\RAM.cpp">
+    <ClCompile Include="Devices\Memory\DRAM.cpp">
       <Filter>Source\Devices\Memory</Filter>
     </ClCompile>
     <ClCompile Include="Devices\CPU\Z80.cpp">
@@ -222,7 +222,7 @@
     <ClInclude Include="Devices\Memory\EPROM.h">
       <Filter>Source\Devices\Memory</Filter>
     </ClInclude>
-    <ClInclude Include="Devices\Memory\RAM.h">
+    <ClInclude Include="Devices\Memory\DRAM.h">
       <Filter>Source\Devices\Memory</Filter>
     </ClInclude>
     <ClInclude Include="Devices\CPU\Z80.h">

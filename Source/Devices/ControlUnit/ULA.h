@@ -18,8 +18,9 @@ public:
 
 private:
 	void BusLogic();
-	void ALULogic();
-
+	void ULALogic();
+	void VideoFetch(uint32_t X, uint32_t Y);
+	
 	uint32_t Scanline;
 	uint32_t Line;
 	uint32_t Frame;

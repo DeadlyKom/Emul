@@ -29,7 +29,7 @@ FULA::FULA(const FDisplayCycles& _DisplayCycles, double _Frequency)
 void FULA::Tick()
 {
 	BusLogic();
-	ALULogic();
+	ULALogic();
 }
 
 void FULA::CalculateFrequency(double MainFrequency, uint32_t Sampling)
@@ -53,7 +53,7 @@ void FULA::BusLogic()
 	const ESignalState::Type RAM16 = !SB->GetSignal(BUS_A14) || SB->GetSignal(BUS_A15);
 }
 
-void FULA::ALULogic()
+void FULA::ULALogic()
 {
 	const uint32_t FrameClock = (CG->GetClockCounter() >> FrequencyDivider) % Frame;
 
@@ -96,42 +96,84 @@ void FULA::ALULogic()
 		//const uint8_t Color = rand() % 256;
 		//DisplayData[Y * DisplayWidth + X] = Color;
 
-		switch (X & 0x08)
-		{
-			case 0:
-			{
-				break;
-			}
-			case 1:
-			{
-				break;
-			}
-			case 2:
-			{
-				break;
-			}
-			case 3:
-			{
-				break;
-			}
-			case 4:
-			{
-				break;
-			}
-			case 5:
-			{
-				break;
-			}
-			case 6:
-			{
-				break;
-			}
-			case 7:
-			{
-				break;
-			}
-		}
+		VideoFetch(X, Y);
+	}
+}
 
-		//const uint8_t AddressBus_Low =
+void FULA::VideoFetch(uint32_t X, uint32_t Y)
+{
+	const uint32_t FrameClock = CG->GetClockCounter() % Frame;
+	switch (FrameClock & 0x10)
+	{
+		case 0:
+		{
+			SB->SetActive(BUS_RAS);
+			break;
+		}
+		case 1:
+		{
+			SB->SetActive(BUS_CAS);
+			break;
+		}
+		case 2:
+		{
+			break;
+		}
+		case 3:
+		{
+			break;
+		}
+		case 4:
+		{
+			SB->SetInactive(BUS_CAS);
+			break;
+		}
+		case 5:
+		{
+			SB->SetActive(BUS_CAS);
+			break;
+		}
+		case 6:
+		{
+			break;
+		}
+		case 7:
+		{
+			break;
+		}
+		case 8:
+		{
+			SB->SetInactive(BUS_RAS);
+			SB->SetInactive(BUS_CAS);
+			break;
+		}
+		case 9:
+		{
+			break;
+		}
+		case 10:
+		{
+			break;
+		}
+		case 11:
+		{
+			break;
+		}
+		case 12:
+		{
+			break;
+		}
+		case 13:
+		{
+			break;
+		}
+		case 14:
+		{
+			break;
+		}
+		case 15:
+		{
+			break;
+		}
 	}
 }

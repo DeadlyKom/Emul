@@ -89,13 +89,13 @@ SScreen::SScreen(EFont::Type _FontName)
 	, ZoomRate(1.25f)										// how fast mouse wheel affects zoom
 	, PixelAspectRatio(1.0f)								// values other than 1 not supported yet
 	, MinimumGridSize(4.0f)									// don't draw the grid if lines would be closer than MinimumGridSize pixels
-	, Scale(1.7f, 1.7f)										// 1 pixel is 1 texel
-	, OldScale(1.7f, 1.7f)
+	, Scale(1.9f, 1.9f)										// 1 pixel is 1 texel
+	, OldScale(1.9f, 1.9f)
 	, ScaleMin(1.0f, 1.0f)
 	, ScaleMax(32.0f, 32.0f)
 
 	// view state	
-	, ImagePosition(0.5f, 0.49f)								// the UV value at the center of the current view
+	, ImagePosition(0.5f, 0.48f)							// the UV value at the center of the current view
 	, PanelTopLeftPixel(0.0f, 0.0)							// top left of view in ImGui pixel coordinates
 	, PanelSize(0.0f, 0.0f)									// size of area allocated to drawing the image in pixels.
 	, ViewTopLeftPixel(0.0f, 0.0f)							// position in ImGui pixel coordinates

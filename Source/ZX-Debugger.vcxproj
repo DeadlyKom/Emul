@@ -221,7 +221,7 @@
     <ClCompile Include="Devices\Device.cpp" />
     <ClCompile Include="Devices\IO\Beeper.cpp" />
     <ClCompile Include="Devices\IO\Keyboard.cpp" />
-    <ClCompile Include="Devices\Memory\RAM.cpp" />
+    <ClCompile Include="Devices\Memory\DRAM.cpp" />
     <ClCompile Include="Devices\Memory\EPROM.cpp" />
     <ClCompile Include="Fonts\Dos2000_ru_en.cpp" />
     <ClCompile Include="main.cpp" />
@@ -259,7 +259,7 @@
     <ClInclude Include="Devices\IO\Beeper.h" />
     <ClInclude Include="Devices\IO\Keyboard.h" />
     <ClInclude Include="Devices\Memory\Interface_Memory.h" />
-    <ClInclude Include="Devices\Memory\RAM.h" />
+    <ClInclude Include="Devices\Memory\DRAM.h" />
     <ClInclude Include="Devices\Memory\EPROM.h" />
     <ClInclude Include="Motherboard\Motherboard.h" />
     <ClInclude Include="Motherboard\Motherboard_Board.h" />

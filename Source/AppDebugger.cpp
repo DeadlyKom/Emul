@@ -7,6 +7,7 @@
 #include "Devices/ControlUnit/ULA.h"
 #include "Devices/ControlUnit/AccessToROM.h"
 #include "Devices/Memory/EPROM.h"
+#include "Devices/Memory/DRAM.h"
 #include "Motherboard/Motherboard.h"
 #include "Motherboard/Motherboard_Board.h"
 #include "Core/Fonts.h"
@@ -41,7 +42,7 @@ void FAppDebugger::Initialize()
 				/*FlybackH*/96, /*BorderL*/48, /*DisplayH*/256, /*BorderR*/48,
 				/*FlybackV*/16, /*BorderT*/48, /*DisplayV*/192, /*BorderB*/56}, 7.0_MHz),
 			std::make_shared<FAccessToROM>(),
-			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, 0, std::vector<uint8_t>({ 
+			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, 0x0000, std::vector<uint8_t>({ 
 				0x00,
 				0x01, 0x002, 0x03,
 				0x02,
@@ -84,6 +85,7 @@ void FAppDebugger::Initialize()
 				0x37,
 				0x18, 0xc8
 				}), ESignalState::Low),
+			std::make_shared<FDRAM>(EDRAM_Type::DRAM_4116, 0x4000),
 		}, 7.0_MHz);
 
 		// load ROM
