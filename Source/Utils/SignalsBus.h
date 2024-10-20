@@ -35,6 +35,8 @@ ESignalState::Type operator||(ESignalState::Type Lhs, ESignalState::Type Rhs);
 
 ESignalState::Type operator&&(ESignalState::Type Lhs, ESignalState::Type Rhs);
 
+ESignalState::Type operator!(ESignalState::Type Value);
+
 class FSignalsBus
 {
 public:

@@ -1,6 +1,10 @@
 #include "Screen.h"
 
+#include "AppDebugger.h"
+#include "Utils/UI.h"
 #include "Utils/Shader.h"
+#include "Motherboard/Motherboard.h"
+#include "Devices/ControlUnit/Interface_Display.h"
 #include "resource.h"
 
 namespace
@@ -9,6 +13,35 @@ namespace
 	#define GRID					1 << 1
 	#define PIXEL_GRID              1 << 2
 	#define FORCE_NEAREST_SAMPLING  1 << 31
+
+	namespace ZXSpectrumColor
+	{
+		enum Type
+		{
+			Black = 0,
+			Blue,
+			Red,
+			Magenta,
+			Green,
+			Cyan,
+			Yellow,
+			White,
+
+			MAX,
+		};
+	}
+
+	// 0xABGR
+	ImU32 ZXSpectrumColorRGBA[ZXSpectrumColor::MAX] = {
+		(0x00000000),	// Black
+		(0x00FF0000),	// Blue
+		(0x000000FF),	// Red
+		(0x00FF00FF),	// Magenta
+		(0x0000FF00),	// Green
+		(0x00FFFF00),	// Cyan
+		(0x0000FFFF),	// Yellow
+		(0x00FFFFFF),	// White
+	};
 
 	static const char* ThisWindowName = TEXT("Screen");
 	static const char* ResourcePathName = TEXT("SHADER/ZX");
@@ -87,55 +120,33 @@ SScreen::SScreen(EFont::Type _FontName)
 	, BackgroundColor(0.0f, 1.0f, 0.0f, 0.0f)				// color used for alpha blending
 
 	, bDragging(false)										// is user currently dragging to pan view
-{
-	// at a pixel clock of 7MHz, clock cycles
-	ScreenSettings.FlybackH = 96;
-	ScreenSettings.BorderL = 48;
-	ScreenSettings.DisplayH = 256;
-	ScreenSettings.BorderR = 48;
-	ScreenSettings.FlybackV = 16;
-	ScreenSettings.BorderT = 48;
-	ScreenSettings.DisplayV = 192;
-	ScreenSettings.BorderB = 56;
-
-	ScreenSettings.Width = ScreenSettings.BorderL + ScreenSettings.DisplayH + ScreenSettings.BorderR;
-	ScreenSettings.Height = ScreenSettings.BorderT + ScreenSettings.DisplayV + ScreenSettings.BorderB;
-}
+{}
 
 void SScreen::Initialize()
 {
-	DisplayRGBA.resize(ScreenSettings.Width * ScreenSettings.Height );
-	for (uint32_t y = 0; y < ScreenSettings.Height; ++y)
-	{
-		for (uint32_t x = 0; x < ScreenSettings.Width; ++x)
-		{
-			uint32_t RGBA = 0xFF << 24;
-			if (x >= ScreenSettings.BorderL &&
-				x < (ScreenSettings.BorderL + ScreenSettings.DisplayH) &&
-				y >= ScreenSettings.BorderT &&
-				y < (ScreenSettings.BorderT + ScreenSettings.DisplayV))
-			{
-				uint8_t R = (!!(rand() & 1)) * 255;
-				uint8_t G = (!!(rand() & 1)) * 255;
-				uint8_t B = (!!(rand() & 1)) * 255;
-				RGBA |= (B << 16) | (G << 8) | (R << 0);
-			}
-			else
-			{
-				uint8_t R = 255;
-				uint8_t G = 255;
-				uint8_t B = 255;
-				RGBA |= (B << 16) | (G << 8) | (R << 0);
-			}
-			DisplayRGBA[y * ScreenSettings.Width + x] = RGBA;
-		}
-	}
+	const FSpectrumDisplay SD = GetMotherboard().GetState<FSpectrumDisplay>(NAME_MainBoard, NAME_ULA);
+
+	ScreenSettings.DisplayCycles = SD.DisplayCycles;
+	ScreenSettings.Width = ScreenSettings.DisplayCycles.BorderL + ScreenSettings.DisplayCycles.DisplayH + ScreenSettings.DisplayCycles.BorderR;
+	ScreenSettings.Height = ScreenSettings.DisplayCycles.BorderT + ScreenSettings.DisplayCycles.DisplayV + ScreenSettings.DisplayCycles.BorderB;
+	DisplayRGBA.resize(ScreenSettings.Width * ScreenSettings.Height);
+
 	FImageBase& Images = FImageBase::Get();
-	Image = Images.CreateTexture(DisplayRGBA.data(), ScreenSettings.Width, ScreenSettings.Height);
+	Image = Images.CreateTexture(DisplayRGBA.data(), ScreenSettings.Width, ScreenSettings.Height, D3D11_CPU_ACCESS_WRITE, D3D11_USAGE_DYNAMIC);
+	ConvertDisplayDataToRGB(SD);
 
 	PS_Grid = Shader::CreatePixelShaderFromResource(Data.Device, IDR_PS_GRID);
 	PSCB_Grid = Shader::CreatePixelShaderConstantBuffer<Shader::PIXEL_CONSTANT_BUFFER>(Data.Device);
 	SpectrumScreen = std::make_shared<FRenderData>(std::dynamic_pointer_cast<SScreen>(shared_from_this()), ERenderType::Screen);
+}
+
+void SScreen::Tick(float DeltaTime)
+{
+	Status = GetMotherboard().GetState<EThreadStatus>(NAME_MainBoard, NAME_None);
+	if (Status == EThreadStatus::Run)
+	{
+		ConvertDisplayDataToRGB(GetMotherboard().GetState<FSpectrumDisplay>(NAME_MainBoard, NAME_ULA));
+	}
 }
 
 void SScreen::Render()
@@ -224,6 +235,11 @@ void SScreen::OnDrawCallback(const ImDrawList* ParentList, const ImDrawCmd* CMD)
 		Data.DeviceContext->PSSetShader(PS_Grid, NULL, 0);
 		Data.DeviceContext->PSSetConstantBuffers(0, 1, &PSCB_Grid);
 	}
+}
+
+FMotherboard& SScreen::GetMotherboard() const
+{
+	return *FAppFramework::Get<FAppDebugger>().Motherboard;
 }
 
 void SScreen::Draw_Display()
@@ -339,6 +355,20 @@ void SScreen::Input_Mouse()
 		ImagePosition -= uvDelta;
 		RoundImagePosition();
 	}
+}
+
+void SScreen::ConvertDisplayDataToRGB(const FSpectrumDisplay& DS)
+{
+	for (int32_t i = 0; i < DS.DisplayData.size(); ++i)
+	{
+		const uint8_t& Value = DS.DisplayData[i];
+		const ZXSpectrumColor::Type IndexColor = static_cast<ZXSpectrumColor::Type>(Value);
+		const uint32_t RGBA = (0xFF << 24) | ZXSpectrumColorRGBA[IndexColor];
+		DisplayRGBA[i] = RGBA;
+	}
+
+	FImageBase& Images = FImageBase::Get();
+	Images.UpdateTexture(Image.Handle, DisplayRGBA.data());
 }
 
 void SScreen::RoundImagePosition()

@@ -147,7 +147,7 @@ public:
 
 	virtual void Tick() override;
 	virtual void Reset() override;
-	virtual void CalculateFrequency(double MainFrequency) override;
+	virtual void CalculateFrequency(double MainFrequency, uint32_t Sampling) override;
 
 	virtual bool Flush() override;
 	virtual double GetFrequency() const override;

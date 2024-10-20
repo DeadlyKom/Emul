@@ -21,7 +21,6 @@ namespace LogVerbosity
 
 namespace Utils
 {	
-
 	#define CONSOLE_BLACK	(0)
 	#define CONSOLE_BLUE	(FOREGROUND_BLUE)
 	#define CONSOLE_RED		(FOREGROUND_RED)

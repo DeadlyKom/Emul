@@ -92,7 +92,7 @@ void FCPU_Z80::Reset()
 	memset(&Registers, 0, sizeof(Registers));
 }
 
-void FCPU_Z80::CalculateFrequency(double MainFrequency)
+void FCPU_Z80::CalculateFrequency(double MainFrequency, uint32_t Sampling)
 {
 	FrequencyDivider = FMath::CeilLogTwo(FMath::RoundToInt32(MainFrequency / Frequency));
 }

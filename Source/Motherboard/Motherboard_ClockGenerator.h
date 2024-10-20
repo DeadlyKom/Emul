@@ -28,9 +28,11 @@ public:
 	void Tick();
 	void Reset();
 
-	double GetFrequency() const { return FrequencyInv; }
+	uint32_t GetSampling() const { return Sampling; }
 	void SetSampling(uint32_t _Sampling) { Sampling = _Sampling; }
+	double GetFrequency() const { return FrequencyInv; }
 	void SetFrequency(double _Frequency) { FrequencyInv = 1.0 / (_Frequency * (double)Sampling); }
+
 	FORCEINLINE uint64_t GetClockCounter() const { return ClockCounter; }
 
 #ifndef NDEBUG

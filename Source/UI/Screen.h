@@ -3,8 +3,12 @@
 #include <CoreMinimal.h>
 #include "Viewer.h"
 #include "Core/Image.h"
+#include "Devices/ControlUnit/Interface_Display.h"
 
 class SScreen;
+struct FSpectrumDisplay;
+
+enum class EThreadStatus;
 
 enum class ERenderType
 {
@@ -31,19 +35,10 @@ struct FScreenSettings
 	ImVec2 GridSettingSize = ImVec2(8.0f, 8.0f);
 	ImVec2 GridSettingOffset = ImVec2(0.0f, 0.0f);
 
-	// display time cycle
-	uint32_t FlybackH;
-	uint32_t BorderL;
-	uint32_t DisplayH;
-	uint32_t BorderR;
-
-	uint32_t FlybackV;
-	uint32_t BorderT;
-	uint32_t DisplayV;
-	uint32_t BorderB;
-
 	uint32_t Width;
 	uint32_t Height;
+
+	FDisplayCycles DisplayCycles;
 };
 
 class SScreen : public SViewerChild
@@ -55,6 +50,7 @@ public:
 	virtual ~SScreen() = default;
 
 	virtual void Initialize() override;
+	virtual void Tick(float DeltaTime) override;
 	virtual void Render() override;
 	virtual void Destroy() override;
 
@@ -62,11 +58,14 @@ public:
 	void OnDrawCallback(const ImDrawList* ParentList, const ImDrawCmd* CMD);
 
 private:
+	FORCEINLINE FMotherboard& GetMotherboard() const;
+
 	void Draw_Display();
 
 	void Input_HotKeys();
 	void Input_Mouse();
 
+	void ConvertDisplayDataToRGB(const FSpectrumDisplay& DS);
 	void RoundImagePosition();
 	ImVec2 CalculatePanelSize();
 	void SetScale(float scaleY);
@@ -116,6 +115,8 @@ private:
 
 	// render data
 	std::shared_ptr<FRenderData> SpectrumScreen;
+
+	EThreadStatus Status;
 
 	bool bDragging;
 	FImage Image;

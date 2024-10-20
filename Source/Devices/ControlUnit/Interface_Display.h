@@ -15,10 +15,18 @@ struct FDisplayCycles
 	uint32_t BorderB;
 };
 
+struct FSpectrumDisplay
+{
+	//bool bDataAvailable = false;
+	FDisplayCycles DisplayCycles;
+	std::vector<uint8_t> DisplayData;
+};
+
 class IDisplay
 {
 public:
 	IDisplay() = default;
 	virtual ~IDisplay() = default;
 	virtual void SetDisplayCycles(const FDisplayCycles& NewDisplayCycles) = 0;
+	virtual void GetSpectrumDisplay(FSpectrumDisplay& OutputDisplay) const = 0;
 };

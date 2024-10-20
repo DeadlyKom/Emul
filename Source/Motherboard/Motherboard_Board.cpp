@@ -54,7 +54,22 @@ void FBoard::SetFrequency(double _Frequency)
 	Frequency = _Frequency;
 	Thread->SetFrequency(Frequency);
 
-	LOG("[{}] : Set frequency: {}Hz", BoardName.ToString(), Frequency);
+	std::string FormatFrequency;
+	if (Frequency > 1e6)
+	{
+		FormatFrequency = std::format("{:.1f}M", Frequency * 1e-6);
+	}
+	else if (Frequency > 1e3)
+	{
+		FormatFrequency = std::format("{:.1f}K", Frequency * 1e-3);
+	}
+	else 
+	{
+		FormatFrequency = std::format("{}", Frequency);
+	}
+
+
+	LOG("[{}] : Set frequency: {}Hz", BoardName.ToString(), FormatFrequency.c_str());
 }
 
 void FBoard::Inut_Debugger(bool bEnterDebugger)

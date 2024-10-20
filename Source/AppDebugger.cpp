@@ -30,15 +30,6 @@ void FAppDebugger::Initialize()
 	FImageBase& Images = FImageBase::Get();
 	Images.Initialize(Device, DeviceContext);
 
-	Viewer = std::make_shared<SViewer>(NAME_DOS_12, WindowWidth, WindowHeight);
-	if (Viewer)
-	{
-		FNativeDataInitialize Data;
-		Data.Device = Device;
-		Data.DeviceContext = DeviceContext;
-		Viewer->NativeInitialize(Data);
-	}
-
 	Motherboard = std::make_shared<FMotherboard>();
 	if (Motherboard)
 	{
@@ -101,6 +92,15 @@ void FAppDebugger::Initialize()
 
 		Motherboard->Reset();
 		Motherboard->Inut_Debugger();
+	}
+
+	Viewer = std::make_shared<SViewer>(NAME_DOS_12, WindowWidth, WindowHeight);
+	if (Viewer)
+	{
+		FNativeDataInitialize Data;
+		Data.Device = Device;
+		Data.DeviceContext = DeviceContext;
+		Viewer->NativeInitialize(Data);
 	}
 
 	FFonts& Fonts = FFonts::Get();

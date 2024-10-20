@@ -3,6 +3,7 @@
 #include <Core/AppFramework.h>
 
 class SViewer;
+class SScreen;
 class SCallStack;
 class SCPU_State;
 class SMemoryDump;
@@ -12,6 +13,7 @@ class FMotherboard;
 class FAppDebugger : public FAppFramework
 {
 	friend SViewer;
+	friend SScreen;
 	friend SCallStack;
 	friend SCPU_State;
 	friend SMemoryDump;

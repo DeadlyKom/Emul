@@ -15,6 +15,32 @@ namespace
 	static std::atomic_int Counter = 0;
 	static std::mutex ImageMutex;
 	static FImage DefaultImage(INDEX_NONE);
+
+	std::string GetErrorMessage(HRESULT hr)
+	{
+		HLOCAL messageBuffer = nullptr;
+		DWORD messageLength = FormatMessageA(
+			FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+			nullptr,
+			hr,
+			MAKELANGID(LANG_ENGLISH, SUBLANG_ENGLISH_US),
+			reinterpret_cast<LPSTR>(&messageBuffer),
+			0,
+			nullptr
+		);
+		std::string message;
+		if (messageLength > 0)
+		{
+			message = static_cast<char*>(messageBuffer);
+			LocalFree(messageBuffer);
+		}
+		else
+		{
+			message = "Unknown error";
+		}
+
+		return message;
+	}
 }
 
 FImageBase& FImageBase::Get()
@@ -84,7 +110,11 @@ FImageHandle FImageBase::LoadFromFile(const std::filesystem::path& FilePath)
 	SRVD.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	SRVD.Texture2D.MipLevels = Texture2D.MipLevels;
 	SRVD.Texture2D.MostDetailedMip = 0;
-	Device->CreateShaderResourceView(Texture, &SRVD, &Image.ShaderResourceView);
+	HRESULT hr = Device->CreateShaderResourceView(Texture, &SRVD, &Image.ShaderResourceView);
+	if (FAILED(hr))
+	{
+		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+	}
 	Texture->Release();
 
 	stbi_image_free(ImageData);
@@ -134,7 +164,11 @@ FImageHandle FImageBase::FromMemory(std::vector<uint8_t> Memory)
 	SRVD.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	SRVD.Texture2D.MipLevels = Texture2D.MipLevels;
 	SRVD.Texture2D.MostDetailedMip = 0;
-	Device->CreateShaderResourceView(Texture, &SRVD, &Image.ShaderResourceView);
+	HRESULT hr = Device->CreateShaderResourceView(Texture, &SRVD, &Image.ShaderResourceView);
+	if (FAILED(hr))
+	{
+		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+	}
 	Texture->Release();
 
 	stbi_image_free(ImageData);
@@ -176,7 +210,11 @@ FImage& FImageBase::CreateTexture(void* ImageData, int32_t Width, int32_t Height
 	SRVD.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	SRVD.Texture2D.MipLevels = Texture2D.MipLevels;
 	SRVD.Texture2D.MostDetailedMip = 0;
-	Device->CreateShaderResourceView(Texture, &SRVD, &Image.ShaderResourceView);
+	HRESULT hr = Device->CreateShaderResourceView(Texture, &SRVD, &Image.ShaderResourceView);
+	if (FAILED(hr))
+	{
+		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+	}
 	Texture->Release();
 
 	Images.emplace(Counter++, Image);
@@ -251,12 +289,28 @@ bool FImageBase::Lock(ID3D11ShaderResourceView* ShaderResourceView, ID3D11Resour
 	}
 
 	ShaderResourceView->GetResource(&TextureResource);
-	if (FAILED(TextureResource->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&Texture))))
+	HRESULT hr = TextureResource->QueryInterface(__uuidof(ID3D11Texture2D), reinterpret_cast<void**>(&Texture));
+	if (FAILED(hr))
 	{
 		return false;
 	}
 
-	return DeviceContext->Map(Texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource) == S_OK;
+	D3D11_TEXTURE2D_DESC Texture2D;
+	Texture->GetDesc(&Texture2D);
+	if (Texture2D.Usage != D3D11_USAGE_DYNAMIC && Texture2D.Usage != D3D11_USAGE_STAGING)
+	{
+		LOG_ERROR("[{}]\t  DirectX: Texture is not of the right usage type for mapping.", (__FUNCTION__));
+		return false;
+	}
+
+	hr = DeviceContext->Map(Texture, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource);
+	if (FAILED(hr))
+	{
+		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+		return false;
+	}
+
+	return true;
 }
 
 void FImageBase::Unlock(ID3D11Resource*& TextureResource, ID3D11Texture2D*& Texture)

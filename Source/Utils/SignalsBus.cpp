@@ -123,3 +123,13 @@ ESignalState::Type operator&&(ESignalState::Type Lhs, ESignalState::Type Rhs)
 	}
 	return ESignalState::Low;
 }
+
+ESignalState::Type operator!(ESignalState::Type Value)
+{
+	switch (Value)
+	{
+	case ESignalState::Low:		return ESignalState::High;
+	case ESignalState::High:	return ESignalState::Low;
+	}
+	return ESignalState::HiZ;
+}

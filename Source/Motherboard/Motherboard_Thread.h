@@ -132,11 +132,37 @@ private:
 		return nullptr;
 	}
 
+	template<typename T>
+	void SetToContainer(const T& Value)
+	{
+		Container[std::type_index(typeid(T))] = Value;
+	}
+
+	template<typename T>
+	T GetFromContainer(const std::type_index& Type)
+	{
+		auto It = Container.find(Type);
+		if (It != Container.end())
+		{
+			try
+			{
+				return std::any_cast<T>(It->second);
+			}
+			catch (const std::bad_any_cast& e)
+			{
+				std::cout << "Error: " << e.what() << std::endl;
+			}	
+		}
+		return T();
+	}
+
 	FName ThreadName;
+	bool bInterruptLatch;
 
 	FSignalsBus SB;
 	FTimerManager TM;
 	FClockGenerator CG;
+	std::unordered_map<std::type_index, std::any> Container;
 
 	FCPU_StepType StepType;
 	std::string SerializedDataCPU;

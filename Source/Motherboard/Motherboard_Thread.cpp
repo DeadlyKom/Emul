@@ -5,11 +5,13 @@
 #include "Devices/CPU/Z80.h"
 #include "Devices/CPU/Interface_CPU_Z80.h"
 #include "Devices/Memory/Interface_Memory.h"
+#include "Devices/ControlUnit/Interface_Display.h"
 
 #include "Utils/ProfilerScope.h"
 
 FThread::FThread(FName Name)
 	: ThreadName(Name)
+	, bInterruptLatch(false)
 	, StepType(FCPU_StepType::None)
 	, ThreadStatus(EThreadStatus::Unknown)
 {}
@@ -49,7 +51,7 @@ void FThread::SetFrequency(double Frequency)
 			CG.SetFrequency(Frequency);
 			for (std::shared_ptr<FDevice>& Device : Devices)
 			{
-				Device->CalculateFrequency(Frequency);
+				Device->CalculateFrequency(Frequency, CG.GetSampling());
 			}
 		});
 }
@@ -175,10 +177,13 @@ void FThread::Thread_Execution()
 			SerializedDataCPU.clear();
 		}
 
-		PROFILER_SCOPE(INDEX_NONE, [this]() -> bool
+		std::chrono::system_clock::time_point Frame_StartTime = std::chrono::system_clock::now();
+
+		PROFILER_SCOPE(INDEX_NONE, [&, this]() -> bool
 			{
 				if (ThreadStatus == EThreadStatus::Run)
 				{
+					
 					return true;
 				}
 				for (std::shared_ptr<FDevice>& Device : Devices)
@@ -195,13 +200,43 @@ void FThread::Thread_Execution()
 				return false;
 			})
 		{
+
 			CG.Tick();		// internal clock generator
 			for (std::shared_ptr<FDevice>& Device : Devices)
 			{
 				if (Device) Device->MainTick();
 			}
-			// ToDo check request at end of frame
-			Thread_RequestHandling();
+
+			// check request at end of frame
+			const bool bIsInterrupt = SB.IsPositiveEdge(BUS_INT);
+			if (bInterruptLatch != bIsInterrupt)
+			{
+				if (bInterruptLatch)
+				{
+					const std::chrono::system_clock::time_point Frame_EndTime = std::chrono::system_clock::now();
+					const std::chrono::duration<double, std::milli> ElapsedTime = Frame_EndTime - Frame_StartTime;
+					LOG("Frame Time: {:0.1f} ms", ElapsedTime.count());
+					Frame_StartTime = Frame_EndTime;
+
+					const double DesiredFrameTime = 1000.0 / 50.0;
+					double SleepTime = DesiredFrameTime - ElapsedTime.count();
+
+					std::chrono::system_clock::time_point SyncMainFrame_StartTime = Frame_EndTime;
+					do
+					{
+						Thread_RequestHandling();
+						if (SleepTime > 0)
+						{
+							std::this_thread::sleep_until(SyncMainFrame_StartTime + std::chrono::microseconds(100));
+						}
+
+						const std::chrono::system_clock::time_point SyncMainFrame_EndTime = std::chrono::system_clock::now();
+						const std::chrono::duration<double, std::milli> ElapsedTime = SyncMainFrame_EndTime - SyncMainFrame_StartTime;
+						SleepTime -= ElapsedTime.count();
+					} while (SleepTime > 0);
+				}
+				bInterruptLatch = bIsInterrupt;
+			}
 		};
 
 		while (ThreadStatus == EThreadStatus::Trace)
@@ -306,7 +341,7 @@ void FThread::ThreadRequest_Reset()
 
 	ThreadRequest_SetStatus(EThreadStatus::Run);
 	SB.SetActive(BUS_RESET);
-	ADD_EVENT(CG, 16, 0, "End signal RESET",
+	ADD_EVENT(CG, 8 * CG.GetSampling(), 0, "End signal RESET",
 		[&]()
 		{
 			SB.SetInactive(BUS_RESET);
@@ -344,7 +379,7 @@ void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_inde
 {
 	switch (DeviceID)
 	{
-		case EName::None:
+		case NAME_None:
 		{
 			// get thread status
 			if (Type == typeid(EThreadStatus))
@@ -362,7 +397,7 @@ void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_inde
 			}
 			break;
 		}
-		case EName::Z80:
+		case NAME_Z80:
 		{
 			if (Type == typeid(double))
 			{
@@ -399,24 +434,44 @@ void FThread::GetState_RequestHandler(EName::Type DeviceID, const std::type_inde
 			}
 			break;
 		}
-		case EName::Memory:
+		case NAME_Memory:
 		{
 			FMemorySnapshot MS(CG.GetClockCounter());
-			for (std::shared_ptr<FDevice>& Device : Devices)
+			IMemory* Memory = GetDevice<IMemory>();
+			if (Memory == nullptr)
 			{
-				if (Device->GetType() == EDeviceType::Memory)
-				{
-					if (std::shared_ptr<IMemory> Memory = std::dynamic_pointer_cast<IMemory>(Device))
-					{
-						Memory->Snapshot(MS, EMemoryOperationType::Read);
-					}
-				}
+				LOG_ERROR("[{}]\t failed to find device.", (__FUNCTION__));
+			}
+			else
+			{
+				Memory->Snapshot(MS, EMemoryOperationType::Read);
 			}
 			return ThreadRequestResult.Push(MS);
 		}
-		default:
+		case NAME_ULA:
 		{
-			
+			if (Type == typeid(FSpectrumDisplay))
+			{
+				FSpectrumDisplay SD;
+				IDisplay* Display = GetDevice<IDisplay>();
+				if (Display == nullptr)
+				{
+					LOG_ERROR("[{}]\t failed to find device.", (__FUNCTION__));
+				}
+				else
+				{
+					Display->GetSpectrumDisplay(SD);
+				}
+				return ThreadRequestResult.Push(SD);
+			}
+		}
+		case NAME_Display: // ?????????
+		{
+			if (Type == typeid(FSpectrumDisplay))
+			{
+				FSpectrumDisplay SD = GetFromContainer<FSpectrumDisplay>(Type);
+				return ThreadRequestResult.Push(SD);
+			}
 		}
 	}
 	assert(false);

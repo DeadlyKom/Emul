@@ -45,7 +45,7 @@ struct FProfilerScope
 			if (Container.Time > 0)
 			{
 				std::chrono::duration<int64_t, std::nano> ElapsedTime = std::chrono::system_clock::now() - Container.StartTime;
-				double TimeDurationSec = ElapsedTime.count() / 1000000000.0;
+				double TimeDurationSec = ElapsedTime.count() / 1'000'000'000.0;
 				LOG("--------------------------------"); 
 				LOG("[{}] : {}", Container.Counter, TimeDurationSec);
 				LOG("--------------------------------\n");

@@ -36,7 +36,7 @@ public:
 	virtual bool MainTick();
 	virtual bool TickStopCondition(std::function<bool(std::shared_ptr<FDevice>)>&& Condition);
 	virtual void Reset() {};
-	virtual void CalculateFrequency(double MainFrequency) {};
+	virtual void CalculateFrequency(double MainFrequency, uint32_t Sampling) {};
 
 protected:
 	virtual void Register() {}

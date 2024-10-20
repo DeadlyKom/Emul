@@ -1155,7 +1155,7 @@ void SDisassembler::Tick(float DeltaTime)
 		if (ClockCounter != LatestClockCounter || ClockCounter == INDEX_NONE)
 		{
 			Load_MemorySnapshot();
-			TimeElapsedCounter = ClockCounter - LatestClockCounter;
+			TimeElapsedCounter = (ClockCounter - LatestClockCounter) >> 2;
 			LatestClockCounter = ClockCounter;
 		}
 	}
@@ -1486,7 +1486,7 @@ void SDisassembler::Draw_CodeDisassembler(EThreadStatus Status)
 			FormatTime = std::format("{:.2f} s", DeltaTime);
 		}
 		ImGui::PushStyleColor(ImGuiCol_Text, COL_CONST(UI::COLOR_WEAK));
-		UI::TextAligned(std::format("Time elapsed: {}cc ({})", TimeElapsedCounter >> 1, FormatTime).c_str(), {0.0f, 0.5f});
+		UI::TextAligned(std::format("Time elapsed: {}cc ({})", TimeElapsedCounter, FormatTime).c_str(), {0.0f, 0.5f});
 		ImGui::PopStyleColor();
 		ImGui::SameLine(-1);
 	}
