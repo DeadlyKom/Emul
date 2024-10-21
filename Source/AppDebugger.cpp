@@ -85,12 +85,15 @@ void FAppDebugger::Initialize()
 				0x37,
 				0x18, 0xc8
 				}), ESignalState::Low),
-			std::make_shared<FDRAM>(EDRAM_Type::DRAM_4116, 0x4000),
+			std::make_shared<FDRAM>(EDRAM_Type::DRAM_4116, 0x4000, std::vector<uint8_t>({1,2,3,4,5,6,7,8})),
 		}, 7.0_MHz);
 
 		// load ROM
 		//std::filesystem::path FIlePath = "D:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";// std::filesystem::current_path();
 		//Motherboard->LoadRawData(NAME_MainBoard, NAME_EPROM, FIlePath);
+
+		std::filesystem::path FIlePath = "D:\\Work\\[Sprite]\\Sprites\\Menu\\Change Mission\\interact - 7.scr";
+		Motherboard->LoadRawData(NAME_MainBoard, NAME_DRAM, FIlePath);
 
 		Motherboard->Reset();
 		Motherboard->Inut_Debugger();

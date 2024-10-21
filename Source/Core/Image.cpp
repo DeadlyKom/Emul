@@ -232,7 +232,7 @@ void FImageBase::UpdateTexture(FImageHandle _Handle, void* ImageData)
 	D3D11_MAPPED_SUBRESOURCE MappedResource;
 	if (Lock(Image.ShaderResourceView, TextureResource, Texture, MappedResource))
 	{
-		memcpy(MappedResource.pData, ImageData, Image.GetLength() * Image.GetFormatSize());
+		std::memcpy(MappedResource.pData, ImageData, Image.GetLength() * Image.GetFormatSize());
 		Unlock(TextureResource, Texture);
 	}
 	return;

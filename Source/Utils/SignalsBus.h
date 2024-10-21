@@ -74,11 +74,11 @@ public:
 
 	FORCEINLINE bool IsPositiveEdge(ESignalBus::Type Signal) // -> low-to-high transition
 	{
-		return /*last*/Signals[1][Signal] == ESignalState::Low && /*current*/Signals[0][Signal] == ESignalState::High;
+		return /*last*/Signals[1][Signal] == ESignalState::Low && /*current*/Signals[0][Signal] <= ESignalState::High;
 	}
 	FORCEINLINE bool IsNegativeEdge(ESignalBus::Type Signal) // -> high-to-low transition
 	{
-		return /*last*/Signals[1][Signal] == ESignalState::High && /*current*/Signals[0][Signal] == ESignalState::Low;
+		return /*last*/Signals[1][Signal] <= ESignalState::High && /*current*/Signals[0][Signal] == ESignalState::Low;
 	}
 
 	FORCEINLINE ESignalState::Type GetSignal(ESignalBus::Type Signal) const
@@ -88,9 +88,13 @@ public:
 
 	uint16_t GetDataOnAddressBus() const;
 	uint8_t GetDataOnDataBus() const;
+	uint8_t GetDataOnMemAddressBus() const;
+	uint8_t GetDataOnMemDataBus() const;
 
 	void SetDataOnAddressBus(uint16_t Address);
 	void SetDataOnDataBus(uint8_t Data);
+	void SetDataOnMemAddressBus(uint8_t Address);
+	void SetDataOnMemDataBus(uint8_t Address);
 
 	void SetAllControlOutput(ESignalState::Type State);
 

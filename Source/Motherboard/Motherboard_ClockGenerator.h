@@ -3,11 +3,11 @@
 #include <CoreMinimal.h>
 
 #ifdef NDEBUG
-#define ADD_EVENT(clock_generator, Rate, FrequencyDivider, DebugName, EventCallback) (clock_generator.AddEvent((uint64_t)Rate << FrequencyDivider, EventCallback))
-#define ADD_EVENT_(clock_generator, Rate, FrequencyDivider, DebugName, EventCallback) (clock_generator->AddEvent((uint64_t)Rate << FrequencyDivider, EventCallback))
+#define ADD_EVENT(clock_generator, Rate, FrequencyDivider, EventCallback, DebugName) (clock_generator.AddEvent((uint64_t)Rate << FrequencyDivider, EventCallback))
+#define ADD_EVENT_(clock_generator, Rate, FrequencyDivider, EventCallback, DebugName) (clock_generator->AddEvent((uint64_t)Rate << FrequencyDivider, EventCallback))
 #else
-#define ADD_EVENT(clock_generator, Rate, FrequencyDivider, DebugName, EventCallback) (clock_generator.AddEvent((uint64_t)Rate << FrequencyDivider, EventCallback, DebugName))
-#define ADD_EVENT_(clock_generator, Rate, FrequencyDivider, DebugName, EventCallback) (clock_generator->AddEvent((uint64_t)Rate << FrequencyDivider, EventCallback, DebugName))
+#define ADD_EVENT(clock_generator, Rate, FrequencyDivider, EventCallback, DebugName) (clock_generator.AddEvent((uint64_t)Rate << FrequencyDivider, EventCallback, DebugName))
+#define ADD_EVENT_(clock_generator, Rate, FrequencyDivider, EventCallback, DebugName) (clock_generator->AddEvent((uint64_t)Rate << FrequencyDivider, EventCallback, DebugName))
 #endif
 
 struct FEventData

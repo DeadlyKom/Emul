@@ -143,13 +143,13 @@ void FCPU_Z80::Cycle_OpcodeFetch(FCPU_Z80& CPU)
 
 			SB->SetDataOnAddressBus(Registers.IR.Word);
 			SB->SetActive(BUS_RFSH);
-			ADD_EVENT_(CG, 4, FrequencyDivider, "set inactive RFSH atafter 4 clock cycles", [&]() { SB->IsInactive(BUS_RFSH); });
+			ADD_EVENT_(CG, 4, FrequencyDivider, [&]() { SB->IsInactive(BUS_RFSH); }, "set inactive RFSH atafter 4 clock cycles");
 			break;
 		}
 		case DecoderStep::T4_H1:
 		{
 			SB->SetActive(BUS_MREQ);
-			ADD_EVENT_(CG, 2, FrequencyDivider, "set inactive BUS_MREQ atafter 2 clock cycle", [&]() { SB->SetInactive(BUS_MREQ); });
+			ADD_EVENT_(CG, 2, FrequencyDivider, [&]() { SB->SetInactive(BUS_MREQ); }, "set inactive BUS_MREQ atafter 2 clock cycle");
 			Registers.IR.IncrementR();
 			break;
 		}
@@ -209,8 +209,8 @@ void FCPU_Z80::Cycle_MemoryRead(uint16_t Address, Register8& Register, int32_t D
 		case DecoderStep::T3_H2:
 		{
 			Register = SB->GetDataOnDataBus();
-			ADD_EVENT_(CG, 1, FrequencyDivider, "set inactive BUS_MREQ in next clock cycle", [&]() { SB->SetInactive(BUS_MREQ); });
-			ADD_EVENT_(CG, 1, FrequencyDivider, "set inactive BUS_RD in next clock cycle", [&]() { SB->SetInactive(BUS_RD); });
+			ADD_EVENT_(CG, 1, FrequencyDivider, [&]() { SB->SetInactive(BUS_MREQ); }, "set inactive BUS_MREQ in next clock cycle");
+			ADD_EVENT_(CG, 1, FrequencyDivider, [&]() { SB->SetInactive(BUS_RD); }, "set inactive BUS_RD in next clock cycle");
 			break;
 		}
 	}
@@ -234,7 +234,7 @@ void FCPU_Z80::Cycle_MemoryWrite(uint16_t Address, Register8& Register)
 			SB->SetDataOnAddressBus(Address);
 			SB->SetDataOnDataBus(*Register);
 			SB->SetActive(BUS_MREQ);
-			ADD_EVENT_(CG, 1, FrequencyDivider, "set active BUS_WR in next clock cycle", [&]() { SB->SetActive(BUS_WR); });
+			ADD_EVENT_(CG, 1, FrequencyDivider, [&]() { SB->SetActive(BUS_WR); }, "set active BUS_WR in next clock cycle");
 			break;
 		}
 		case DecoderStep::T2_H2:
@@ -256,8 +256,8 @@ void FCPU_Z80::Cycle_MemoryWrite(uint16_t Address, Register8& Register)
 		}
 		case DecoderStep::T3_H2:
 		{
-			ADD_EVENT_(CG, 1, FrequencyDivider, "set inactive BUS_MREQ in next clock cycle", [&]() { SB->SetInactive(BUS_MREQ); });
-			ADD_EVENT_(CG, 1, FrequencyDivider, "set inactive BUS_WR in next clock cycle", [&]() { SB->SetInactive(BUS_WR); });
+			ADD_EVENT_(CG, 1, FrequencyDivider, [&]() { SB->SetInactive(BUS_MREQ); }, "set inactive BUS_MREQ in next clock cycle");
+			ADD_EVENT_(CG, 1, FrequencyDivider, [&]() { SB->SetInactive(BUS_WR); }, "set inactive BUS_WR in next clock cycle");
 			break;
 		}
 	}

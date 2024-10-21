@@ -1584,7 +1584,7 @@ void SDisassembler::Draw_Address(uint16_t Address, int32_t CurrentLine)
 		} UserData;
 
 		UserData.CursorPos = -1;
-		memcpy(&UserData.CurrentBufOverwrite, AddressInputBuffer, 5);
+		std::memcpy(&UserData.CurrentBufOverwrite, AddressInputBuffer, 5);
 
 		bool AddressWrite = false;
 		static const ImGuiInputTextFlags Flags = ImGuiInputTextFlags_CharsHexadecimal |
@@ -1705,7 +1705,7 @@ void SDisassembler::Draw_OpcodeInstruction(uint16_t Address, const std::string& 
 		} UserData;
 
 		UserData.CursorPos = -1;
-		memcpy(&UserData.CurrentBufOverwrite, OpcodeInstructioBuffer, 256);
+		std::memcpy(&UserData.CurrentBufOverwrite, OpcodeInstructioBuffer, 256);
 
 		static const ImGuiInputTextFlags Flags = 
 			ImGuiInputTextFlags_CharsHexadecimal |

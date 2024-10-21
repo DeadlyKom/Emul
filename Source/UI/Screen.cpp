@@ -26,6 +26,15 @@ namespace
 			Cyan,
 			Yellow,
 			White,
+			
+			Black_,
+			Blue_,
+			Red_,
+			Magenta_,
+			Green_,
+			Cyan_,
+			Yellow_,
+			White_,
 
 			MAX,
 		};
@@ -33,6 +42,16 @@ namespace
 
 	// 0xABGR
 	ImU32 ZXSpectrumColorRGBA[ZXSpectrumColor::MAX] = {
+
+		(0x00000000),	// Black
+		(0x007F0000),	// Blue
+		(0x0000007F),	// Red
+		(0x007F007F),	// Magenta
+		(0x00007F00),	// Green
+		(0x007F7F00),	// Cyan
+		(0x00007F7F),	// Yellow
+		(0x007F7F7F),	// White
+
 		(0x00000000),	// Black
 		(0x00FF0000),	// Blue
 		(0x000000FF),	// Red

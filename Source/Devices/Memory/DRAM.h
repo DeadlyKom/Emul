@@ -26,8 +26,15 @@ public:
 
 private:
 	EDRAM_Type Type;
-	ESignalState::Type WriteRead;
+	ESignalState::Type WriteEnable;
 
 	uint16_t PlacementAddress;
 	std::vector<uint8_t> RawData;
+
+	// state
+	bool bRASLatch;
+	bool bCASLatch;
+	bool bRASCASLatch;
+	uint16_t RowAddress;
+	uint16_t ColumnAddress;
 };

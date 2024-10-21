@@ -41,6 +41,34 @@ uint8_t FSignalsBus::GetDataOnDataBus() const
 	return Data;
 }
 
+uint8_t FSignalsBus::GetDataOnMemAddressBus() const
+{
+	const uint8_t Data = (!!Signals[0][BUS_MA0]) << (SIGNAL_MA0 - SIGNAL_MA0) |
+						 (!!Signals[0][BUS_MA1]) << (SIGNAL_MA1 - SIGNAL_MA0) |
+						 (!!Signals[0][BUS_MA2]) << (SIGNAL_MA2 - SIGNAL_MA0) |
+						 (!!Signals[0][BUS_MA3]) << (SIGNAL_MA3 - SIGNAL_MA0) |
+						 (!!Signals[0][BUS_MA4]) << (SIGNAL_MA4 - SIGNAL_MA0) |
+						 (!!Signals[0][BUS_MA5]) << (SIGNAL_MA5 - SIGNAL_MA0) |
+						 (!!Signals[0][BUS_MA6]) << (SIGNAL_MA6 - SIGNAL_MA0) |
+						 (!!Signals[0][BUS_MA7]) << (SIGNAL_MA7 - SIGNAL_MA0) ;
+
+	return Data;
+}
+
+uint8_t FSignalsBus::GetDataOnMemDataBus() const
+{
+	const uint8_t Data = (!!Signals[0][BUS_MD0]) << (SIGNAL_MD0 - SIGNAL_MD0) |
+						 (!!Signals[0][BUS_MD1]) << (SIGNAL_MD1 - SIGNAL_MD0) |
+						 (!!Signals[0][BUS_MD2]) << (SIGNAL_MD2 - SIGNAL_MD0) |
+						 (!!Signals[0][BUS_MD3]) << (SIGNAL_MD3 - SIGNAL_MD0) |
+						 (!!Signals[0][BUS_MD4]) << (SIGNAL_MD4 - SIGNAL_MD0) |
+						 (!!Signals[0][BUS_MD5]) << (SIGNAL_MD5 - SIGNAL_MD0) |
+						 (!!Signals[0][BUS_MD6]) << (SIGNAL_MD6 - SIGNAL_MD0) |
+						 (!!Signals[0][BUS_MD7]) << (SIGNAL_MD7 - SIGNAL_MD0) ;
+
+	return Data;
+}
+
 void FSignalsBus::SetDataOnAddressBus(uint16_t Address)
 {
 	std::memcpy(&Signals[1][BUS_A0], &Signals[0][BUS_A0], 16 * sizeof(ESignalState::Type));
@@ -75,6 +103,34 @@ void FSignalsBus::SetDataOnDataBus(uint8_t Data)
 	Signals[0][BUS_D5] = !!(Data & (1 << (SIGNAL_D5 - SIGNAL_D0))) ? ESignalState::High : ESignalState::Low;
 	Signals[0][BUS_D6] = !!(Data & (1 << (SIGNAL_D6 - SIGNAL_D0))) ? ESignalState::High : ESignalState::Low;
 	Signals[0][BUS_D7] = !!(Data & (1 << (SIGNAL_D7 - SIGNAL_D0))) ? ESignalState::High : ESignalState::Low;
+}
+
+void FSignalsBus::SetDataOnMemAddressBus(uint8_t Address)
+{
+	std::memcpy(&Signals[1][SIGNAL_MA0], &Signals[0][SIGNAL_MA0], 8 * sizeof(ESignalState::Type));
+
+	Signals[0][BUS_MA0] = !!(Address & (1 << (SIGNAL_MA0 - SIGNAL_MA0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MA1] = !!(Address & (1 << (SIGNAL_MA1 - SIGNAL_MA0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MA2] = !!(Address & (1 << (SIGNAL_MA2 - SIGNAL_MA0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MA3] = !!(Address & (1 << (SIGNAL_MA3 - SIGNAL_MA0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MA4] = !!(Address & (1 << (SIGNAL_MA4 - SIGNAL_MA0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MA5] = !!(Address & (1 << (SIGNAL_MA5 - SIGNAL_MA0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MA6] = !!(Address & (1 << (SIGNAL_MA6 - SIGNAL_MA0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MA7] = !!(Address & (1 << (SIGNAL_MA7 - SIGNAL_MA0))) ? ESignalState::High : ESignalState::Low;
+}
+
+void FSignalsBus::SetDataOnMemDataBus(uint8_t Address)
+{
+	std::memcpy(&Signals[1][SIGNAL_MD0], &Signals[0][SIGNAL_MD0], 8 * sizeof(ESignalState::Type));
+
+	Signals[0][BUS_MD0] = !!(Address & (1 << (SIGNAL_MD0 - SIGNAL_MD0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MD1] = !!(Address & (1 << (SIGNAL_MD1 - SIGNAL_MD0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MD2] = !!(Address & (1 << (SIGNAL_MD2 - SIGNAL_MD0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MD3] = !!(Address & (1 << (SIGNAL_MD3 - SIGNAL_MD0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MD4] = !!(Address & (1 << (SIGNAL_MD4 - SIGNAL_MD0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MD5] = !!(Address & (1 << (SIGNAL_MD5 - SIGNAL_MD0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MD6] = !!(Address & (1 << (SIGNAL_MD6 - SIGNAL_MD0))) ? ESignalState::High : ESignalState::Low;
+	Signals[0][BUS_MD7] = !!(Address & (1 << (SIGNAL_MD7 - SIGNAL_MD0))) ? ESignalState::High : ESignalState::Low;
 }
 
 void FSignalsBus::SetAllControlOutput(ESignalState::Type State)

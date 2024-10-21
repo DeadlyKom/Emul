@@ -341,11 +341,11 @@ void FThread::ThreadRequest_Reset()
 
 	ThreadRequest_SetStatus(EThreadStatus::Run);
 	SB.SetActive(BUS_RESET);
-	ADD_EVENT(CG, 8 * CG.GetSampling(), 0, "End signal RESET",
+	ADD_EVENT(CG, 8 * CG.GetSampling(), 0,
 		[&]()
 		{
 			SB.SetInactive(BUS_RESET);
-		});
+		}, "End signal RESET");
 }
 
 void FThread::ThreadRequest_NonmaskableInterrupt()

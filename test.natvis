@@ -32,6 +32,30 @@
 				(!!Signals[0][22]) * 0x0040 |
 				(!!Signals[0][23]) * 0x0080 )
 			</Item>
+
+			<Item Name="Memory Address Bus">
+				(uint8_t)(
+				(!!Signals[0][45 + 0]) * 0x0001 |
+				(!!Signals[0][45 + 1]) * 0x0002 |
+				(!!Signals[0][45 + 2]) * 0x0004 |
+				(!!Signals[0][45 + 3]) * 0x0008 |
+				(!!Signals[0][45 + 4]) * 0x0010 |
+				(!!Signals[0][45 + 5]) * 0x0020 |
+				(!!Signals[0][45 + 6]) * 0x0040 |
+				(!!Signals[0][45 + 7]) * 0x0080 )
+			</Item>
+			
+			<Item Name="Memory Data Bus">
+				(uint8_t)(
+				(!!Signals[0][45 +  8]) * 0x0001 |
+				(!!Signals[0][45 +  9]) * 0x0002 |
+				(!!Signals[0][45 + 10]) * 0x0004 |
+				(!!Signals[0][45 + 11]) * 0x0008 |
+				(!!Signals[0][45 + 12]) * 0x0010 |
+				(!!Signals[0][45 + 13]) * 0x0020 |
+				(!!Signals[0][45 + 14]) * 0x0040 |
+				(!!Signals[0][45 + 15]) * 0x0080 )
+			</Item>
 			
 			<Item Name="M1">Signals[0][24]</Item>
 			<Item Name="MREQ">Signals[0][25]</Item>
@@ -48,6 +72,10 @@
 			
 			<Item Name="BUSRQ">Signals[0][35]</Item>
 			<Item Name="BUSACK">Signals[0][36]</Item>
+
+			<Item Name="RAS">Signals[0][45 + 16]</Item>
+			<Item Name="CAS">Signals[0][45 + 17]</Item>
+			<Item Name="WR">Signals[0][45 + 18]</Item>
 		</Expand>
 	</Type>
 

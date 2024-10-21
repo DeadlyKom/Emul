@@ -465,7 +465,7 @@ public:
 	{
 		if (other.HasAllocation())
 		{
-			memcpy(Allocate(other.m_Size), other.GetAllocation(), other.m_Size);
+			std::memcpy(Allocate(other.m_Size), other.GetAllocation(), other.m_Size);
 		}
 		m_Size = other.m_Size;
 	}
@@ -475,7 +475,7 @@ public:
 	{
 		if (other.HasAllocation())
 		{
-			memcpy(Allocate(other.m_Size), other.GetAllocation(), other.m_Size);
+			std::memcpy(Allocate(other.m_Size), other.GetAllocation(), other.m_Size);
 		}
 		m_Size = other.m_Size;
 		return *this;
@@ -492,7 +492,7 @@ public:
 		}
 		else
 		{
-			memcpy(Buffer, other.Buffer, m_Size);
+			std::memcpy(Buffer, other.Buffer, m_Size);
 		}
 	}
 
@@ -508,7 +508,7 @@ public:
 		}
 		else
 		{
-			memcpy(Buffer, other.Buffer, m_Size);
+			std::memcpy(Buffer, other.Buffer, m_Size);
 		}
 		return *this;
 	}

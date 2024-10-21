@@ -1,8 +1,5 @@
 #include "EPROM.h"
-#include "AppFramework.h"
-#include "Devices/Device.h"
-#include "Utils/SignalsBus.h"
-#include "Devices/ControlUnit/AccessToROM.h"
+
 #include "Motherboard/Motherboard_ClockGenerator.h"
 
 #define DEVICE_NAME(Type) FName(std::format("{} {}", ThisDeviceName, ThisClass::ToString(Type)))
@@ -60,13 +57,13 @@ std::string FEPROM::ToString(EEPROM_Type Type)
 {
 	switch (Type)
 	{
-	case EEPROM_Type::EPROM_27C128: return EPROM_27C128_Name;
-	case EEPROM_Type::EPROM_27C256: return EPROM_27C256_Name;
-	case EEPROM_Type::EPROM_27C512: return EPROM_27C512_Name;
-	case EEPROM_Type::EPROM_27C010: return EPROM_27C010_Name;
-	case EEPROM_Type::EPROM_27C020: return EPROM_27C020_Name;
-	case EEPROM_Type::EPROM_27C040: return EPROM_27C040_Name;
-	default: return EPROM_27CXXX_Name;
+		case EEPROM_Type::EPROM_27C128: return EPROM_27C128_Name;
+		case EEPROM_Type::EPROM_27C256: return EPROM_27C256_Name;
+		case EEPROM_Type::EPROM_27C512: return EPROM_27C512_Name;
+		case EEPROM_Type::EPROM_27C010: return EPROM_27C010_Name;
+		case EEPROM_Type::EPROM_27C020: return EPROM_27C020_Name;
+		case EEPROM_Type::EPROM_27C040: return EPROM_27C040_Name;
+		default: return EPROM_27CXXX_Name;
 	}
 }
 
@@ -83,32 +80,18 @@ void FEPROM::Tick()
 		return;
 	}
 
-	const uint16_t Address = SB->GetDataOnAddressBus();
+	const uint16_t Address = SB->GetDataOnAddressBus() - PlacementAddress;
 	if (ReadMode == ESignalState::Low)
 	{
 		if (Address < Firmware.size())
 		{
 			const uint8_t Value = Firmware[Address];
 		#ifndef NotDelay
-			ADD_EVENT_(CG, CG->ToNanosec(60), "Delay signal",
+			ADD_EVENT_(CG, CG->ToNanosec(60), FrequencyDivider,
 				[=]() -> void
 				{
 					SB->SetDataOnDataBus(Value);
-				});
-		#else
-			SB->SetDataOnDataBus(Value);
-		#endif
-		}
-		else
-		{
-			// unstable data bus
-			const uint8_t Value = rand();
-		#ifndef NotDelay
-			ADD_EVENT_(CG, CG->ToNanosec(60), "Delay signal",
-				[=]() -> void
-				{
-					SB->SetDataOnDataBus(Value);
-				});
+				}, "Delay signal");
 		#else
 			SB->SetDataOnDataBus(Value);
 		#endif
@@ -120,11 +103,11 @@ void FEPROM::Tick()
 		{
 			const uint8_t Value = SB->GetDataOnDataBus();
 		#ifndef NotDelay
-			ADD_EVENT_(CG, CG->ToNanosec(20), "Delay signal",
+			ADD_EVENT_(CG, CG->ToNanosec(20), FrequencyDivider,
 				[=]() -> void
 				{
 					Firmware[Address] = Value;
-				});
+				}, "Delay signal");
 		#else
 			Firmware[Address] = Value;
 		#endif
