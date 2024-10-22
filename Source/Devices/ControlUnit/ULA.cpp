@@ -14,11 +14,19 @@ namespace
 FULA::FULA(const FDisplayCycles& _DisplayCycles, double _Frequency)
 	: FDevice(DEVICE_NAME(), NAME_ULA, EDeviceType::ControlUnit, _Frequency)
 	, DisplayCycles(_DisplayCycles)
+	, bIsBorder(false)
+	, bBorderDelay(false)
+	, bIsVideoFetch(false)
+	, bIsFlyback(false)
 	, bDrawPixels(false)
 	, bFlipFlopFlash(false)
 	, bIsInterrupt(false)
 	, bInterruptLatch(false)
+	, X(0)
+	, Y(0)
 	, FlashCounter(32)
+	, Pixels(0)
+	, Attribute(0)
 {
 	DisplayWidth = DisplayCycles.BorderL + DisplayCycles.DisplayH + DisplayCycles.BorderR;
 	DisplayHeight = DisplayCycles.BorderT + DisplayCycles.DisplayV + DisplayCycles.BorderB;
@@ -37,7 +45,20 @@ void FULA::Tick()
 	const bool bIsFirst = !(CC & 0x01);
 
 	if (bIsFirst) BusLogic(FrameClock);
-	ULALogic(FrameClock);
+	if (bIsFirst) ULALogic(FrameClock);
+
+	if ((bIsBorder || bBorderDelay) && (!bIsVideoFetch || bBorderDelay))
+	{
+		// ToDo read port #FE
+		const uint8_t Color = 15;
+		DisplayData[Y * DisplayWidth + X] = Color;
+	}
+	
+	if (bIsVideoFetch)
+	{
+		VideoFetch();
+	}
+
 	if (bIsFirst) DrawLogic(FrameClock);
 }
 
@@ -73,10 +94,13 @@ void FULA::BusLogic(uint32_t FrameClock)
 		if (bInterruptLatch != bIsInterrupt)
 		{
 			SB->SetSignal(BUS_INT, bInterruptLatch ? ESignalState::High : ESignalState::Low);
-			if (!--FlashCounter)
+			if (bInterruptLatch)
 			{
-				FlashCounter = 32;
-				bFlipFlopFlash = !bFlipFlopFlash;
+				if (!--FlashCounter)
+				{
+					FlashCounter = 32;
+					bFlipFlopFlash = !bFlipFlopFlash;
+				}
 			}
 		}
 		bInterruptLatch = bIsInterrupt;
@@ -85,76 +109,62 @@ void FULA::BusLogic(uint32_t FrameClock)
 
 void FULA::ULALogic(uint32_t FrameClock)
 {
-	//const uint32_t FrameClock = (CG->GetClockCounter() >> FrequencyDivider) % Frame;
-
-	/*const bool bIsInterrupt = FrameClock >= 13 && FrameClock <= 33;*/
-
 	const bool bIsFlybackH = FrameClock < DisplayCycles.FlybackH;
 	const bool bIsFlybackV = FrameClock < DisplayCycles.FlybackV * Scanline;
 	bIsFlyback = bIsFlybackH || bIsFlybackV;
 
-	const uint32_t LocalFrameClock = FrameClock - DisplayCycles.FlybackV * Scanline;
-	Y = bIsFlybackV ? 0 : LocalFrameClock / Scanline;
-	X = (LocalFrameClock - Y * Scanline) >= DisplayCycles.FlybackH ? ((LocalFrameClock - Y * Scanline) - DisplayCycles.FlybackH) % DisplayWidth : 0;
-
-	const bool bIsBorderH = X < DisplayCycles.BorderL || X >= (DisplayCycles.BorderL + DisplayCycles.DisplayH);
-	const bool bIsBorderV = Y < DisplayCycles.BorderT || Y >= (DisplayCycles.BorderT + DisplayCycles.DisplayV);
-	bIsBorder = bIsBorderH || bIsBorderV;
-
-	//if (bIsInterrupt || bInterruptLatch)
-	//{
-	//	if (bInterruptLatch != bIsInterrupt)
-	//	{
-	//		SB->SetSignal(BUS_INT, bInterruptLatch ? ESignalState::Low : ESignalState::High);
-	//		if (!--FlashCounter)
-	//		{
-	//			FlashCounter = 32;
-	//			bFlipFlopFlash = !bFlipFlopFlash;
-	//		}
-	//	}
-	//	bInterruptLatch = bIsInterrupt;
-	//}
-	if (bIsInterrupt || bInterruptLatch)
+	if (bIsFlybackV)
 	{
-		// nothing
-		return;
-	}
-	else if (bIsFlyback)
-	{
-		// nothing
-		return;
-	}
-	else if (/*!bDrawPixels &&*/ bIsBorder)
-	{
-		// ToDo read port #FE
-		const uint8_t Color = 15;
-		DisplayData[Y * DisplayWidth + X] = Color;
+		Y = 0;
+		X = 0;
+		bIsBorder = false;
+		bIsVideoFetch = false;
 	}
 	else
 	{
-		// ToDo display
-		//const uint8_t Color = rand() % 256;
-		//DisplayData[Y * DisplayWidth + X] = Color;
+		const uint32_t LocalFrameClock = FrameClock - DisplayCycles.FlybackV * Scanline;
+		Y = LocalFrameClock / Scanline;
 
-		VideoFetch();
+		const uint32_t LocalLineClock = LocalFrameClock - Y * Scanline;
+		X = LocalLineClock > DisplayCycles.FlybackH ? (LocalLineClock - DisplayCycles.FlybackH) % DisplayWidth : 0;
+
+		const bool bIsBorderH = X < DisplayCycles.BorderL || X >= (DisplayCycles.BorderL + DisplayCycles.DisplayH);
+		const bool bIsBorderV = Y < DisplayCycles.BorderT || Y >= (DisplayCycles.BorderT + DisplayCycles.DisplayV);
+		bIsBorder = bIsBorderH || bIsBorderV;
+
+		bIsVideoFetch = !bIsBorderV && (X >= DisplayCycles.BorderL && X < (DisplayCycles.BorderL + DisplayCycles.DisplayH + 16));
+		bBorderDelay = bIsVideoFetch && (X < (DisplayCycles.BorderL + 16));
 	}
 }
 
 void FULA::VideoFetch()
 {
-	const int32_t x = X - DisplayCycles.BorderL;
+	const int32_t x = X - (DisplayCycles.BorderL + 8);
 	const int32_t y = Y - DisplayCycles.BorderT;
 	const uint32_t FrameClock = CG->GetClockCounter() % Frame;
-	switch (FrameClock & 0x0F)
+	switch (FrameClock & 0x1F)
 	{
 		case 0:
 		{
-			const uint8_t Address = (y << 2) & 0xE0 | (x >> 3) & 0x1F;
+			PixelsShift = Pixels >> 8;
+			Pixels <<= 8;
+			AttributeLatch = Attribute >> 8;
+			Attribute <<= 8;
+			break;
+		}
+		case 16:
+		{
+			PixelsShift = Pixels >> 8;
+			Pixels <<= 8;
+			AttributeLatch = Attribute >> 8;
+			Attribute <<= 8;
+
+			const uint8_t Address = (y << 2) & 0xE0 | (x >> 3) & 0x1F | 0;
 			SB->SetDataOnMemAddressBus(Address);
 			SB->SetActive(BUS_RAS);
 			break;
 		}
-		case 1:
+		case 17:
 		{
 			const uint8_t Address = 0x40 | (y >> 3) & 0x18 | y & 0x07;
 			SB->SetDataOnMemAddressBus(Address);
@@ -162,21 +172,17 @@ void FULA::VideoFetch()
 			SB->SetInactive(BUS_WE);
 			break;
 		}
-		case 2:
+		//case 18:
+		//{
+		//	break;
+		//}
+		case 19:
 		{
-			break;
-		}
-		case 3:
-		{
-			Pixels = SB->GetDataOnMemDataBus();
-			break;
-		}
-		case 4:
-		{
+			Pixels |= SB->GetDataOnMemDataBus() << 8;
 			SB->SetInactive(BUS_CAS);
 			break;
 		}
-		case 5:
+		case 20:
 		{
 			const uint8_t Address = 0x58 | (y >> 6) & 0x03;
 			SB->SetDataOnMemAddressBus(Address);
@@ -184,48 +190,68 @@ void FULA::VideoFetch()
 			SB->SetInactive(BUS_WE);
 			break;
 		}
-		case 6:
+		//case 21:
+		//{
+		//	break;
+		//}
+		case 22:
 		{
+			Attribute |= SB->GetDataOnMemDataBus() << 8;
+			SB->SetInactive(BUS_CAS);
 			break;
 		}
-		case 7:
-		{
-			Attribute = SB->GetDataOnMemDataBus();
-			break;
-		}
-		case 8:
+		case 23:
 		{
 			SB->SetInactive(BUS_RAS);
+			break;
+		}
+		case 24:
+		{
+			const uint8_t Address = (y << 2) & 0xE0 | (x >> 3) & 0x1F | 1;
+			SB->SetDataOnMemAddressBus(Address);
+			SB->SetActive(BUS_RAS);
+			break;
+		}
+		case 25:
+		{
+			const uint8_t Address = 0x40 | (y >> 3) & 0x18 | y & 0x07;
+			SB->SetDataOnMemAddressBus(Address);
+			SB->SetActive(BUS_CAS);
+			SB->SetInactive(BUS_WE);
+			break;
+		}
+		//case 26:
+		//{
+		//	break;
+		//}
+		case 27:
+		{
+			Pixels |= SB->GetDataOnMemDataBus();
 			SB->SetInactive(BUS_CAS);
+			break;
+		}
+		case 28:
+		{
+			const uint8_t Address = 0x58 | (y >> 6) & 0x03;
+			SB->SetDataOnMemAddressBus(Address);
+			SB->SetActive(BUS_CAS);
+			SB->SetInactive(BUS_WE);
+			break;
+		}
+		//case 29:
+		//{
+		//	break;
+		//}
+		case 30:
+		{
+			Attribute |= SB->GetDataOnMemDataBus();
+			SB->SetInactive(BUS_CAS);
+			break;
+		}
+		case 31:
+		{
+			SB->SetInactive(BUS_RAS);
 			bDrawPixels = true;
-			break;
-		}
-		case 9:
-		{
-			break;
-		}
-		case 10:
-		{
-			break;
-		}
-		case 11:
-		{
-			break;
-		}
-		case 12:
-		{
-			break;
-		}
-		case 13:
-		{
-			break;
-		}
-		case 14:
-		{
-			break;
-		}
-		case 15:
-		{
 			break;
 		}
 	}
@@ -235,24 +261,17 @@ void FULA::DrawLogic(uint32_t FrameClock)
 {
 	if (bDrawPixels)
 	{
-		//const uint64_t ClockCounter = CG->GetClockCounter();
-		//if ((ClockCounter & 0x01))
-		//{
-		//	return;
-		//}
-		//const uint32_t FrameClock = (ClockCounter >> FrequencyDivider) % Frame;
-		const bool bPixel = !!(Pixels & 0x80);
-		const bool bBright = !!(Attribute & 0x40);
-		const bool bFlash = !!(Attribute & 0x80);
-		const uint8_t Inc = Attribute & 0x07;
-		const uint8_t Paper = (Attribute >> 3) & 0x07;
+		const bool bPixel = !!(PixelsShift & 0x80);
+		const bool bBright = !!(AttributeLatch & 0x40);
+		const bool bFlash = !!(AttributeLatch & 0x80);
+		const uint8_t Inc = (AttributeLatch >> 0) & 0x07;
+		const uint8_t Paper = (AttributeLatch >> 3) & 0x07;
 		DisplayData[Y * DisplayWidth + X] = ((bPixel ^ (bFlash && bFlipFlopFlash)) ? Inc : Paper) | (bBright << 3);
+		PixelsShift <<= 1;
 
-		Pixels <<= 1;
-
-		if ((FrameClock % 8) == 3)
-		{
-			bDrawPixels = false;
-		}
+		//if ((FrameClock & 0x0F) == 7)
+		//{
+		//	bDrawPixels = false;
+		//}
 	}
 }

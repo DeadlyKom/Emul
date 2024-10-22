@@ -39,8 +39,8 @@ void FAppDebugger::Initialize()
 		{
 			std::make_shared<FCPU_Z80>(3.5_MHz),
 			std::make_shared<FULA>(FDisplayCycles{
-				/*FlybackH*/96, /*BorderL*/48, /*DisplayH*/256, /*BorderR*/48,
-				/*FlybackV*/16, /*BorderT*/48, /*DisplayV*/192, /*BorderB*/56}, 7.0_MHz),
+				/*FlybackH*/96, /*BorderL*/32, /*DisplayH*/256, /*BorderR*/64,
+				/*FlybackV*/8, /*BorderT*/56, /*DisplayV*/192, /*BorderB*/56}, 7.0_MHz),
 			std::make_shared<FAccessToROM>(),
 			std::make_shared<FEPROM>(EEPROM_Type::EPROM_27C128, 0x0000, std::vector<uint8_t>({ 
 				0x00,
@@ -93,10 +93,11 @@ void FAppDebugger::Initialize()
 		//Motherboard->LoadRawData(NAME_MainBoard, NAME_EPROM, FIlePath);
 
 		std::filesystem::path FIlePath = "D:\\Work\\[Sprite]\\Sprites\\Menu\\Change Mission\\interact - 7.scr";
+		//std::filesystem::path FIlePath = "D:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";
 		Motherboard->LoadRawData(NAME_MainBoard, NAME_DRAM, FIlePath);
 
 		Motherboard->Reset();
-		Motherboard->Inut_Debugger();
+		//Motherboard->Inut_Debugger();
 	}
 
 	Viewer = std::make_shared<SViewer>(NAME_DOS_12, WindowWidth, WindowHeight);

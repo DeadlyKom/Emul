@@ -211,6 +211,7 @@ void FThread::Thread_Execution()
 			const bool bIsInterrupt = SB.IsPositiveEdge(BUS_INT);
 			if (bInterruptLatch != bIsInterrupt)
 			{
+				bInterruptLatch = bIsInterrupt;
 				if (bInterruptLatch)
 				{
 					const std::chrono::system_clock::time_point Frame_EndTime = std::chrono::system_clock::now();
@@ -235,7 +236,6 @@ void FThread::Thread_Execution()
 						SleepTime -= ElapsedTime.count();
 					} while (SleepTime > 0);
 				}
-				bInterruptLatch = bIsInterrupt;
 			}
 		};
 

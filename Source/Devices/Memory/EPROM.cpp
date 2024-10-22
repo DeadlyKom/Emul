@@ -171,7 +171,7 @@ void FEPROM::Load(const std::filesystem::path& FilePath)
 
 	// reserve capacity
 	Firmware.clear();
-	Firmware.reserve(FileSize);
+	Firmware.resize(FileSize);
 
 	// read the data
 	Firmware.insert(Firmware.begin(), std::istream_iterator<BYTE>(File), std::istream_iterator<BYTE>());

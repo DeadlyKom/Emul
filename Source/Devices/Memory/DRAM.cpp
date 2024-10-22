@@ -181,7 +181,7 @@ void FDRAM::Load(const std::filesystem::path& FilePath)
 
 	// reserve capacity
 	RawData.clear();
-	RawData.reserve(FileSize);
+	RawData.resize(FileSize);
 
 	// read the data
 	RawData.insert(RawData.begin(), std::istream_iterator<BYTE>(File), std::istream_iterator<BYTE>());
