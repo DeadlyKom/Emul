@@ -19,6 +19,7 @@ struct FSpectrumDisplay
 {
 	//bool bDataAvailable = false;
 	FDisplayCycles DisplayCycles;
+	ImVec2 CRT_BeamPosition;
 	std::vector<uint8_t> DisplayData;
 };
 

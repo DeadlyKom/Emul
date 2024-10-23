@@ -2,7 +2,9 @@
 
 #include <CoreMinimal.h>
 #include "Window.h"
+#include "Interface_WindowEventNotification.h"
 
+class FAppDebugger;
 class FMotherboard;
 class SViewerChild;
 
@@ -20,6 +22,8 @@ class SViewer : public SWindow
 	using Super = SWindow;
 	using ThisClass = SViewer;
 	friend SViewerChild;
+	friend FAppDebugger;
+
 public:
 	SViewer(EFont::Type _FontName, uint32_t _Width, uint32_t _Height);
 	virtual ~SViewer() = default;
@@ -33,6 +37,41 @@ public:
 private:
 	void Input_HotKeys();
 	void Inut_Debugger();
+
+	template <typename... Args>
+	void SendEventNotification(EEventNotificationType EventType, Args&&... args)
+	{
+		using ArgType = std::decay_t<decltype(args)...>;
+
+		for (auto& [Type, Window] : Windows)
+		{
+			std::shared_ptr<IWindowEventNotification> Interface = std::dynamic_pointer_cast<IWindowEventNotification>(Window);
+			if (Interface != nullptr)
+			{
+				switch (EventType)
+				{
+					case EEventNotificationType::Input_Step:
+						if constexpr (sizeof...(args) == 1)
+						{
+							if constexpr (std::is_convertible_v<ArgType, FCPU_StepType>)
+							{
+								Interface->OnInputStep(std::forward<Args>(args)...);
+							}
+						}
+						break;
+					case EEventNotificationType::Input_Debugger:
+						if constexpr (sizeof...(args) == 1)
+						{
+							if constexpr (std::is_convertible_v<ArgType, bool>)
+							{
+								Interface->OnInputDebugger(std::forward<Args>(args)...);
+							}
+						}
+						break;
+				}	
+			}
+		}
+	}
 
 	FMotherboard& GetMotherboard() const;
 	std::shared_ptr<SWindow> GetWindow(EWindowsType Type)
@@ -69,5 +108,15 @@ public:
 		std::shared_ptr<SViewer> Viewer = GetParent();
 		assert(Viewer);
 		return Viewer ? std::dynamic_pointer_cast<T>(Viewer->GetWindow(Type)) : nullptr;
+	}
+
+	template <typename... Args>
+	void SendEventNotification(EEventNotificationType EventType, Args&&... args)
+	{
+		std::shared_ptr<SViewer> Viewer = GetParent();
+		if (Viewer)
+		{
+			Viewer->SendEventNotification(EventType, std::forward<Args>(args)...);
+		}
 	}
 };

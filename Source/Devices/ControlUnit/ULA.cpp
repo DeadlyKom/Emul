@@ -82,6 +82,17 @@ void FULA::GetSpectrumDisplay(FSpectrumDisplay& OutputDisplay) const
 {
 	OutputDisplay.DisplayCycles = DisplayCycles;
 	OutputDisplay.DisplayData = DisplayData;
+
+	if (bIsFlyback)
+	{
+		OutputDisplay.CRT_BeamPosition.x = 0.0f;
+		OutputDisplay.CRT_BeamPosition.y = 0.0f;
+	}
+	else
+	{
+		OutputDisplay.CRT_BeamPosition.x = float(X);
+		OutputDisplay.CRT_BeamPosition.y = float(Y);
+	}
 }
 
 void FULA::BusLogic(uint32_t FrameClock)
@@ -268,10 +279,5 @@ void FULA::DrawLogic(uint32_t FrameClock)
 		const uint8_t Paper = (AttributeLatch >> 3) & 0x07;
 		DisplayData[Y * DisplayWidth + X] = ((bPixel ^ (bFlash && bFlipFlopFlash)) ? Inc : Paper) | (bBright << 3);
 		PixelsShift <<= 1;
-
-		//if ((FrameClock & 0x0F) == 7)
-		//{
-		//	bDrawPixels = false;
-		//}
 	}
 }

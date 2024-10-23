@@ -12,6 +12,7 @@ namespace
 	#define ATTRIBUTE_GRID          1 << 0
 	#define GRID					1 << 1
 	#define PIXEL_GRID              1 << 2
+	#define BEAM_ENABLE				1 << 3
 	#define FORCE_NEAREST_SAMPLING  1 << 31
 
 	namespace ZXSpectrumColor
@@ -91,8 +92,9 @@ namespace Shader
 		float TextureSize[2];
 		float GridSize[2];
 		float GridOffset[2];
+		float CRT_BeamPosition[2];
 
-		float Dummy[46];
+		float Dummy[44];
 	};
 
 	void* LINE_ID = (void*)0x10FFFFFF;
@@ -131,6 +133,7 @@ SScreen::SScreen(EFont::Type _FontName)
 
 	// shader variable
 	, TimeCounter(0.0f)
+	, bBeamEnable(false)
 	, bForceNearestSampling(true)							// if true fragment shader will always sample from texel centers
 	, GridWidth(0.0f, 0.0f)									// width in UV coords of grid line
 	, GridSize(0.0f, 0.0f)
@@ -221,6 +224,11 @@ void SScreen::OnDrawCallback(const ImDrawList* ParentList, const ImDrawCmd* CMD)
 			std::memcpy(ConstantBuffer->GridWidth, &GridWidth, sizeof(GridWidth));
 			std::memcpy(ConstantBuffer->BackgroundColor, &BackgroundColor, sizeof(float) * 3);
 			std::memcpy(ConstantBuffer->TextureSize, &Image.Size, sizeof(Image.Size));
+			
+			{
+				ImVec2 CRT_BeamPosition = SpectrumDisplay.CRT_BeamPosition / Image.Size;
+				std::memcpy(ConstantBuffer->CRT_BeamPosition, &CRT_BeamPosition, sizeof(CRT_BeamPosition));
+			}
 
 			{
 				uint32_t Flags = 0;
@@ -235,6 +243,10 @@ void SScreen::OnDrawCallback(const ImDrawList* ParentList, const ImDrawCmd* CMD)
 				if (ScreenSettings.bPixelGrid)
 				{
 					Flags |= PIXEL_GRID;
+				}
+				if (bBeamEnable)
+				{
+					Flags |= BEAM_ENABLE;
 				}
 				if (bForceNearestSampling)
 				{
@@ -259,6 +271,12 @@ void SScreen::OnDrawCallback(const ImDrawList* ParentList, const ImDrawCmd* CMD)
 FMotherboard& SScreen::GetMotherboard() const
 {
 	return *FAppFramework::Get<FAppDebugger>().Motherboard;
+}
+
+void SScreen::Load_MemoryScreen()
+{
+	SpectrumDisplay = GetMotherboard().GetState<FSpectrumDisplay>(NAME_MainBoard, NAME_ULA);
+	ConvertDisplayDataToRGB(SpectrumDisplay);
 }
 
 void SScreen::Draw_Display()
@@ -373,6 +391,20 @@ void SScreen::Input_Mouse()
 		ImVec2 uvDelta = ImGui::GetIO().MouseDelta * ViewSizeUV / ViewSize;
 		ImagePosition -= uvDelta;
 		RoundImagePosition();
+	}
+}
+
+void SScreen::OnInputStep(FCPU_StepType Type)
+{
+	Load_MemoryScreen();
+}
+
+void SScreen::OnInputDebugger(bool bDebuggerState)
+{
+	bBeamEnable = bDebuggerState /*true = enter debugger*/;
+	if (bDebuggerState)
+	{
+		Load_MemoryScreen();
 	}
 }
 

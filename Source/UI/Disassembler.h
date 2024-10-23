@@ -5,7 +5,6 @@
 #include "Core/Image.h"
 #include "Devices/CPU/Interface_CPU_Z80.h"
 #include "Devices/Memory/Interface_Memory.h"
-#include "Interface_WindowEventNotification.h"
 
 class FMotherboard;
 enum class EThreadStatus;
@@ -104,7 +103,7 @@ private:
 	void Input_PageDown();
 	void Input_GoToAddress();
 
-	//
+	// events
 	virtual void OnInputDebugger(bool bDebuggerState) override;
 
 	// visual preferences

@@ -82,8 +82,16 @@ void FAppDebugger::Initialize()
 				0x24,
 				0x25,
 				0x26, 0x45,
+				0x27,
+				0x28, 0xFD,
+				0x29,
+				0x2a, 0x01, 0x00,
+				0x2b,
+				0x2c,
+				0x2d,
+				0x2e, 0x66,
 				0x37,
-				0x18, 0xc8
+				0x18, 0xbc
 				}), ESignalState::Low),
 			std::make_shared<FDRAM>(EDRAM_Type::DRAM_4116, 0x4000, std::vector<uint8_t>({1,2,3,4,5,6,7,8})),
 		}, 7.0_MHz);
@@ -92,12 +100,12 @@ void FAppDebugger::Initialize()
 		//std::filesystem::path FIlePath = "D:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";// std::filesystem::current_path();
 		//Motherboard->LoadRawData(NAME_MainBoard, NAME_EPROM, FIlePath);
 
-		std::filesystem::path FIlePath = "D:\\Work\\[Sprite]\\Sprites\\Menu\\Change Mission\\interact - 7.scr";
+		std::filesystem::path FIlePath = "D:\\Work\\[Sprite]\\Sprites\\Raven my.scr";
+		//std::filesystem::path FIlePath = "D:\\Work\\[Sprite]\\Sprites\\Menu\\Change Mission\\interact - 7.scr";
 		//std::filesystem::path FIlePath = "D:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";
 		Motherboard->LoadRawData(NAME_MainBoard, NAME_DRAM, FIlePath);
 
 		Motherboard->Reset();
-		//Motherboard->Inut_Debugger();
 	}
 
 	Viewer = std::make_shared<SViewer>(NAME_DOS_12, WindowWidth, WindowHeight);
@@ -107,6 +115,7 @@ void FAppDebugger::Initialize()
 		Data.Device = Device;
 		Data.DeviceContext = DeviceContext;
 		Viewer->NativeInitialize(Data);
+		Viewer->Inut_Debugger();
 	}
 
 	FFonts& Fonts = FFonts::Get();

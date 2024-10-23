@@ -100,16 +100,10 @@ void SViewer::Input_HotKeys()
 
 void SViewer::Inut_Debugger()
 {
-	const bool bDebuggerState = GetMotherboard().GetDebuggerState();
-	for (auto& [Type, Window] : Windows)
-	{
-		std::shared_ptr<IWindowEventNotification> Interface = std::dynamic_pointer_cast<IWindowEventNotification>(Window);
-		if (Interface != nullptr)
-		{
-			Interface->OnInputDebugger(bDebuggerState);
-		}
-	}
-	GetMotherboard().Inut_Debugger();
+	FMotherboard& Motherboard = GetMotherboard();
+	Motherboard.Inut_Debugger();
+	const bool bDebuggerState = Motherboard.GetDebuggerState();
+	SendEventNotification(EEventNotificationType::Input_Debugger, bDebuggerState);
 }
 
 FMotherboard& SViewer::GetMotherboard() const

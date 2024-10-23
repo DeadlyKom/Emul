@@ -40,7 +40,7 @@ private:
 	uint32_t Y;
 	uint32_t X;
 	uint8_t FlashCounter;
-	//uint8_t PixelCounter;
+
 	uint16_t Pixels;
 	uint8_t PixelsShift;
 	uint16_t Attribute;

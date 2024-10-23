@@ -2090,6 +2090,7 @@ void SDisassembler::Input_Step(FCPU_StepType Type)
 {
 	Upload_MemorySnapshot();
 	GetMotherboard().Input_Step(Type);
+	SendEventNotification(EEventNotificationType::Input_Step, Type);
 
 	const uint16_t PC = GetProgramCounter();
 	const int32_t Lines = UI::GetVisibleLines(FontName, InaccessibleHeight(2));
@@ -2182,7 +2183,7 @@ void SDisassembler::OnInputDebugger(bool bDebuggerState)
 {
 	if (bDebuggerState /*true = enter debugger*/)
 	{
-		Upload_MemorySnapshot();
+		Upload_MemorySnapshot();	/// ??????
 	}
 	else
 	{

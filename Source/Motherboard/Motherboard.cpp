@@ -54,10 +54,10 @@ void FMotherboard::Input_Step(FCPU_StepType Type)
 
 	switch (Type)
 	{
-	case FCPU_StepType::StepTo:		LOG("Step to");		break;
-	case FCPU_StepType::StepInto:	LOG("Step into");	break;
-	case FCPU_StepType::StepOver:	LOG("Step over");	break;
-	case FCPU_StepType::StepOut:	LOG("Step out");	break;
+		case FCPU_StepType::StepTo:		LOG("Step to");		break;
+		case FCPU_StepType::StepInto:	LOG("Step into");	break;
+		case FCPU_StepType::StepOver:	LOG("Step over");	break;
+		case FCPU_StepType::StepOut:	LOG("Step out");	break;
 	}
 
 	for (auto& [Name, Board] : Boards)

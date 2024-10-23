@@ -20,7 +20,7 @@ namespace Shader
 		if (FAILED(D3DCompile(ShaderData.data(), ShaderData.size(), NULL, NULL, NULL, "main", "ps_4_0", 0, 0, &PixelShaderBlob, &ErrorBlob)))
 		{
 			std::string Error((const char*)ErrorBlob->GetBufferPointer());
-			LOG_ERROR("pixel shader failed. diagnostic:\n%s", Error.c_str());
+			LOG_ERROR("pixel shader failed. diagnostic:\n {}", Error.c_str());
 			ErrorBlob->Release();
 			return nullptr;
 		}

@@ -1,21 +1,23 @@
 #define ATTRIBUTE_GRID          1 << 0
 #define GRID					1 << 1
 #define PIXEL_GRID              1 << 2
+#define BEAM_ENABLE             1 << 3
 #define FORCE_NEAREST_SAMPLING  1 << 31
 
 cbuffer pixelBuffer : register(b0)
 {
-    float4   GridColor;
-    float2   GridWidth;
-    int      Flags;
-    float    TimeCounter;
-    float3   BackgroundColor;
-    int      Dummy_0;
-    float2   TextureSize;
-    float2   GridSize;
-    float2   GridOffset;
+    float4  GridColor;
+    float2  GridWidth;
+    int     Flags;
+    float   TimeCounter;
+    float3  BackgroundColor;
+    int     Dummy_0;
+    float2  TextureSize;
+    float2  GridSize;
+    float2  GridOffset;
+    float2  CRT_BeamPosition;
 
-    float Dummy[46];
+    float Dummy[44];
 };
 
 struct PS_INPUT
@@ -37,12 +39,24 @@ float4 main(PS_INPUT Input) : SV_TARGET
 	    UV = (floor(Texel) + float2(0.5, 0.5)) / TextureSize;
     else
 	    UV = Input.uv;
-
+    
     float2 TexelEdge = step(Texel - floor(Texel), GridWidth);
     float IsGrid = max(TexelEdge.x, TexelEdge.y);
     float4 C = Texture0.Sample(Sampler0, UV);
     C.rgb += BackgroundColor * (1.0 - C.a);
 
+    if ((Flags & BEAM_ENABLE) && (CRT_BeamPosition.y > 0 || CRT_BeamPosition.x > 0))
+    {
+        if (UV.y > CRT_BeamPosition.y)
+        {
+            const float HeightBeam = 1.0f / TextureSize.y;
+            if (UV.y > CRT_BeamPosition.y + HeightBeam)
+                C.a *= 0.5f;
+            else if (UV.x > CRT_BeamPosition.x)
+                C.a *= 0.5f;
+        }
+    }
+    
     float2 uv_g = UV;
     uv_g.y *= TextureSize.y / TextureSize.x;
     float Repeats = floor(TextureSize.x / 8);

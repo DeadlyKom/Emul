@@ -41,7 +41,7 @@ struct FScreenSettings
 	FDisplayCycles DisplayCycles;
 };
 
-class SScreen : public SViewerChild
+class SScreen : public SViewerChild, public IWindowEventNotification
 {
 	using Super = SViewerChild;
 	using ThisClass = SScreen;
@@ -60,10 +60,16 @@ public:
 private:
 	FORCEINLINE FMotherboard& GetMotherboard() const;
 
+	void Load_MemoryScreen();
+
 	void Draw_Display();
 
 	void Input_HotKeys();
 	void Input_Mouse();
+
+	// events
+	virtual void OnInputStep(FCPU_StepType Type) override;
+	virtual void OnInputDebugger(bool bDebuggerState) override;
 
 	void ConvertDisplayDataToRGB(const FSpectrumDisplay& DS);
 	void RoundImagePosition();
@@ -106,6 +112,7 @@ private:
 
 	// shader variable
 	float TimeCounter;
+	bool bBeamEnable;
 	bool bForceNearestSampling;
 	ImVec2 GridWidth;
 	ImVec2 GridSize;
@@ -120,5 +127,6 @@ private:
 
 	bool bDragging;
 	FImage Image;
+	FSpectrumDisplay SpectrumDisplay;
 	std::vector<uint32_t> DisplayRGBA;
 };
