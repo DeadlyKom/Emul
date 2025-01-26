@@ -68,6 +68,12 @@ private:
 							}
 						}
 						break;
+					case EEventNotificationType::ForceUpdateStates:
+						if constexpr (sizeof...(args) == 0)
+						{
+							Interface->OnForceUpdateStates();
+						}
+						break;
 				}	
 			}
 		}

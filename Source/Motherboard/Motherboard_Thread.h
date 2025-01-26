@@ -95,8 +95,8 @@ private:
 	void SetState_RequestHandler(EName::Type DeviceID, const std::type_index& Type, const std::any& Value);
 
 	void LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath);
-	void SerializeCPU(std::string& Output);
-	void DeserializeCPU(const std::string& Input);
+	void Serialize(std::string& Output);
+	void Deserialize(const std::string& Input);
 
 	template<typename T>
 	T GetState(EName::Type DeviceID)
@@ -165,7 +165,7 @@ private:
 	std::unordered_map<std::type_index, std::any> Container;
 
 	FCPU_StepType StepType;
-	std::string SerializedDataCPU;
+	std::string SerializedData;
 
 	std::thread Thread;
 	std::atomic<EThreadStatus> ThreadStatus;

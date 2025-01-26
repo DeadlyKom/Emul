@@ -171,10 +171,10 @@ void FThread::Thread_Execution()
 			Thread_RequestHandling();
 		}
 
-		if (!SerializedDataCPU.empty())
+		if (!SerializedData.empty())
 		{
-			DeserializeCPU(SerializedDataCPU);
-			SerializedDataCPU.clear();
+			Deserialize(SerializedData);
+			SerializedData.clear();
 		}
 
 		std::chrono::system_clock::time_point Frame_StartTime = std::chrono::system_clock::now();
@@ -307,7 +307,7 @@ bool FThread::ThreadRequest_StopCondition(std::shared_ptr<FDevice> Device)
 	bool bInstrCycleDone = CPU->IsInstrCycleDone();
 	if (bInstrCycleDone)
 	{
-		SerializeCPU(SerializedDataCPU);
+		Serialize(SerializedData);
 		bInstrCycleDone = CPU->Flush();
 	}
 	return bInstrCycleDone;
@@ -531,28 +531,21 @@ void FThread::LoadRawData(EName::Type DeviceID, std::filesystem::path FilePath)
 		});
 }
 
-void FThread::SerializeCPU(std::string& Output)
+void FThread::Serialize(std::string& Output)
 {
-	ICPU_Z80* ICPU = GetDevice<ICPU_Z80>();
-	if (ICPU == nullptr)
-	{
-		LOG_ERROR("[{}]\t failed to find device.", (__FUNCTION__));
-		return;
-	}
 	std::ostringstream os(std::ios::binary);
-	ICPU->Serialize(os);
+	for (std::shared_ptr<FDevice>& Device : Devices)
+	{
+		if (Device) Device->Serialize(os);
+	}
 	Output = os.str();
 }
 
-void FThread::DeserializeCPU(const std::string& Input)
+void FThread::Deserialize(const std::string& Input)
 {
-	ICPU_Z80* ICPU = GetDevice<ICPU_Z80>();
-	if (ICPU == nullptr)
+	std::istringstream is(SerializedData);
+	for (std::shared_ptr<FDevice>& Device : Devices)
 	{
-		LOG_ERROR("[{}]\t failed to find device.", (__FUNCTION__));
-		return;
+		if (Device) Device->Deserialize(is);
 	}
-
-	std::istringstream is(SerializedDataCPU);
-	ICPU->Deserialize(is);
 }

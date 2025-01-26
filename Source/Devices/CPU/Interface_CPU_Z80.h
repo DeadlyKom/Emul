@@ -39,6 +39,4 @@ public:
 	virtual FRegisters GetRegisters() const = 0;
 	virtual bool IsInstrCycleDone() const = 0;
 	virtual bool IsInstrExecuteDone() const = 0;
-	virtual std::ostream& Serialize(std::ostream& os) const = 0;
-	virtual std::istream& Deserialize(std::istream& is) = 0;
 };

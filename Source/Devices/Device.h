@@ -37,6 +37,8 @@ public:
 	virtual bool TickStopCondition(std::function<bool(std::shared_ptr<FDevice>)>&& Condition);
 	virtual void Reset() {};
 	virtual void CalculateFrequency(double MainFrequency, uint32_t Sampling) {};
+	virtual std::ostream& Serialize(std::ostream& os) const { return os; }
+	virtual std::istream& Deserialize(std::istream& is) { return is; }
 
 protected:
 	virtual void Register() {}

@@ -8,6 +8,7 @@ enum class EEventNotificationType
 {
 	Input_Step,
 	Input_Debugger,
+	ForceUpdateStates,
 };
 
 class IWindowEventNotification
@@ -18,4 +19,5 @@ public:
 
 	virtual void OnInputStep(FCPU_StepType Type) {};
 	virtual void OnInputDebugger(bool bDebuggerState) {};
+	virtual void OnForceUpdateStates(bool bDebuggerState) {};
 };
