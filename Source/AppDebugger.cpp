@@ -97,12 +97,12 @@ void FAppDebugger::Initialize()
 		}, 7.0_MHz);
 
 		// load ROM
-		//std::filesystem::path FIlePath = "D:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";// std::filesystem::current_path();
+		//std::filesystem::path FIlePath = "C:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";// std::filesystem::current_path();
 		//Motherboard->LoadRawData(NAME_MainBoard, NAME_EPROM, FIlePath);
 
-		std::filesystem::path FIlePath = "D:\\Work\\[Sprite]\\Sprites\\Raven my.scr";
-		//std::filesystem::path FIlePath = "D:\\Work\\[Sprite]\\Sprites\\Menu\\Change Mission\\interact - 7.scr";
-		//std::filesystem::path FIlePath = "D:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";
+		std::filesystem::path FIlePath = "C:\\Work\\[Sprite]\\Sprites\\Raven my.scr";
+		//std::filesystem::path FIlePath = "C:\\Work\\[Sprite]\\Sprites\\Menu\\Change Mission\\interact - 7.scr";
+		//std::filesystem::path FIlePath = "C:\\Work\\Learning\\Emulator\\Rom\\pentagon.rom";
 		Motherboard->LoadRawData(NAME_MainBoard, NAME_DRAM, FIlePath);
 
 		Motherboard->Reset();

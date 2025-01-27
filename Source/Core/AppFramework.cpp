@@ -460,7 +460,8 @@ bool FAppFramework::InitField()
 {
 	IniFilePath = std::format(TEXT("{}/{}"), Path::Config, Path::IniFilename);
 
-	if (!std::filesystem::exists(Path::Log))
+	std::error_code ec;
+	if (!std::filesystem::exists(Path::Log, ec))
 	{
 		if (!std::filesystem::create_directories(Path::Log))
 		{
@@ -468,7 +469,7 @@ bool FAppFramework::InitField()
 		}
 	}
 
-	if (!std::filesystem::exists(Path::Config))
+	if (!std::filesystem::exists(Path::Config, ec))
 	{
 		if (!std::filesystem::create_directories(Path::Config))
 		{
@@ -476,7 +477,7 @@ bool FAppFramework::InitField()
 		}
 	}
 
-	if (!std::filesystem::exists(IniFilePath.c_str()))
+	if (!std::filesystem::exists(IniFilePath.c_str(), ec))
 	{
 		SaveDefaultImGuiIni();
 	}

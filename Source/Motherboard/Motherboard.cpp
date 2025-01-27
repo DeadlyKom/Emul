@@ -68,6 +68,13 @@ void FMotherboard::Input_Step(FCPU_StepType Type)
 
 void FMotherboard::LoadRawData(EName::Type BoardID, EName::Type DeviceID, std::filesystem::path FilePath)
 {
+	std::error_code ec;
+	if (!std::filesystem::exists(FilePath, ec))
+	{
+		LOG("LoadRawData: File does not exist: {}", FilePath.string().c_str());
+		return;
+	}
+
 	for (auto& [Name, Board] : Boards)
 	{
 		if (Board->UniqueBoardID != BoardID)
