@@ -120,11 +120,11 @@ struct FInternalRegisters : public FRegisters
 	EPrefix Prefix;
 	ERegMap::Type Map;
 
-	DecoderStep::Type DSCP;		// the currently active decoder step for command pipeline
-	DecoderStep::Type DSTP;		// the currently active decoder step for tick pipeline
+	DecoderStep::Type DSCP;			// the currently active decoder step for command pipeline
+	DecoderStep::Type DSTP;			// the currently active decoder step for tick pipeline
 
-	FPipeline CP;				// command pipeline
-	FPipeline TP;				// tick pipeline
+	FPipeline CP;					// command pipeline
+	FPipeline TP;					// tick pipeline
 
 	friend std::ostream& operator<<(std::ostream& os, const FInternalRegisters& Registers)
 	{

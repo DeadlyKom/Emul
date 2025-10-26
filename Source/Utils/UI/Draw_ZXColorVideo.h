@@ -1,0 +1,168 @@
+#pragma once
+
+#include <CoreMinimal.h>
+#include <Core/Image.h>
+
+namespace UI
+{
+	#define ATTRIBUTE_GRID          1 << 0
+	#define GRID					1 << 1
+	#define PIXEL_GRID              1 << 2
+	#define BEAM_ENABLE				1 << 3
+	#define ALPHA_CHECKERBOARD_GRID 1 << 4
+	#define FORCE_NEAREST_SAMPLING  1 << 31
+
+	namespace ZXSpectrumColor
+	{
+		enum Type
+		{
+			Black = 0,
+			Blue,
+			Red,
+			Magenta,
+			Green,
+			Cyan,
+			Yellow,
+			White,
+
+			Black_,
+			Blue_,
+			Red_,
+			Magenta_,
+			Green_,
+			Cyan_,
+			Yellow_,
+			White_,
+
+			MAX,
+
+			Transparent = Black,
+		};
+	}
+
+	// 0xABGR
+	static constexpr uint32_t ZXSpectrumColorRGBA[ZXSpectrumColor::MAX] =
+	{
+		(0x00000000),	// Black
+		(0x00007FFF),	// Blue
+		(0x7F0000FF),	// Red
+		(0x7F007FFF),	// Magenta
+		(0x007F00FF),	// Green
+		(0x007F7FFF),	// Cyan
+		(0x7F7F00FF),	// Yellow
+		(0x7F7F7FFF),	// White
+
+		(0x000000FF),	// Black
+		(0x0000FFFF),	// Blue
+		(0xFF0000FF),	// Red
+		(0xFF00FFFF),	// Magenta
+		(0x00FF00FF),	// Green
+		(0x00FFFFFF),	// Cyan
+		(0xFFFF00FF),	// Yellow
+		(0xFFFFFFFF),	// White
+	};
+
+	namespace ERenderType
+	{
+		enum Type
+		{
+			Unknown,
+			Screen,
+			Canvas,
+		};
+	}
+
+	struct FZXViewOptions
+	{
+		bool bAttributeGrid = false;
+		bool bGrid = false;
+		bool bPixelGrid = true;
+		bool bAlphaCheckerboardGrid = true;
+		
+		ImVec2 GridSettingSize = ImVec2(8.0f, 8.0f);				// width in UV coords of grid line
+		ImVec2 GridSettingOffset = ImVec2(0.0f, 0.0f);
+	};
+
+	struct FZXColorView
+	{
+		// scale
+		float ZoomRate = 1.25f;										// how fast mouse wheel affects zoom
+		float PixelAspectRatio = 1.0f;								// values other than 1 not supported yet
+		float MinimumGridSize = 4.0f;								// don't draw the grid if lines would be closer than MinimumGridSize pixels
+		ImVec2 Scale = ImVec2(2.0f, 2.0f);							// 1 pixel is 1 texel
+		ImVec2 ScaleMin = ImVec2(1.0f, 1.0f);
+		ImVec2 ScaleMax = ImVec2(32.0f, 32.0f);
+
+		// view state
+		ImVec2 ImagePosition = ImVec2(0.5f, 0.48f);					// the UV value at the center of the current view
+		ImVec2 PanelTopLeftPixel = ImVec2(0.0f, 0.0);				// top left of view in ImGui pixel coordinates
+		ImVec2 ViewTopLeftPixel = ImVec2(0.0f, 0.0f);				// position in ImGui pixel coordinates
+		ImVec2 ViewSize = ImVec2(0.0f, 0.0f);						// rendered size of current image. this could be smaller than panel size if user has zoomed out.
+		ImVec2 ViewSizeUV = ImVec2(0.0f, 0.0f);						// visible region of the texture in UV coordinates
+		Transform2D TexelsToPixels;
+		Transform2D PixelsToTexels;
+
+		// texture
+		ImRect UV = ImRect(0.0f, 0.0f, 0.0f, 0.0f);
+		ImVec2 TextureSizePixels = ImVec2(0.0f, 0.0f);
+
+		// device
+		ID3D11Device* Device = nullptr;
+		ID3D11DeviceContext* DeviceContext = nullptr;
+
+		// shader
+		ID3D11Buffer* PSCB_Grid = nullptr;
+		ID3D11PixelShader* PS_Grid = nullptr;
+
+		// shader variable
+		bool bBeamEnable = false;
+		bool bForceNearestSampling = true;								// if true fragment shader will always sample from texel centers
+		ImVec2 GridWidth = ImVec2(0.0f, 0.0f);							// width in UV coords of grid line
+		float TimeCounter = 0.0f;
+		ImVec4 GridColor = ImVec4(0.025f, 0.025f, 0.15f, 0.0f);
+		ImVec4 BackgroundColor = ImVec4(0.0f, 1.0f, 0.0f, 0.0f);		// color used for alpha blending
+		ImVec4 TransparentColor = ImVec4(0.169f, 0.396f, 0.925f, 0.0f);	// the color used to display transparency
+		FZXViewOptions Options;
+
+		// render data
+		FImage Image;						// final display result
+
+		// ZX Spectrum viewing data
+		std::vector<uint8_t> IndexedData;	// indexed image data after QuantizeToZX
+		std::vector<uint8_t> InkData;		// pixels
+		std::vector<uint8_t> AttributeData;	// color ink and color paper (fbpppiii)
+											// f - flag, flash (swap color inc and paper)
+											// b - flag, bright colors
+											// p - 3-bit color paper
+											// i - 3-bit color pixel
+		std::vector<uint8_t> MaskData;		// auto mask from alpha channel
+
+		// user data
+		std::shared_ptr<void> UserData;
+
+		ERenderType::Type RenderType = ERenderType::Unknown;
+	};
+
+	void Draw_ZXColorView_Initialize(std::shared_ptr<UI::FZXColorView>, ERenderType::Type RenderType);
+	void Draw_ZXColorView_Shutdown(std::shared_ptr<UI::FZXColorView> ZXColorView);
+	void Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView);
+
+	void Set_ZXViewPosition(std::shared_ptr<UI::FZXColorView> ZXColorView, ImVec2 NewPosition);
+	void Add_ZXViewDeltaPosition(std::shared_ptr<UI::FZXColorView> ZXColorView, ImVec2 DeltaPosition);
+	void Set_ZXViewScale(std::shared_ptr<UI::FZXColorView> ZXColorView, float MouseWheel);
+	ImVec2 ConverZXViewPositionToPixel(UI::FZXColorView& ZXColorView, const ImVec2& Position);
+	void ConvertZXIndexColorToDisplayRGB(FImage& InOutputImage, const std::vector<uint8_t> Data);
+
+
+	void GetInkPaper(const std::vector<uint8_t>& IndicesBoundary, uint8_t& OutputPaperColor, uint8_t& OutputInkColor,
+		int32_t TransparentIndex = UI::ZXSpectrumColor::Transparent, int32_t ReplaceTransparent = UI::ZXSpectrumColor::White);
+	int32_t FindClosestColor(ImU32 Color);
+	void QuantizeToZX(uint8_t* RawImage, int32_t Width, int32_t Height, int32_t Channels, std::vector<uint8_t>& OutputIndexedData);
+	void ZXIndexColorToRGBA(FImage& InOutputImage, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height, bool bCreate = false);
+	void ZXIndexColorToAttributeRGBA(
+		const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height,
+		std::vector<uint8_t>& OutputInkData,
+		std::vector<uint8_t>& OutputAttributeData,
+		int32_t TransparentIndex = UI::ZXSpectrumColor::Transparent, int32_t ReplaceTransparent = UI::ZXSpectrumColor::White);
+	void ZXDataToToRGBA(FImage& InOutputImage, uint8_t* InkData, uint8_t* AttributeData, int32_t Width, int32_t Height, bool bCreate = false);
+}

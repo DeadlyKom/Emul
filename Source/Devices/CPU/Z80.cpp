@@ -1,9 +1,9 @@
 #include "Z80.h"
-#include "Utils/SignalsBus.h"
+#include "Utils/Signal/Bus.h"
 #include "Motherboard/Motherboard_ClockGenerator.h"
 
 #define DEVICE_NAME() FName(std::format("{}", ThisDeviceName))
-#define ADD_STEP(a,b)		(static_cast<DecoderStep::Type>(static_cast<int32_t>(a) + static_cast<int32_t>(b)))
+#define ADD_STEP(a,b) (static_cast<DecoderStep::Type>(static_cast<int32_t>(a) + static_cast<int32_t>(b)))
 
 namespace
 {

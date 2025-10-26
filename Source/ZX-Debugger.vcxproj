@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -29,26 +29,26 @@
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>false</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'" Label="Configuration">
     <ConfigurationType>Application</ConfigurationType>
     <UseDebugLibraries>true</UseDebugLibraries>
-    <PlatformToolset>v142</PlatformToolset>
+    <PlatformToolset>v143</PlatformToolset>
     <WholeProgramOptimization>false</WholeProgramOptimization>
     <CharacterSet>Unicode</CharacterSet>
   </PropertyGroup>
@@ -207,12 +207,15 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AppMain.cpp" />
+    <ClCompile Include="AppSprite.cpp" />
     <ClCompile Include="Core\AppFramework.cpp" />
     <ClCompile Include="AppDebugger.cpp" />
     <ClCompile Include="Core\Fonts.cpp" />
     <ClCompile Include="Core\Image.cpp" />
     <ClCompile Include="Core\SystemTime.cpp" />
     <ClCompile Include="Core\TimerManager.cpp" />
+    <ClCompile Include="Core\ViewerBase.cpp" />
     <ClCompile Include="Devices\ControlUnit\AccessToROM.cpp" />
     <ClCompile Include="Devices\ControlUnit\ULA.cpp" />
     <ClCompile Include="Devices\CPU\Z80.cpp" />
@@ -229,26 +232,39 @@
     <ClCompile Include="Motherboard\Motherboard_Board.cpp" />
     <ClCompile Include="Motherboard\Motherboard_ClockGenerator.cpp" />
     <ClCompile Include="Motherboard\Motherboard_Thread.cpp" />
-    <ClCompile Include="UI\CallStack.cpp" />
-    <ClCompile Include="UI\Disassembler.cpp" />
-    <ClCompile Include="UI\CPU_State.cpp" />
-    <ClCompile Include="UI\MemoryDump.cpp" />
-    <ClCompile Include="UI\Screen.cpp" />
-    <ClCompile Include="UI\Viewer.cpp" />
     <ClCompile Include="Utils\Delegate.cpp" />
     <ClCompile Include="Utils\Name.cpp" />
-    <ClCompile Include="Utils\SignalsBus.cpp" />
-    <ClCompile Include="Utils\UI.cpp" />
+    <ClCompile Include="Utils\Signal\Bus.cpp" />
+    <ClCompile Include="Utils\Signal\OscillogramManager.cpp" />
+    <ClCompile Include="Utils\UI\Draw_Oscillogram.cpp" />
+    <ClCompile Include="Utils\UI\Draw.cpp" />
+    <ClCompile Include="Utils\UI\Draw_ZXColorVideo.cpp" />
+    <ClCompile Include="Window\Debugger\CallStack.cpp" />
+    <ClCompile Include="Window\Debugger\CPU_State.cpp" />
+    <ClCompile Include="Window\Debugger\Disassembler.cpp" />
+    <ClCompile Include="Window\Debugger\MemoryDump.cpp" />
+    <ClCompile Include="Window\Debugger\Oscillograph.cpp" />
+    <ClCompile Include="Window\Debugger\Screen.cpp" />
+    <ClCompile Include="Window\Debugger\Viewer.cpp" />
+    <ClCompile Include="Window\Sprite\Canvas.cpp" />
+    <ClCompile Include="Window\Sprite\Palette.cpp" />
+    <ClCompile Include="Window\Sprite\SpriteList.cpp" />
+    <ClCompile Include="Window\Sprite\StatusBar.cpp" />
+    <ClCompile Include="Window\Sprite\ToolBar.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="AppMain.h" />
+    <ClInclude Include="AppSprite.h" />
     <ClInclude Include="Core\AppFramework.h" />
     <ClInclude Include="Core\CoreMinimal.h" />
     <ClInclude Include="AppDebugger.h" />
+    <ClInclude Include="Core\Event.h" />
     <ClInclude Include="Core\Fonts.h" />
     <ClInclude Include="Core\Image.h" />
     <ClInclude Include="Core\SystemTime.h" />
     <ClInclude Include="Core\TimerManager.h" />
     <ClInclude Include="Core\Transform.h" />
+    <ClInclude Include="Core\ViewerBase.h" />
     <ClInclude Include="Core\Window.h" />
     <ClInclude Include="Devices\ControlUnit\AccessToROM.h" />
     <ClInclude Include="Devices\ControlUnit\Interface_Display.h" />
@@ -266,20 +282,12 @@
     <ClInclude Include="Motherboard\Motherboard_ClockGenerator.h" />
     <ClInclude Include="Motherboard\Motherboard_Thread.h" />
     <ClInclude Include="resource.h" />
-    <ClInclude Include="UI\CallStack.h" />
-    <ClInclude Include="UI\Disassembler.h" />
-    <ClInclude Include="UI\CPU_State.h" />
-    <ClInclude Include="UI\Interface_WindowEventNotification.h" />
-    <ClInclude Include="UI\MemoryDump.h" />
-    <ClInclude Include="UI\Screen.h" />
-    <ClInclude Include="UI\Viewer.h" />
     <ClInclude Include="Utils\Pipeline.h" />
     <ClInclude Include="Utils\Memory.h" />
     <ClInclude Include="Utils\ProfilerScope.h" />
     <ClInclude Include="Utils\Resource.h" />
     <ClInclude Include="Utils\ScopeExit.h" />
     <ClInclude Include="Utils\Shader.h" />
-    <ClInclude Include="Utils\SignalsBus.h" />
     <ClInclude Include="Utils\Char.h" />
     <ClInclude Include="Utils\Delegates.h" />
     <ClInclude Include="Utils\Hotkey.h" />
@@ -288,7 +296,26 @@
     <ClInclude Include="Utils\Name.h" />
     <ClInclude Include="Utils\Queue.h" />
     <ClInclude Include="Utils\Register.h" />
-    <ClInclude Include="Utils\UI.h" />
+    <ClInclude Include="Utils\Signal\Bus.h" />
+    <ClInclude Include="Utils\Signal\OscillogramManager.h" />
+    <ClInclude Include="Utils\UI\Draw_Oscillogram.h" />
+    <ClInclude Include="Utils\UI\Draw.h" />
+    <ClInclude Include="Utils\UI\Draw_ZXColorVideo.h" />
+    <ClInclude Include="Window\Debugger\CallStack.h" />
+    <ClInclude Include="Window\Debugger\CPU_State.h" />
+    <ClInclude Include="Window\Debugger\Definition.h" />
+    <ClInclude Include="Window\Debugger\Disassembler.h" />
+    <ClInclude Include="Window\Debugger\Interface_WindowEventNotification.h" />
+    <ClInclude Include="Window\Debugger\MemoryDump.h" />
+    <ClInclude Include="Window\Debugger\Oscillograph.h" />
+    <ClInclude Include="Window\Debugger\Screen.h" />
+    <ClInclude Include="Window\Debugger\Viewer.h" />
+    <ClInclude Include="Window\Sprite\Canvas.h" />
+    <ClInclude Include="Window\Sprite\Definition.h" />
+    <ClInclude Include="Window\Sprite\Palette.h" />
+    <ClInclude Include="Window\Sprite\SpriteList.h" />
+    <ClInclude Include="Window\Sprite\StatusBar.h" />
+    <ClInclude Include="Window\Sprite\ToolBar.h" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ZX-Debugger.rc" />
@@ -300,8 +327,8 @@
   <ItemGroup>
     <None Include="Core\Font_DefaultNames.inl" />
     <None Include="Utils\Name_DefaultNames.inl" />
-    <None Include="Utils\SignalsBusNames.inl" />
-    <None Include="Utils\UI_DefaultColor.inl" />
+    <None Include="Utils\Signal\BusNames.inl" />
+    <None Include="Utils\UI\DefaultColor.inl" />
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\test.natvis" />

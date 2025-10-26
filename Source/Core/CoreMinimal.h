@@ -1,7 +1,5 @@
 #pragma once
 
-#define BUILD_MAJOR 0
-#define BUILD_MINOR 1
 #define INDEX_NONE (-1)
 
 #define WIN32_LEAN_AND_MEAN
@@ -39,10 +37,6 @@
 #include "Utils/Delegates.h"
 #include "Utils/ScopeExit.h"
 
-namespace Debugger
-{
-	static const std::string Name = std::format(TEXT("ZX-Debugger ver. {}.{}"), BUILD_MAJOR, BUILD_MINOR);
-}
 
 constexpr double operator""_MHz(long double Frequency)
 {
@@ -54,4 +48,21 @@ extern struct FFrameworkFlags
 	bool bLog = false;
 	bool bVsync = false;
 	bool bFullscreen = false;
+
+	int32_t SampleRateCapacity = 512;	// Oscillogram Manager
 } FrameworkFlags;
+
+namespace EApplication
+{
+	enum Type : int32_t
+	{
+		None = -1,
+		Debugger = 0,
+		Sprite,
+	};
+}
+
+extern struct FFrameworkCallback
+{
+	int32_t Secection = EApplication::None;
+} FrameworkCallback;

@@ -1,0 +1,4 @@
+#pragma once
+
+#define DEBUGGER_BUILD_MAJOR 0
+#define DEBUGGER_BUILD_MINOR 1

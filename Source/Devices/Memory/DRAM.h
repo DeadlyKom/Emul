@@ -3,7 +3,7 @@
 #include <CoreMinimal.h>
 #include "Interface_Memory.h"
 #include "Devices/Device.h"
-#include "Utils/SignalsBus.h"
+#include "Utils/Signal/Bus.h"
 
 enum class EDRAM_Type
 {

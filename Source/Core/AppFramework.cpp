@@ -14,6 +14,7 @@ namespace Path
 }
 
 FFrameworkFlags FrameworkFlags;
+FFrameworkCallback FrameworkCallback;
 
 // Forward declare message handler from imgui_impl_win32.cpp
 extern IMGUI_IMPL_API LRESULT ImGui_ImplWin32_WndProcHandler(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
@@ -56,8 +57,11 @@ static LONG_PTR CALLBACK AppFrameworkProc(HWND hWnd, UINT msg, WPARAM wParam, LP
 		break;
 
 	case WM_DESTROY:
-		PostQuitMessage(0);
-		return 0;
+		if (AppFramework != nullptr && !AppFramework->IsOver())
+		{
+			PostQuitMessage(0);
+			return 0;
+		}
 	}
 
 	return DefWindowProc(hWnd, msg, wParam, lParam);;
@@ -73,7 +77,8 @@ FAppFramework::FAppFramework()
 	, RenderTargetView(nullptr)
 	, BackgroundColor(ImVec4(0.0f, 0.0f, 0.0f, 1.0f))
 	, ClassName(TEXT("DefaultClassName"))
-	, WindowName(Debugger::Name.c_str())
+	, WindowName(TEXT("DefaultWindowName"))
+	, bEnabledResize(true)
 {
 	ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
 	ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
@@ -284,10 +289,11 @@ bool FAppFramework::Create(int32_t Width, int32_t Height)
 	const uint32_t WindowPositionX = (ScreenWidth - WindowWidth) >> 1;
 	const uint32_t WindowPositionY = (ScreenHeight - WindowHeight) >> 1;
 
+	const DWORD dwStyle = bEnabledResize ? WS_OVERLAPPEDWINDOW | WS_VISIBLE : WS_OVERLAPPED | WS_CAPTION | WS_SYSMENU | WS_VISIBLE;
 	hwndAppFramework = CreateWindowEx(NULL,
 		(LPCSTR)AtomClass,
 		WindowName.c_str(),
-		WS_OVERLAPPEDWINDOW | WS_VISIBLE,
+		dwStyle,
 		WindowPositionX, WindowPositionY,
 		WindowWidth, WindowHeight,
 		nullptr,
@@ -327,19 +333,18 @@ int32_t FAppFramework::Run()
 			else
 			{
 				bRun = false;
-				return (int32_t)msg.wParam;;
+				return (int32_t)FrameworkCallback.Secection;
 			}
 		}
 
+		bRun = !IsOver();
 		if (bRun)
 		{
 			Idle();
 		}
-
-		bRun = !IsOver();
 	}
 
-	return (int32_t)msg.wParam;
+	return (int32_t)FrameworkCallback.Secection;
 }
 
 void FAppFramework::Idle()

@@ -1,10 +1,12 @@
-#include "SignalsBus.h"
+#include "Bus.h"
 
 FSignalsBus::FSignalsBus()
+	: bOscillogramEnabled(true)
 {
 	memset(&Signals, ESignalState::HiZ, ESignalBus::MaxHardcodedIndex * sizeof(ESignalState::Type) * 2);
-}
 
+	OscillogramManager.Initialize(ESignalBus::MaxHardcodedIndex, FrameworkFlags.SampleRateCapacity);
+}
 
 uint16_t FSignalsBus::GetDataOnAddressBus() const
 {
@@ -89,6 +91,11 @@ void FSignalsBus::SetDataOnAddressBus(uint16_t Address)
 	Signals[0][BUS_A13] = !!(Address & (1 << SIGNAL_A13)) ? ESignalState::High : ESignalState::Low;
 	Signals[0][BUS_A14] = !!(Address & (1 << SIGNAL_A14)) ? ESignalState::High : ESignalState::Low;
 	Signals[0][BUS_A15] = !!(Address & (1 << SIGNAL_A15)) ? ESignalState::High : ESignalState::Low;
+
+	if (bOscillogramEnabled)
+	{
+		OscillogramManager.SetSignal(BUS_ADDRESS, (ESignalState::Type)Address);
+	}
 }
 
 void FSignalsBus::SetDataOnDataBus(uint8_t Data)
@@ -103,6 +110,11 @@ void FSignalsBus::SetDataOnDataBus(uint8_t Data)
 	Signals[0][BUS_D5] = !!(Data & (1 << (SIGNAL_D5 - SIGNAL_D0))) ? ESignalState::High : ESignalState::Low;
 	Signals[0][BUS_D6] = !!(Data & (1 << (SIGNAL_D6 - SIGNAL_D0))) ? ESignalState::High : ESignalState::Low;
 	Signals[0][BUS_D7] = !!(Data & (1 << (SIGNAL_D7 - SIGNAL_D0))) ? ESignalState::High : ESignalState::Low;
+
+	if (bOscillogramEnabled)
+	{
+		OscillogramManager.SetSignal(BUS_DATA, (ESignalState::Type)Data);
+	}
 }
 
 void FSignalsBus::SetDataOnMemAddressBus(uint8_t Address)

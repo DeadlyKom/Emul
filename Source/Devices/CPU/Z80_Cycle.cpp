@@ -1,5 +1,5 @@
 #include "Z80.h"
-#include "Utils/SignalsBus.h"
+#include "Utils/Signal/Bus.h"
 #include "Motherboard/Motherboard_ClockGenerator.h"
 
 #define INCREMENT_CP_HALF()	{ ++(reinterpret_cast<uint32_t&>(Registers.DSCP)); }

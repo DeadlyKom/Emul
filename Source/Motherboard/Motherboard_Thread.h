@@ -2,7 +2,7 @@
 
 #include <CoreMinimal.h>
 #include "Utils/Queue.h"
-#include "Utils/SignalsBus.h"
+#include "Utils/Signal/Bus.h"
 #include "Core/TimerManager.h"
 #include "Motherboard_ClockGenerator.h"
 

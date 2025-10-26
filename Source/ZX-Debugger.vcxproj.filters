@@ -11,15 +11,6 @@
     <ClCompile Include="AppDebugger.cpp">
       <Filter>Source</Filter>
     </ClCompile>
-    <ClCompile Include="UI\Viewer.cpp">
-      <Filter>Source\UI</Filter>
-    </ClCompile>
-    <ClCompile Include="UI\Disassembler.cpp">
-      <Filter>Source\UI</Filter>
-    </ClCompile>
-    <ClCompile Include="UI\CPU_State.cpp">
-      <Filter>Source\UI</Filter>
-    </ClCompile>
     <ClCompile Include="Fonts\Dos2000_ru_en.cpp">
       <Filter>Source\Fonts</Filter>
     </ClCompile>
@@ -68,9 +59,6 @@
     <ClCompile Include="Devices\ControlUnit\ULA.cpp">
       <Filter>Source\Devices\ControlUnit</Filter>
     </ClCompile>
-    <ClCompile Include="Utils\SignalsBus.cpp">
-      <Filter>Source\Utils</Filter>
-    </ClCompile>
     <ClCompile Include="Devices\ControlUnit\AccessToROM.cpp">
       <Filter>Source\Devices\ControlUnit</Filter>
     </ClCompile>
@@ -80,20 +68,68 @@
     <ClCompile Include="Devices\CPU\Z80_Cycle.cpp">
       <Filter>Source\Devices\CPU</Filter>
     </ClCompile>
-    <ClCompile Include="Utils\UI.cpp">
-      <Filter>Source\Utils</Filter>
-    </ClCompile>
-    <ClCompile Include="UI\CallStack.cpp">
-      <Filter>Source\UI</Filter>
-    </ClCompile>
-    <ClCompile Include="UI\MemoryDump.cpp">
-      <Filter>Source\UI</Filter>
-    </ClCompile>
     <ClCompile Include="Core\Image.cpp">
       <Filter>Source\Core</Filter>
     </ClCompile>
-    <ClCompile Include="UI\Screen.cpp">
-      <Filter>Source\UI</Filter>
+    <ClCompile Include="Utils\UI\Draw_Oscillogram.cpp">
+      <Filter>Source\Utils\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\UI\Draw.cpp">
+      <Filter>Source\Utils\UI</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\Signal\Bus.cpp">
+      <Filter>Source\Utils\Signal</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\Signal\OscillogramManager.cpp">
+      <Filter>Source\Utils\Signal</Filter>
+    </ClCompile>
+    <ClCompile Include="AppSprite.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Window\Debugger\CallStack.cpp">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="Window\Debugger\CPU_State.cpp">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="Window\Debugger\Disassembler.cpp">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="Window\Debugger\MemoryDump.cpp">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="Window\Debugger\Oscillograph.cpp">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="Window\Debugger\Screen.cpp">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="Window\Debugger\Viewer.cpp">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClCompile>
+    <ClCompile Include="AppMain.cpp">
+      <Filter>Source</Filter>
+    </ClCompile>
+    <ClCompile Include="Window\Sprite\Palette.cpp">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClCompile>
+    <ClCompile Include="Core\ViewerBase.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Window\Sprite\Canvas.cpp">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClCompile>
+    <ClCompile Include="Window\Sprite\ToolBar.cpp">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClCompile>
+    <ClCompile Include="Window\Sprite\StatusBar.cpp">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClCompile>
+    <ClCompile Include="Window\Sprite\SpriteList.cpp">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\UI\Draw_ZXColorVideo.cpp">
+      <Filter>Source\Utils\UI</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
@@ -102,9 +138,6 @@
     </Filter>
     <Filter Include="Source\Core">
       <UniqueIdentifier>{aa47d757-f422-4131-bc3d-8866c7515b5e}</UniqueIdentifier>
-    </Filter>
-    <Filter Include="Source\UI">
-      <UniqueIdentifier>{905d5010-68d0-4f39-af23-abad60e5540c}</UniqueIdentifier>
     </Filter>
     <Filter Include="Source\Utils">
       <UniqueIdentifier>{afbd7a7c-8911-4d26-9110-7a1d19bd6874}</UniqueIdentifier>
@@ -139,6 +172,21 @@
     <Filter Include="Resource\Shader">
       <UniqueIdentifier>{f7dfec79-173a-4415-89e7-381d1e7fd4e3}</UniqueIdentifier>
     </Filter>
+    <Filter Include="Source\Window">
+      <UniqueIdentifier>{905d5010-68d0-4f39-af23-abad60e5540c}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Utils\UI">
+      <UniqueIdentifier>{e5330dda-8828-48b9-a899-e21ccc642fa3}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Utils\Signal">
+      <UniqueIdentifier>{e3a06c7b-62e2-4856-88dc-d0be94c4225d}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Window\Debugger">
+      <UniqueIdentifier>{7cc508f7-9729-48ce-b25b-37aa47c52f04}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Window\Sprite">
+      <UniqueIdentifier>{3bde3ced-6491-4c62-85e0-ef2bbb199dbc}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="Core\AppFramework.h">
@@ -167,15 +215,6 @@
     </ClInclude>
     <ClInclude Include="Core\Window.h">
       <Filter>Source\Core</Filter>
-    </ClInclude>
-    <ClInclude Include="UI\Viewer.h">
-      <Filter>Source\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="UI\Disassembler.h">
-      <Filter>Source\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="UI\CPU_State.h">
-      <Filter>Source\UI</Filter>
     </ClInclude>
     <ClInclude Include="Core\Fonts.h">
       <Filter>Source\Core</Filter>
@@ -231,23 +270,11 @@
     <ClInclude Include="Devices\ControlUnit\ULA.h">
       <Filter>Source\Devices\ControlUnit</Filter>
     </ClInclude>
-    <ClInclude Include="Utils\SignalsBus.h">
-      <Filter>Source\Utils</Filter>
-    </ClInclude>
     <ClInclude Include="Devices\ControlUnit\AccessToROM.h">
       <Filter>Source\Devices\ControlUnit</Filter>
     </ClInclude>
     <ClInclude Include="Utils\Pipeline.h">
       <Filter>Source\Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="Utils\UI.h">
-      <Filter>Source\Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="UI\CallStack.h">
-      <Filter>Source\UI</Filter>
-    </ClInclude>
-    <ClInclude Include="UI\MemoryDump.h">
-      <Filter>Source\UI</Filter>
     </ClInclude>
     <ClInclude Include="Devices\Memory\Interface_Memory.h">
       <Filter>Source\Devices\Memory</Filter>
@@ -258,9 +285,6 @@
     <ClInclude Include="Utils\ScopeExit.h">
       <Filter>Source\Utils</Filter>
     </ClInclude>
-    <ClInclude Include="UI\Interface_WindowEventNotification.h">
-      <Filter>Source\UI</Filter>
-    </ClInclude>
     <ClInclude Include="Core\Image.h">
       <Filter>Source\Core</Filter>
     </ClInclude>
@@ -269,9 +293,6 @@
     </ClInclude>
     <ClInclude Include="Utils\ProfilerScope.h">
       <Filter>Source\Utils</Filter>
-    </ClInclude>
-    <ClInclude Include="UI\Screen.h">
-      <Filter>Source\UI</Filter>
     </ClInclude>
     <ClInclude Include="Utils\Shader.h">
       <Filter>Source\Utils</Filter>
@@ -284,6 +305,78 @@
     </ClInclude>
     <ClInclude Include="Devices\ControlUnit\Interface_Display.h">
       <Filter>Source\Devices\ControlUnit</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\UI\Draw_Oscillogram.h">
+      <Filter>Source\Utils\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\UI\Draw.h">
+      <Filter>Source\Utils\UI</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Signal\Bus.h">
+      <Filter>Source\Utils\Signal</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Signal\OscillogramManager.h">
+      <Filter>Source\Utils\Signal</Filter>
+    </ClInclude>
+    <ClInclude Include="AppSprite.h">
+      <Filter>Source</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Debugger\CallStack.h">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Debugger\CPU_State.h">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Debugger\Disassembler.h">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Debugger\MemoryDump.h">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Debugger\Oscillograph.h">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Debugger\Screen.h">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Debugger\Viewer.h">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="AppMain.h">
+      <Filter>Source</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Debugger\Definition.h">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Sprite\Definition.h">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Debugger\Interface_WindowEventNotification.h">
+      <Filter>Source\Window\Debugger</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Event.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\ViewerBase.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Sprite\Palette.h">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Sprite\Canvas.h">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Sprite\ToolBar.h">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Sprite\StatusBar.h">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Sprite\SpriteList.h">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\UI\Draw_ZXColorVideo.h">
+      <Filter>Source\Utils\UI</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>
@@ -300,13 +393,7 @@
     </ResourceCompile>
   </ItemGroup>
   <ItemGroup>
-    <None Include="Utils\SignalsBusNames.inl">
-      <Filter>Source\Utils</Filter>
-    </None>
     <None Include="Utils\Name_DefaultNames.inl">
-      <Filter>Source\Utils</Filter>
-    </None>
-    <None Include="Utils\UI_DefaultColor.inl">
       <Filter>Source\Utils</Filter>
     </None>
     <None Include="Core\Font_DefaultNames.inl">
@@ -314,6 +401,12 @@
     </None>
     <None Include="..\Resource\Shader\Grid.hlsl">
       <Filter>Resource\Shader</Filter>
+    </None>
+    <None Include="Utils\UI\DefaultColor.inl">
+      <Filter>Source\Utils\UI</Filter>
+    </None>
+    <None Include="Utils\Signal\BusNames.inl">
+      <Filter>Source\Utils\Signal</Filter>
     </None>
   </ItemGroup>
   <ItemGroup>

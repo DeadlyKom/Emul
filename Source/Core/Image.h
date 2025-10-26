@@ -75,20 +75,21 @@ class FImageBase
 {
 public:
 	static FImageBase& Get();
-	static FImageHandle LoadImageFromResource(WORD ID, std::string Folder);
+	static FImage& LoadImageFromResource(WORD ID, std::string Folder);
+	static uint8_t* LoadToMemory(const std::filesystem::path& FilePath, int32_t& Width, int32_t& Height);
+	static void ReleaseLoadedIntoMemory(uint8_t* ImageData);
 
 	~FImageBase();
 	void Initialize(ID3D11Device* _Device, ID3D11DeviceContext* _DeviceContext);
 
-	FImageHandle LoadFromFile(const std::filesystem::path& FilePath);
-	FImageHandle FromMemory(std::vector<uint8_t> Memory);
+	FImage& LoadFromFile(const std::filesystem::path& FilePath);
+	FImage& FromMemory(std::vector<uint8_t> Memory);
 	FImage& CreateTexture(void* ImageData, int32_t Width, int32_t Height, UINT CPUAccessFlags = 0, D3D11_USAGE Usage = D3D11_USAGE::D3D11_USAGE_DEFAULT);
-	void UpdateTexture(FImageHandle _Handle, void* ImageData);
+	bool UpdateTexture(FImageHandle _Handle, void* ImageData);
 	FImage& GetImage(FImageHandle _Handle);
 
 private:
 	// low level (when releasing a resource, FreeToMemory must be called)
-	uint8_t* LoadToMemory(const std::filesystem::path& FilePath, int32_t& Width, int32_t& Height);
 	bool ResizeRegion(const uint8_t* ImageData, const ImVec2& OriginalSize, const ImVec2& RequiredSize, uint8_t*& OutputImageData, const ImVec2& uv0, const ImVec2& uv1);
 	void FreeToMemory(uint8_t* Data);
 	bool Lock(ID3D11ShaderResourceView* ShaderResourceView, ID3D11Resource*& TextureResource, ID3D11Texture2D*& Texture, D3D11_MAPPED_SUBRESOURCE& MappedResource);

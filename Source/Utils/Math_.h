@@ -114,6 +114,12 @@ namespace FMath
 		return (A < B) ? A : B;
 	}
 
+	template< class T >
+	static FORCEINLINE T Square(const T A)
+	{
+		return A * A;
+	}
+
 	template<typename T>
 	static FORCEINLINE T Clamp(const T X, const T MinValue, const T MaxValue)
 	{

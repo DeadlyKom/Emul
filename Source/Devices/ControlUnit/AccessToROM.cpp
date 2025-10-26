@@ -1,7 +1,7 @@
 #include "AccessToROM.h"
 
 #include "Devices/Device.h"
-#include "Utils/SignalsBus.h"
+#include "Utils/Signal/Bus.h"
 #include "Motherboard/Motherboard_ClockGenerator.h"
 
 #define DEVICE_NAME() FName(std::format("{}", ThisDeviceName))

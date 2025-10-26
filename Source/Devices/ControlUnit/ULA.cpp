@@ -1,7 +1,7 @@
 #include "ULA.h"
 
 #include "Devices/Device.h"
-#include "Utils/SignalsBus.h"
+#include "Utils/Signal/Bus.h"
 #include "Motherboard/Motherboard_ClockGenerator.h"
 
 #define DEVICE_NAME() FName(std::format("{}", ThisDeviceName))
@@ -163,7 +163,7 @@ void FULA::VideoFetch()
 			Attribute <<= 8;
 			break;
 		}
-		case 16:
+		case 16:	// 0
 		{
 			PixelsShift = Pixels >> 8;
 			Pixels <<= 8;
@@ -175,7 +175,7 @@ void FULA::VideoFetch()
 			SB->SetActive(BUS_RAS);
 			break;
 		}
-		case 17:
+		case 17:	// 1
 		{
 			const uint8_t Address = 0x40 | (y >> 3) & 0x18 | y & 0x07;
 			SB->SetDataOnMemAddressBus(Address);
@@ -183,17 +183,17 @@ void FULA::VideoFetch()
 			SB->SetInactive(BUS_WE);
 			break;
 		}
-		//case 18:
+		//case 18:	// 2
 		//{
 		//	break;
 		//}
-		case 19:
+		case 19:	// 3
 		{
 			Pixels |= SB->GetDataOnMemDataBus() << 8;
 			SB->SetInactive(BUS_CAS);
 			break;
 		}
-		case 20:
+		case 20:	// 4
 		{
 			const uint8_t Address = 0x58 | (y >> 6) & 0x03;
 			SB->SetDataOnMemAddressBus(Address);
@@ -201,29 +201,29 @@ void FULA::VideoFetch()
 			SB->SetInactive(BUS_WE);
 			break;
 		}
-		//case 21:
+		//case 21:	// 5
 		//{
 		//	break;
 		//}
-		case 22:
+		case 22:	// 6
 		{
 			Attribute |= SB->GetDataOnMemDataBus() << 8;
 			SB->SetInactive(BUS_CAS);
 			break;
 		}
-		case 23:
+		case 23:	// 7
 		{
 			SB->SetInactive(BUS_RAS);
 			break;
 		}
-		case 24:
+		case 24:	// 8
 		{
 			const uint8_t Address = (y << 2) & 0xE0 | (x >> 3) & 0x1F | 1;
 			SB->SetDataOnMemAddressBus(Address);
 			SB->SetActive(BUS_RAS);
 			break;
 		}
-		case 25:
+		case 25:	// 9
 		{
 			const uint8_t Address = 0x40 | (y >> 3) & 0x18 | y & 0x07;
 			SB->SetDataOnMemAddressBus(Address);
@@ -231,17 +231,17 @@ void FULA::VideoFetch()
 			SB->SetInactive(BUS_WE);
 			break;
 		}
-		//case 26:
+		//case 26:	// 10
 		//{
 		//	break;
 		//}
-		case 27:
+		case 27:	// 11
 		{
 			Pixels |= SB->GetDataOnMemDataBus();
 			SB->SetInactive(BUS_CAS);
 			break;
 		}
-		case 28:
+		case 28:	// 12
 		{
 			const uint8_t Address = 0x58 | (y >> 6) & 0x03;
 			SB->SetDataOnMemAddressBus(Address);
@@ -249,17 +249,17 @@ void FULA::VideoFetch()
 			SB->SetInactive(BUS_WE);
 			break;
 		}
-		//case 29:
+		//case 29:	// 13
 		//{
 		//	break;
 		//}
-		case 30:
+		case 30:	// 14
 		{
 			Attribute |= SB->GetDataOnMemDataBus();
 			SB->SetInactive(BUS_CAS);
 			break;
 		}
-		case 31:
+		case 31:	// 15
 		{
 			SB->SetInactive(BUS_RAS);
 			bDrawPixels = true;

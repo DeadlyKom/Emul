@@ -1,4 +1,4 @@
-#include "UI.h"
+#include "Draw.h"
 #include "Fonts.h"
 
 void UI::DrawTable(const char* TableID, ImGuiTableFlags Flags, bool bEnabled, const std::vector<FColumn>& Columns)
@@ -106,4 +106,46 @@ void UI::TextAligned(const char* Text, const ImVec2& Aligment, const ImVec2* _Pa
 	}
 
 	ImGui::RenderTextClipped(bb.Min + Padding, bb.Max - Padding, Text, NULL, &LabelSize, Aligment, &bb);
+}
+
+bool UI::Button(const char* Label, bool bIsPressed, const ImVec2& SizeArg, bool bEnabled, const ImVec2& Aligment)
+{
+	ON_SCOPE_EXIT
+	{
+		if (!bEnabled) ImGui::EndDisabled();
+	};
+
+	if (!bEnabled) ImGui::BeginDisabled();
+
+	ImGuiWindow* Window = ImGui::GetCurrentWindow();
+	if (Window->SkipItems)
+	{
+		return false;
+	}
+
+	ImGuiContext& Context = *GImGui;
+	const ImGuiStyle& Style = Context.Style;
+	const ImGuiID ID = Window->GetID(Label);
+	const ImVec2 LabelSize = ImGui::CalcTextSize(Label, NULL, true);
+
+	ImVec2 Pos = Window->DC.CursorPos;
+	ImVec2 Size = ImGui::CalcItemSize(SizeArg, LabelSize.x + Style.FramePadding.x * 2.0f, LabelSize.y + Style.FramePadding.y * 2.0f);
+
+	const ImRect bb(Pos, Pos + Size);
+	ImGui::ItemSize(Size, Style.FramePadding.y);
+	if (!ImGui::ItemAdd(bb, ID))
+	{
+		return false;
+	}
+
+	bool hovered, held;
+	bool pressed = ImGui::ButtonBehavior(bb, ID, &hovered, &held);
+
+	// Render
+	const ImU32 ButtonColor = ImGui::GetColorU32(bIsPressed ? ImGuiCol_ButtonActive : (held && hovered) ? ImGuiCol_ButtonActive : hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
+	ImGui::RenderNavHighlight(bb, ID);
+	ImGui::RenderFrame(bb.Min, bb.Max, ButtonColor, true, bIsPressed ? 5.0f : 0.0f);
+	ImGui::RenderTextClipped(bb.Min + Style.FramePadding, bb.Max - Style.FramePadding, Label, NULL, &LabelSize, Aligment, &bb);
+
+	return pressed;
 }

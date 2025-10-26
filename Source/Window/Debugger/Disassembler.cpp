@@ -1,7 +1,7 @@
 #include "Disassembler.h"
 
 #include "AppDebugger.h"
-#include "Utils/UI.h"
+#include "Utils/UI/Draw.h"
 #include "Utils/Hotkey.h"
 #include "Utils/Memory.h"
 #include "Devices/CPU/Z80.h"
@@ -1143,7 +1143,7 @@ SDisassembler::SDisassembler(EFont::Type _FontName)
 
 void SDisassembler::Initialize()
 {
-	ImageProgramCounter = FImageBase::LoadImageFromResource(IDB_ARROW_RIGHT, TEXT("PNG"));
+	ImageProgramCounter = FImageBase::LoadImageFromResource(IDB_ARROW_RIGHT, TEXT("PNG")).Handle;
 }
 
 void SDisassembler::Tick(float DeltaTime)

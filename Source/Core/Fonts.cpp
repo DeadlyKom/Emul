@@ -35,3 +35,9 @@ float FFonts::SetSize(EFont::Type FontName, float Scale, float Min, float Max)
 	FoundFont->Scale = FMath::Clamp<float>(Scale, Min, Max);
 	return FoundFont->Scale;
 }
+
+void FFonts::Reset()
+{
+	ImGui::GetIO().Fonts->Clear();
+	Fonts.clear();
+}

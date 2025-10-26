@@ -29,6 +29,7 @@ public:
 	ImFont* LoadFont(EFont::Type FontName, const void* FontData, uint32_t FontDataSize, float SizePixels, uint32_t Index = INDEX_NONE);
 	ImFont* GetFont(EFont::Type FontName);
 	float SetSize(EFont::Type FontName, float Scale, float Min, float Max);
+	void Reset();
 
 private:
 	std::map<EFont::Type, ImFont*> Fonts;

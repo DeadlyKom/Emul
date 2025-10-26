@@ -32,6 +32,8 @@ public:
 	//const FName& GetFont();
 
 private:
+	void LoadIniSettings();
+
 	std::shared_ptr<SViewer> Viewer;
 	std::shared_ptr<FMotherboard> Motherboard;
 };

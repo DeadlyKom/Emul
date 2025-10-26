@@ -15,6 +15,12 @@ namespace UI
 	#define COLOR_32_B_SHIFT    8
 	#define COLOR_32_A_SHIFT    0
 
+	#define COLOR_R(C)			((C & COLOR_32_R_MASK) >> COLOR_32_R_SHIFT)
+	#define COLOR_G(C)			((C & COLOR_32_G_MASK) >> COLOR_32_G_SHIFT)
+	#define COLOR_B(C)			((C & COLOR_32_B_MASK) >> COLOR_32_B_SHIFT)
+	#define COLOR_A(C)			((C & COLOR_32_A_MASK) >> COLOR_32_A_SHIFT)
+	#define COLOR(R, G, B, A)	(((R & 255) << COLOR_32_R_SHIFT) | ((G & 255) << COLOR_32_G_SHIFT) | ((B & 255) << COLOR_32_B_SHIFT) | ((A & 255) << COLOR_32_A_SHIFT))
+
 	// 0xRRGGBBAA to Vec4(r,g,b,a)
 	static constexpr ImVec4 ToVec4(const uint32_t Color)
 	{
@@ -50,7 +56,7 @@ namespace UI
 		enum Type : int32_t
 		{
 			// Include all the hard-coded names
-			#include "UI_DefaultColor.inl"
+			#include "DefaultColor.inl"
 		};
 	}
 	#undef REGISTER_COLOR
@@ -58,12 +64,12 @@ namespace UI
 	#define REGISTER_COLOR(num,name,color) { num,color },
 	static const std::unordered_map<int32_t, ImVec4> Colors =
 	{
-		#include "UI_DefaultColor.inl"
+		#include "DefaultColor.inl"
 	};
 	#undef REGISTER_COLOR
 
 	#define REGISTER_COLOR(num,name,color) inline constexpr int32_t COLOR_##name = EColor::name;
-	#include "UI_DefaultColor.inl"
+	#include "DefaultColor.inl"
 	#undef REGISTER_COLOR
 
 	#define COL_REF(color)		(&UI::Colors.at(color))
@@ -85,4 +91,6 @@ namespace UI
 
 	int32_t GetVisibleLines(EFont::Type FontName, float CutHeight = 0.0f);
 	void TextAligned(const char* Text, const ImVec2& Aligment, const ImVec2* _Padding = nullptr);
+
+	bool Button(const char* Label, bool bIsPressed, const ImVec2& SizeArg, bool bEnabled = true, const ImVec2& Aligment = { 0.5f, 0.5f });
 }

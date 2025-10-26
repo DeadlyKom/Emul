@@ -1,11 +1,12 @@
 #include "Viewer.h"
 
 #include "AppDebugger.h"
-#include "UI/Screen.h"
-#include "UI/CallStack.h"
-#include "UI/CPU_State.h"
-#include "UI/MemoryDump.h"
-#include "UI/Disassembler.h"
+#include "Window/Debugger/Screen.h"
+#include "Window/Debugger/CallStack.h"
+#include "Window/Debugger/CPU_State.h"
+#include "Window/Debugger/MemoryDump.h"
+#include "Window/Debugger/Disassembler.h"
+#include "Window/Debugger/Oscillograph.h"
 #include "Utils/Hotkey.h"
 #include "Motherboard/Motherboard.h"
 
@@ -36,6 +37,7 @@ void SViewer::NativeInitialize(const FNativeDataInitialize& _Data)
 				{ EWindowsType::CPU_State,			std::make_shared<SCPU_State>(NAME_DOS_14)				},
 				{ EWindowsType::MemoryDump,			std::make_shared<SMemoryDump>(NAME_MEMORY_DUMP_16)		},
 				{ EWindowsType::Disassembler,		std::make_shared<SDisassembler>(NAME_DISASSEMBLER_16)	},
+				{ EWindowsType::Oscillograph,		std::make_shared<SOscillograph>(NAME_OSCILLOGRAPH_16)	},
 			  };
 
 	// initialize windows

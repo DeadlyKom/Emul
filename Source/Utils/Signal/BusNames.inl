@@ -55,7 +55,12 @@
 #define SIGNAL_A22		(43)
 #define SIGNAL_A23		(44)
 
-#define USER_SIGNAL		(45)
+#define OSCIL_SIGNAL	(45)
+
+#define SIGNAL_ADDRESS	(OSCIL_SIGNAL + 0)		// oscillogram address signals
+#define SIGNAL_DATA		(OSCIL_SIGNAL + 1)		// oscillogram data signals
+
+#define USER_SIGNAL		(50)
 
 #define SIGNAL_MA0		(USER_SIGNAL + 0)
 #define SIGNAL_MA1		(USER_SIGNAL + 1)
@@ -131,6 +136,10 @@ REGISTER_BUS_NAME(SIGNAL_RESET, RESET)
 // CPU bus control signals
 REGISTER_BUS_NAME(SIGNAL_BUSRQ, BUSRQ)
 REGISTER_BUS_NAME(SIGNAL_BUSACK, BUSACK)
+
+// oscillogramm
+REGISTER_BUS_NAME(SIGNAL_ADDRESS, ADDRESS)
+REGISTER_BUS_NAME(SIGNAL_DATA, DATA)
 
 // user signal
 REGISTER_BUS_NAME(SIGNAL_MA0, MA0)

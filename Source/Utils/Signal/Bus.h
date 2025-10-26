@@ -1,6 +1,7 @@
 #pragma once
 
 #include <CoreMinimal.h>
+#include "Utils/Signal/OscillogramManager.h"
 
 // Define a message as an enumeration.
 #define REGISTER_BUS_NAME(num,name) name = num,
@@ -9,7 +10,7 @@ namespace ESignalBus
 	enum Type : int32_t
 	{
 		// Include all the hard-coded names
-		#include "SignalsBusNames.inl"
+		#include "BusNames.inl"
 
 		// Special constant for the last hard-coded name index
 		MaxHardcodedIndex,
@@ -18,7 +19,7 @@ namespace ESignalBus
 #undef REGISTER_BUS_NAME
 
 #define REGISTER_BUS_NAME(num,name) inline constexpr ESignalBus::Type BUS_##name = ESignalBus::name;
-#include "SignalsBusNames.inl"
+#include "BusNames.inl"
 #undef REGISTER_BUS_NAME
 
 namespace ESignalState
@@ -51,32 +52,52 @@ public:
 		return Signals[0][Signal] != ActiveSignal;
 	}
 
-	FORCEINLINE void SetSignal(ESignalBus::Type Signal, ESignalState::Type State)
+	FORCEINLINE  void SetSignal(ESignalBus::Type Signal, ESignalState::Type State)
 	{
 		Signals[1][Signal] = Signals[0][Signal];
 		Signals[0][Signal] = State;
+
+		if (bOscillogramEnabled)
+		{
+			OscillogramManager.SetSignal(Signal, State);
+		}
 	}
 	FORCEINLINE void SetActive(ESignalBus::Type Signal, ESignalState::Type ActiveSignal = ESignalState::Low)
 	{
 		Signals[1][Signal] = Signals[0][Signal];
 		Signals[0][Signal] = ActiveSignal;
+
+		if (bOscillogramEnabled)
+		{
+			OscillogramManager.SetSignal(Signal, ActiveSignal);
+		}
 	}
 	FORCEINLINE void SetInactive(ESignalBus::Type Signal, ESignalState::Type InactiveSignal = ESignalState::High)
 	{
 		Signals[1][Signal] = Signals[0][Signal];
 		Signals[0][Signal] = InactiveSignal;
+
+		if (bOscillogramEnabled)
+		{
+			OscillogramManager.SetSignal(Signal, InactiveSignal);
+		}
 	}
-	FORCEINLINE void SetHighImpedance(ESignalBus::Type Signal)
+	FORCEINLINE void SetHighImpedance(ESignalBus::Type Signal)	// -> High-Z
 	{
 		Signals[1][Signal] = Signals[0][Signal];
 		Signals[0][Signal] = ESignalState::HiZ;
+
+		if (bOscillogramEnabled)
+		{
+			OscillogramManager.SetSignal(Signal, ESignalState::HiZ);
+		}
 	}
 
-	FORCEINLINE bool IsPositiveEdge(ESignalBus::Type Signal) // -> low-to-high transition
+	FORCEINLINE bool IsPositiveEdge(ESignalBus::Type Signal) const // -> low-to-high transition
 	{
 		return /*last*/Signals[1][Signal] == ESignalState::Low && /*current*/Signals[0][Signal] <= ESignalState::High;
 	}
-	FORCEINLINE bool IsNegativeEdge(ESignalBus::Type Signal) // -> high-to-low transition
+	FORCEINLINE bool IsNegativeEdge(ESignalBus::Type Signal) const // -> high-to-low transition
 	{
 		return /*last*/Signals[1][Signal] <= ESignalState::High && /*current*/Signals[0][Signal] == ESignalState::Low;
 	}
@@ -99,5 +120,7 @@ public:
 	void SetAllControlOutput(ESignalState::Type State);
 
 private:
+	bool bOscillogramEnabled;
+	FOscillogramManager OscillogramManager;
 	ESignalState::Type Signals[2][ESignalBus::MaxHardcodedIndex];
 };

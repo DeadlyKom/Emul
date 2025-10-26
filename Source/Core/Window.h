@@ -7,7 +7,7 @@ class SWindow;
 
 struct FNativeDataInitialize
 {
-	std::shared_ptr<SWindow> Parent = nullptr;
+	std::weak_ptr<SWindow> Parent;
 	ID3D11Device* Device = nullptr;
 	ID3D11DeviceContext* DeviceContext = nullptr;
 };

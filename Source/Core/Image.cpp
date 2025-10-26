@@ -49,7 +49,7 @@ FImageBase& FImageBase::Get()
 	return *Instance.get();
 }
 
-FImageHandle FImageBase::LoadImageFromResource(WORD ID, std::string Folder)
+FImage& FImageBase::LoadImageFromResource(WORD ID, std::string Folder)
 {
 	std::vector<uint8_t> ImageData;
 	if (Resource::Get(ImageData, ID, Folder))
@@ -57,7 +57,7 @@ FImageHandle FImageBase::LoadImageFromResource(WORD ID, std::string Folder)
 		return FImageBase::Get().FromMemory(ImageData);
 	}
 
-	return FImageHandle();
+	return DefaultImage;
 }
 
 FImageBase::~FImageBase()
@@ -70,7 +70,7 @@ void FImageBase::Initialize(ID3D11Device* _Device, ID3D11DeviceContext* _DeviceC
 	DeviceContext = _DeviceContext;
 }
 
-FImageHandle FImageBase::LoadFromFile(const std::filesystem::path& FilePath)
+FImage& FImageBase::LoadFromFile(const std::filesystem::path& FilePath)
 {
 	int32_t Width, Height;
 
@@ -78,7 +78,7 @@ FImageHandle FImageBase::LoadFromFile(const std::filesystem::path& FilePath)
 	uint8_t* ImageData = LoadToMemory(FilePath, Width, Height);
 	if (ImageData == nullptr || Device == nullptr)
 	{
-		return FImageHandle();
+		return DefaultImage;
 	}
 
 	FImage Image(FImageHandle(Counter), Width, Height);
@@ -121,10 +121,10 @@ FImageHandle FImageBase::LoadFromFile(const std::filesystem::path& FilePath)
 	Images.emplace(Counter++, Image);
 
 	ImageMutex.unlock();
-	return Image.Handle;
+	return  GetImage(Image.Handle);
 }
 
-FImageHandle FImageBase::FromMemory(std::vector<uint8_t> Memory)
+FImage& FImageBase::FromMemory(std::vector<uint8_t> Memory)
 {
 	int32_t Width, Height;
 
@@ -132,7 +132,7 @@ FImageHandle FImageBase::FromMemory(std::vector<uint8_t> Memory)
 	uint8_t* ImageData = stbi_load_from_memory(reinterpret_cast<stbi_uc*>(Memory.data()), (int32_t)Memory.size(), &Width, &Height, NULL, 4);
 	if (ImageData == nullptr || Device == nullptr)
 	{
-		return FImageHandle();
+		return DefaultImage;
 	}
 
 	FImage Image(FImageHandle(Counter), Width, Height);
@@ -175,7 +175,7 @@ FImageHandle FImageBase::FromMemory(std::vector<uint8_t> Memory)
 	Images.emplace(Counter++, Image);
 
 	ImageMutex.unlock();
-	return Image.Handle;
+	return GetImage(Image.Handle);
 }
 
 FImage& FImageBase::CreateTexture(void* ImageData, int32_t Width, int32_t Height, UINT CPUAccessFlags /*= 0*/, D3D11_USAGE Usage /*= D3D11_USAGE::D3D11_USAGE_DEFAULT*/)
@@ -223,7 +223,7 @@ FImage& FImageBase::CreateTexture(void* ImageData, int32_t Width, int32_t Height
 	return GetImage(Image.Handle);
 }
 
-void FImageBase::UpdateTexture(FImageHandle _Handle, void* ImageData)
+bool FImageBase::UpdateTexture(FImageHandle _Handle, void* ImageData)
 {
 	FImage& Image = GetImage(_Handle);
 
@@ -234,8 +234,9 @@ void FImageBase::UpdateTexture(FImageHandle _Handle, void* ImageData)
 	{
 		std::memcpy(MappedResource.pData, ImageData, Image.GetLength() * Image.GetFormatSize());
 		Unlock(TextureResource, Texture);
+		return true;
 	}
-	return;
+	return false;
 }
 
 FImage& FImageBase::GetImage(FImageHandle _Handle)
@@ -253,6 +254,11 @@ FImage& FImageBase::GetImage(FImageHandle _Handle)
 uint8_t* FImageBase::LoadToMemory(const std::filesystem::path& FilePath, int32_t& Width, int32_t& Height)
 {
 	return stbi_load(FilePath.string().c_str(), &Width, &Height, NULL, 4);
+}
+
+void FImageBase::ReleaseLoadedIntoMemory(uint8_t* ImageData)
+{
+	stbi_image_free(ImageData);
 }
 
 bool FImageBase::ResizeRegion(const uint8_t* ImageData, const ImVec2& OriginalSize, const ImVec2& RequiredSize, uint8_t*& OutputImageData, const ImVec2& uv0, const ImVec2& uv1)

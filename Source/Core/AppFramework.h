@@ -38,6 +38,12 @@ protected:
 	FFonts Fonts;
 	FSystemTime Time;
 
+	std::string ClassName;
+	std::string WindowName;
+	std::string IniFilePath;
+	std::string LogFilePath;
+
+	bool bEnabledResize;
 	ID3D11Device* Device;
 	ID3D11DeviceContext* DeviceContext;
 
@@ -68,9 +74,4 @@ private:
 	ID3D11RenderTargetView* RenderTargetView;
 
 	ImVec4 BackgroundColor;
-
-	std::string ClassName;
-	std::string WindowName;
-	std::string IniFilePath;
-	std::string LogFilePath;
 };

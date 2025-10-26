@@ -15,6 +15,7 @@ enum class EWindowsType
 	CallStack,
 	MemoryDump,
 	Disassembler,
+	Oscillograph,
 };
 
 class SViewer : public SWindow
@@ -105,7 +106,7 @@ public:
 
 	std::shared_ptr<SViewer> GetParent() const
 	{
-		return std::dynamic_pointer_cast<SViewer>(Data.Parent);
+		return std::dynamic_pointer_cast<SViewer>(Data.Parent.lock());
 	}
 
 	template <typename T>
