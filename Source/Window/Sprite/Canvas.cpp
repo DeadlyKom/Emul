@@ -13,10 +13,8 @@ SCanvas::SCanvas(EFont::Type _FontName)
 		.SetIncludeInWindows(true))
 	, bDragging(false)
 	, bRefreshCanvas(false)
-	, bPressedSource(true)
-	, bPressedInk(false)
-	, bPressedPaper(false)
-	, bPressedMask(false)
+	, OptionsFlags(FCanvasOptionsFlags::Source)
+	, LastOptionsFlags(FCanvasOptionsFlags::None)
 	, Width(0)
 	, Height(0)
 {}
@@ -34,9 +32,11 @@ void SCanvas::Initialize()
 	UI::ZXIndexColorToRGBA(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
 
 	{
-		const int32_t TransparentIndex = UI::ZXSpectrumColor::Transparent;
-		const int32_t ReplaceTransparent = UI::ZXSpectrumColor::White;
-		UI::ZXIndexColorToAttributeRGBA(ZXColorView->IndexedData, Width, Height, ZXColorView->InkData, ZXColorView->AttributeData, TransparentIndex, ReplaceTransparent);
+		// conversion settings
+		const uint8_t InkAlways = UI::ZXSpectrumColor::Black_;
+		const uint8_t TransparentIndex = UI::ZXSpectrumColor::Transparent;
+		const uint8_t ReplaceTransparent = UI::ZXSpectrumColor::White;
+		UI::ZXIndexColorToAttributeRGBA(ZXColorView->IndexedData, Width, Height, ZXColorView->InkData, ZXColorView->AttributeData, InkAlways, TransparentIndex, ReplaceTransparent);
 	}
 
 	FImageBase::ReleaseLoadedIntoMemory(ImageData);
@@ -54,15 +54,24 @@ void SCanvas::Render()
 		return;
 	}
 
+	const bool bInk = OptionsFlags & FCanvasOptionsFlags::Ink;
+	const bool bMask = OptionsFlags & FCanvasOptionsFlags::Mask;
+	const bool bPaper = OptionsFlags & FCanvasOptionsFlags::Attribute;
+	const bool bSource = OptionsFlags & FCanvasOptionsFlags::Source;
+
 	if (bRefreshCanvas)
 	{
-		if (bPressedSource)
+		if (OptionsFlags & FCanvasOptionsFlags::Source)
 		{
 			UI::ZXIndexColorToRGBA(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
 		}
 		else
 		{
-			UI::ZXDataToToRGBA(ZXColorView->Image, bPressedInk ? ZXColorView->InkData.data() : nullptr, bPressedPaper ? ZXColorView->AttributeData.data() : nullptr, Width, Height);
+			UI::ZXDataToToRGBA(ZXColorView->Image,
+				bInk ? ZXColorView->InkData.data() : nullptr,
+				bPaper ? ZXColorView->AttributeData.data() : nullptr,
+				bMask ? ZXColorView->MaskData.data() : nullptr,
+				Width, Height);
 		}
 		bRefreshCanvas = false;
 	}
@@ -96,51 +105,82 @@ void SCanvas::Render()
 		const float WidthPaper = 25.0f;
 		const float WidthMask = 25.0f;
 		const float Spacing = ImGui::GetStyle().ItemSpacing.x;
-		const float TotalWidth = WidthSource + WidthInk + WidthPaper + WidthMask + Spacing * 2.0f;
+		const float TotalWidth = WidthSource + WidthInk + WidthPaper + WidthMask + Spacing * 3.0f;
 		const float StartButtons = WindowWidth - TotalWidth;
 
+		const bool bSourceEnabled = ZXColorView->IndexedData.size() > 0;
+		const bool bInkEnabled = ZXColorView->InkData.size() > 0;
+		const bool bPaperEnabled = ZXColorView->AttributeData.size() > 0;
+		const bool bMaskEnabled = ZXColorView->MaskData.size() > 0;
+
 		ImGui::SameLine(StartButtons);
-		if (UI::Button("S", bPressedSource, { WidthSource, WidthSource }, ZXColorView->IndexedData.size() > 0))
+		if (UI::Button("S", bSource, { WidthSource, WidthSource }, bSourceEnabled))
 		{
-			bPressedSource = !bPressedSource;
-			if (bPressedSource)
+			if (!(OptionsFlags & FCanvasOptionsFlags::Source))
 			{
-				bPressedInk = bPressedPaper = bPressedMask = false;
+				LastOptionsFlags = OptionsFlags;
+			}
+
+			OptionsFlags ^= FCanvasOptionsFlags::Source;
+			if (OptionsFlags & FCanvasOptionsFlags::Source)
+			{
+				OptionsFlags &= ~(
+					(bInkEnabled   ?	FCanvasOptionsFlags::Ink		: FCanvasOptionsFlags::None) |
+					(bPaperEnabled ?	FCanvasOptionsFlags::Attribute	: FCanvasOptionsFlags::None) |
+					(bMaskEnabled  ?	FCanvasOptionsFlags::Mask		: FCanvasOptionsFlags::None)
+					);
 			}
 			else
 			{
-				bPressedInk = bPressedPaper = true;
+				if (LastOptionsFlags == FCanvasOptionsFlags::None)
+				{
+					OptionsFlags |= 
+						(bInkEnabled   ?	FCanvasOptionsFlags::Ink		: FCanvasOptionsFlags::None) |
+						(bPaperEnabled ?	FCanvasOptionsFlags::Attribute	: FCanvasOptionsFlags::None) |
+						(bMaskEnabled  ?	FCanvasOptionsFlags::Mask		: FCanvasOptionsFlags::None) ;
+				}
+				else
+				{
+					OptionsFlags = LastOptionsFlags;
+				}
 			}
 			bRefreshCanvas = true;
 		}
 		ImGui::SameLine();
-		if (UI::Button("I", bPressedInk, { WidthInk, WidthInk }, ZXColorView->InkData.size() > 0))
+		if (UI::Button("I", bInk, { WidthInk, WidthInk }, bInkEnabled))
 		{
-			bPressedInk = !bPressedInk;
-			if (bPressedInk)
+			OptionsFlags ^= FCanvasOptionsFlags::Ink;
+			if (OptionsFlags & FCanvasOptionsFlags::Ink)
 			{
-				bPressedSource = bPressedMask = false;
+				OptionsFlags &= ~FCanvasOptionsFlags::Source;
+			}
+
+			bRefreshCanvas = true;
+		}
+		ImGui::SameLine(); 
+		if (UI::Button("P", bPaper, { WidthPaper, WidthPaper }, bPaperEnabled))
+		{
+			OptionsFlags ^= FCanvasOptionsFlags::Attribute;
+			if (OptionsFlags & FCanvasOptionsFlags::Attribute)
+			{
+				OptionsFlags &= ~FCanvasOptionsFlags::Source;
 			}
 			bRefreshCanvas = true;
 		}
 		ImGui::SameLine(); 
-		if (UI::Button("P", bPressedPaper, { WidthPaper, WidthPaper }, ZXColorView->AttributeData.size() > 0))
+		if (UI::Button("M", bMask, { WidthMask, WidthMask }, bMaskEnabled))
 		{
-			bPressedPaper = !bPressedPaper;
-			if (bPressedPaper)
+			OptionsFlags ^= FCanvasOptionsFlags::Mask;
+			if (OptionsFlags & FCanvasOptionsFlags::Mask)
 			{
-				bPressedSource = bPressedMask = false;
+				OptionsFlags &= ~FCanvasOptionsFlags::Source;
 			}
 			bRefreshCanvas = true;
 		}
-		ImGui::SameLine(); 
-		if (UI::Button("M", bPressedMask, { WidthMask, WidthMask }, ZXColorView->MaskData.size() > 0))
+
+		if (OptionsFlags == FCanvasOptionsFlags::None)
 		{
-			bPressedMask = !bPressedMask;
-			if (bPressedMask)
-			{
-				bPressedSource = bPressedInk = bPressedPaper = false;
-			}
+			OptionsFlags |= FCanvasOptionsFlags::Source;
 			bRefreshCanvas = true;
 		}
 

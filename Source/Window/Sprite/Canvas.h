@@ -5,6 +5,18 @@
 #include "Core/Image.h"
 #include <Utils/UI/Draw_ZXColorVideo.h>
 
+namespace FCanvasOptionsFlags
+{
+	enum Type
+	{
+		None = 0,
+		Source = 1 << 0,
+		Ink = 1 << 1,
+		Attribute = 1 << 2,
+		Mask = 1 << 3,
+	};
+}
+
 class SCanvas : public SViewerChildBase
 {
 	using Super = SViewerChildBase;
@@ -23,12 +35,11 @@ private:
 
 	bool bDragging;
 	bool bRefreshCanvas;
-	bool bPressedSource;
-	bool bPressedInk;
-	bool bPressedPaper;
-	bool bPressedMask;
+
 	int32_t Width;
 	int32_t Height;
+	uint32_t OptionsFlags;
+	uint32_t LastOptionsFlags;
 	ImGuiID CanvasID;
 	std::shared_ptr<UI::FZXColorView> ZXColorView;
 };

@@ -14,7 +14,7 @@ namespace UI
 
 	namespace ZXSpectrumColor
 	{
-		enum Type
+		enum Type : uint8_t
 		{
 			Black = 0,
 			Blue,
@@ -36,6 +36,7 @@ namespace UI
 
 			MAX,
 
+			None		= (uint8_t)INDEX_NONE,
 			Transparent = Black,
 		};
 	}
@@ -44,13 +45,13 @@ namespace UI
 	static constexpr uint32_t ZXSpectrumColorRGBA[ZXSpectrumColor::MAX] =
 	{
 		(0x00000000),	// Black
-		(0x00007FFF),	// Blue
-		(0x7F0000FF),	// Red
-		(0x7F007FFF),	// Magenta
-		(0x007F00FF),	// Green
-		(0x007F7FFF),	// Cyan
-		(0x7F7F00FF),	// Yellow
-		(0x7F7F7FFF),	// White
+		(0x0000BFFF),	// Blue
+		(0xBF0000FF),	// Red
+		(0xBF00BFFF),	// Magenta
+		(0x00BF00FF),	// Green
+		(0x00BFBFFF),	// Cyan
+		(0xBFBF00FF),	// Yellow
+		(0xBFBFBFFF),	// White
 
 		(0x000000FF),	// Black
 		(0x0000FFFF),	// Blue
@@ -163,6 +164,14 @@ namespace UI
 		const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height,
 		std::vector<uint8_t>& OutputInkData,
 		std::vector<uint8_t>& OutputAttributeData,
-		int32_t TransparentIndex = UI::ZXSpectrumColor::Transparent, int32_t ReplaceTransparent = UI::ZXSpectrumColor::White);
-	void ZXDataToToRGBA(FImage& InOutputImage, uint8_t* InkData, uint8_t* AttributeData, int32_t Width, int32_t Height, bool bCreate = false);
+		uint8_t InkAlways = UI::ZXSpectrumColor::None,
+		uint8_t TransparentIndex = UI::ZXSpectrumColor::Transparent,
+		uint8_t ReplaceTransparent = UI::ZXSpectrumColor::White);
+	void ZXDataToToRGBA(
+		FImage& InOutputImage,
+		uint8_t* InkData,
+		uint8_t* AttributeData,
+		uint8_t* MaskData,
+		int32_t Width, int32_t Height,
+		bool bCreate = false);
 }
