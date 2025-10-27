@@ -36,7 +36,13 @@ void SCanvas::Initialize()
 		const uint8_t InkAlways = UI::ZXSpectrumColor::Black_;
 		const uint8_t TransparentIndex = UI::ZXSpectrumColor::Transparent;
 		const uint8_t ReplaceTransparent = UI::ZXSpectrumColor::White;
-		UI::ZXIndexColorToAttributeRGBA(ZXColorView->IndexedData, Width, Height, ZXColorView->InkData, ZXColorView->AttributeData, InkAlways, TransparentIndex, ReplaceTransparent);
+		UI::ZXIndexColorToAttributeRGBA(
+			ZXColorView->IndexedData,
+			Width, Height,
+			ZXColorView->InkData,
+			ZXColorView->AttributeData,
+			ZXColorView->MaskData,
+			InkAlways, TransparentIndex, ReplaceTransparent);
 	}
 
 	FImageBase::ReleaseLoadedIntoMemory(ImageData);

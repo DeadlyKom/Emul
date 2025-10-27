@@ -454,6 +454,7 @@ void UI::ZXIndexColorToAttributeRGBA(
 	int32_t Width, int32_t Height,
 	std::vector<uint8_t>& OutputInkData,
 	std::vector<uint8_t>& OutputAttributeData,
+	std::vector<uint8_t>& OutputMaskData,
 	uint8_t InkAlways /*= UI::ZXSpectrumColor::None*/,
 	uint8_t TransparentIndex /*= UI::ZXSpectrumColor::Transparent*/,
 	uint8_t ReplaceTransparent /*= UI::ZXSpectrumColor::White*/)
@@ -463,6 +464,7 @@ void UI::ZXIndexColorToAttributeRGBA(
 
 	const int32_t PixelSize = Boundary_X * Height;
 	OutputInkData.resize(PixelSize);
+	OutputMaskData.resize(PixelSize);
 	const int32_t AttributeSize = Boundary_X * Boundary_Y;
 	OutputAttributeData.resize(AttributeSize);
 
@@ -489,9 +491,11 @@ void UI::ZXIndexColorToAttributeRGBA(
 
 			for (int32_t dy = 0; dy < 8; ++dy)
 			{
+				uint8_t Mask = 0;
 				uint8_t PixelsInk = 0;
 				for (int32_t dx = 0; dx < 8; ++dx)
 				{
+					Mask <<= 1;
 					PixelsInk <<= 1;
 
 					const int32_t BoundaryOffset = dy * 8 + dx;
@@ -499,10 +503,16 @@ void UI::ZXIndexColorToAttributeRGBA(
 					{
 						PixelsInk |= 1;
 					}
+
+					if (Boundary[BoundaryOffset] == UI::ZXSpectrumColor::Transparent)
+					{
+						Mask |= 1;
+					}
 				}
 
 				const int32_t PixelsOffset = (y * 8 + dy) * Boundary_X + x;
 				OutputInkData[PixelsOffset] = PixelsInk;
+				OutputMaskData[PixelsOffset] = ~Mask;
 			}
 
 			bool bBright = (InkColor & 0x08) && (PaperColor & 0x08);
@@ -532,6 +542,7 @@ void UI::ZXDataToToRGBA(
 	const int32_t Boundary_Y = Height >> 3;
 
 	bool bInk = InkData != nullptr;
+	bool bMask = MaskData != nullptr;
 	bool bAttribute = AttributeData != nullptr;
 
 	for (int32_t i = 0; i < Size; ++i)
@@ -544,17 +555,24 @@ void UI::ZXDataToToRGBA(
 		const int32_t by = y / 8;
 		const int32_t dy = y % 8;
 
+		uint8_t Mask = 0xFF;
 		uint8_t Pixels = 0x00;
 		uint8_t InkColor = ZXSpectrumColor::Black_;
 		uint8_t PaperColor = ZXSpectrumColor::White_;
 
-		if (InkData)
+		if (bInk)
 		{
 			const int32_t InkOffset = (by * 8 + dy) * Boundary_X + bx;
 			Pixels = InkData[InkOffset];
 		}
 
-		if (AttributeData)
+		if (bMask)
+		{
+			const int32_t MaskOffset = (by * 8 + dy) * Boundary_X + bx;
+			Mask = MaskData[MaskOffset];
+		}
+
+		if (bAttribute)
 		{
 			const int32_t AttributeOffset = by * Boundary_X + bx;
 			uint8_t Attribute = AttributeData[AttributeOffset];
@@ -563,19 +581,27 @@ void UI::ZXDataToToRGBA(
 			PaperColor = ((Attribute >> 3) & 0x07) | (bBright << 3);
 		}
 
-		if (!MaskData)
+		if (InkColor == ZXSpectrumColor::Transparent)
 		{
-			if (InkColor == ZXSpectrumColor::Transparent)
-			{
-				InkColor = ZXSpectrumColor::Black_;
-			}
-			if (PaperColor == ZXSpectrumColor::Transparent)
-			{
-				PaperColor = ZXSpectrumColor::Black_;
-			}
+			InkColor = ZXSpectrumColor::Black_;
+		}
+		if (PaperColor == ZXSpectrumColor::Transparent)
+		{
+			PaperColor = ZXSpectrumColor::Black_;
 		}
 
-		const ImU32 ColorRGBA = ToU32(UI::ZXSpectrumColorRGBA[(Pixels << dx) & 0x80 ? InkColor : PaperColor]);
+		if (bInk || bAttribute)
+		{
+			Mask = ~Mask;
+		}
+		else
+		{
+			std::swap(InkColor, PaperColor);
+		}
+
+		const int8_t ColorInk = (Pixels << dx) & 0x80 ? InkColor : PaperColor;
+		const int8_t Color = ((Mask << dx) & 0x80) ? ZXSpectrumColor::Transparent : ColorInk;
+		const ImU32 ColorRGBA = ToU32(UI::ZXSpectrumColorRGBA[Color]);
 		RGBA[i] = ColorRGBA;
 	}
 

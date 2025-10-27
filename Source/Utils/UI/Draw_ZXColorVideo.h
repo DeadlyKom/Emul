@@ -164,6 +164,7 @@ namespace UI
 		const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height,
 		std::vector<uint8_t>& OutputInkData,
 		std::vector<uint8_t>& OutputAttributeData,
+		std::vector<uint8_t>& OutputMaskData,
 		uint8_t InkAlways = UI::ZXSpectrumColor::None,
 		uint8_t TransparentIndex = UI::ZXSpectrumColor::Transparent,
 		uint8_t ReplaceTransparent = UI::ZXSpectrumColor::White);
