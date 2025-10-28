@@ -1,4 +1,5 @@
 #include "StatusBar.h"
+#include "Events.h"
 
 namespace
 {
@@ -10,7 +11,27 @@ SStatusBar::SStatusBar(EFont::Type _FontName)
 		.SetName(ThisWindowName)
 		.SetFontName(_FontName)
 		.SetIncludeInWindows(true))
+	, CanvasSize(0.0f, 0.0f)
+	, MousePosition(0.0f, 0.0f)
 {}
+
+void SStatusBar::NativeInitialize(const FNativeDataInitialize& Data)
+{
+	Super::NativeInitialize(Data);
+
+	SubscribeEvent<FEvent_StatusBar>(
+		[this](const FEvent_StatusBar& Event)
+		{
+			if (Event.Tag == FEvent_StatusBar::CanvasSizeTag)
+			{
+				CanvasSize = Event.CanvasSize;
+			}
+			else if (Event.Tag == FEvent_StatusBar::MousePositionTag)
+			{
+				MousePosition = Event.MousePosition;
+			}
+		});
+}
 
 void SStatusBar::Initialize()
 {}
@@ -25,6 +46,20 @@ void SStatusBar::Render()
 
 	ImGui::Begin(ThisWindowName, &bOpen);
 	{
+		Draw_MousePosition();
 		ImGui::End();
 	}
+}
+
+void SStatusBar::Draw_MousePosition()
+{
+	const int32_t X = FMath::Clamp(FMath::FloorToInt32(MousePosition.x), 0, (int32_t)CanvasSize.x - 1);
+	const int32_t Y = FMath::Clamp(FMath::FloorToInt32(MousePosition.y), 0, (int32_t)CanvasSize.y - 1);
+	ImGui::Text("Canvas: (%i, %i)", (int32_t)CanvasSize.x, (int32_t)CanvasSize.y);
+	ImGui::SameLine();
+	ImGui::SetCursorPosX(150.0f);
+	ImGui::Text("Pixel: (%i, %i)", X, Y);
+	ImGui::SameLine();
+	ImGui::SetCursorPosX(250.0f);
+	ImGui::Text("Boundary: (%i, %i)", X / 8, Y / 8);
 }

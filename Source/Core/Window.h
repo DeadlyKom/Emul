@@ -64,7 +64,6 @@ public:
 	virtual void NativeInitialize(const FNativeDataInitialize& _Data)
 	{
 		Data = _Data;
-		Initialize();
 	}
 	virtual void Initialize() {}
 	virtual void Render() {}

@@ -5,7 +5,7 @@
 class IEvent
 {
 public:
-	std::string Tag;
+	FName Tag;
 	virtual ~IEvent() = default;
 };
 
@@ -37,7 +37,7 @@ public:
 	{
 		for (FSubscriber& S : Subscribers)
 		{
-			if (Event.Tag.empty() || S.Tag == Event.Tag)
+			if (Event.Tag || S.Tag == Event.Tag)
 			{
 				S.Handler(Event);
 			}

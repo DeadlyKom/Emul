@@ -93,4 +93,5 @@ namespace UI
 	void TextAligned(const char* Text, const ImVec2& Aligment, const ImVec2* _Padding = nullptr);
 
 	bool Button(const char* Label, bool bIsPressed, const ImVec2& SizeArg, bool bEnabled = true, const ImVec2& Aligment = { 0.5f, 0.5f });
+	bool ColorButton(const char* LabelID, uint8_t& OutputPressedButton, const ImVec4& Color, ImGuiColorEditFlags ColorFlags, ImGuiButtonFlags ButtonFlags, const ImVec2& SizeArg);
 }

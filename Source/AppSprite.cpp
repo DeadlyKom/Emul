@@ -50,6 +50,7 @@ void FAppSprite::Initialize()
 			.DeviceContext = DeviceContext
 		};
 		Viewer->NativeInitialize(Data);
+		Viewer->Initialize();
 	}
 
 	FFonts& Fonts = FFonts::Get();
@@ -103,7 +104,7 @@ void FAppSprite::LoadIniSettings()
 	const char* DefaultIni = R"(
 [Window][Palette]
 Pos=0,18
-Size=216,66
+Size=316,79
 Collapsed=0
 DockId=0x00000001,0
 
@@ -124,14 +125,14 @@ Collapsed=0
 DockId=0x00000004,0
 
 [Window][Canvas]
-Pos=0,86
-Size=769,589
+Pos=0,99
+Size=769,576
 Collapsed=0
 DockId=0x00000006,0
 
 [Window][Tool Bar]
-Pos=218,18
-Size=551,66
+Pos=318,18
+Size=451,79
 Collapsed=0
 DockId=0x00000003,0
 
@@ -145,10 +146,10 @@ DockId=0x00000008,0
 DockSpace         ID=0x7C6B3D9B Window=0xA87D555D Pos=456,205 Size=1008,711 Split=X
   DockNode        ID=0x00000007 Parent=0x7C6B3D9B SizeRef=769,711 Split=Y
     DockNode      ID=0x00000002 Parent=0x00000007 SizeRef=1008,945 Split=Y
-      DockNode    ID=0x00000005 Parent=0x00000002 SizeRef=1008,66 Split=X Selected=0xDFE559BD
-        DockNode  ID=0x00000001 Parent=0x00000005 SizeRef=216,91 HiddenTabBar=1 Selected=0x7E84447F
-        DockNode  ID=0x00000003 Parent=0x00000005 SizeRef=551,91 HiddenTabBar=1 Selected=0xDFE559BD
-      DockNode    ID=0x00000006 Parent=0x00000002 SizeRef=1008,877 CentralNode=1 HiddenTabBar=1 Selected=0x429E880E
+      DockNode    ID=0x00000005 Parent=0x00000002 SizeRef=1008,79 Split=X Selected=0xDFE559BD
+        DockNode  ID=0x00000001 Parent=0x00000005 SizeRef=316,91 HiddenTabBar=1 Selected=0x7E84447F
+        DockNode  ID=0x00000003 Parent=0x00000005 SizeRef=451,91 HiddenTabBar=1 Selected=0xDFE559BD
+      DockNode    ID=0x00000006 Parent=0x00000002 SizeRef=1008,576 CentralNode=1 HiddenTabBar=1 Selected=0x429E880E
     DockNode      ID=0x00000004 Parent=0x00000007 SizeRef=1008,52 HiddenTabBar=1 Selected=0x1604805B
   DockNode        ID=0x00000008 Parent=0x7C6B3D9B SizeRef=237,711 HiddenTabBar=1 Selected=0x7FB5F2E9
 )";

@@ -1,4 +1,5 @@
 #include "ToolBar.h"
+#include "Events.h"
 
 namespace
 {

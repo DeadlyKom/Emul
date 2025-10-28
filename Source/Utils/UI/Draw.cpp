@@ -149,3 +149,86 @@ bool UI::Button(const char* Label, bool bIsPressed, const ImVec2& SizeArg, bool 
 
 	return pressed;
 }
+
+bool UI::ColorButton(const char* LabelID, uint8_t& OutputPressedButton, const ImVec4& Color, ImGuiColorEditFlags ColorFlags, ImGuiButtonFlags ButtonFlags, const ImVec2& SizeArg)
+{
+	ImGuiWindow* window = ImGui::GetCurrentWindow();
+	if (window->SkipItems)
+		return false;
+
+	ImGuiContext& g = *GImGui;
+	const ImGuiID id = window->GetID(LabelID);
+	const float default_size = ImGui::GetFrameHeight();
+	const ImVec2 size(SizeArg.x == 0.0f ? default_size : SizeArg.x, SizeArg.y == 0.0f ? default_size : SizeArg.y);
+	const ImRect bb(window->DC.CursorPos, window->DC.CursorPos + size);
+	ImGui::ItemSize(bb, (size.y >= default_size) ? g.Style.FramePadding.y : 0.0f);
+	if (!ImGui::ItemAdd(bb, id))
+	{
+		return false;
+	}
+
+	bool hovered, held;
+	bool pressed = ImGui::ButtonBehavior(bb, id, &hovered, &held, ButtonFlags);
+	OutputPressedButton = g.ActiveIdMouseButton;
+
+	if (ColorFlags & ImGuiColorEditFlags_NoAlpha)
+		ColorFlags &= ~(ImGuiColorEditFlags_AlphaPreview | ImGuiColorEditFlags_AlphaPreviewHalf);
+
+	ImVec4 col_rgb = Color;
+	if (ColorFlags & ImGuiColorEditFlags_InputHSV)
+		ImGui::ColorConvertHSVtoRGB(col_rgb.x, col_rgb.y, col_rgb.z, col_rgb.x, col_rgb.y, col_rgb.z);
+
+	ImVec4 col_rgb_without_alpha(col_rgb.x, col_rgb.y, col_rgb.z, 1.0f);
+	float grid_step = ImMin(size.x, size.y) / 2.99f;
+	float rounding = ImMin(g.Style.FrameRounding, grid_step * 0.5f);
+	ImRect bb_inner = bb;
+	float off = 0.0f;
+	if ((ColorFlags & ImGuiColorEditFlags_NoBorder) == 0)
+	{
+		off = -0.75f; // The border (using Col_FrameBg) tends to look off when color is near-opaque and rounding is enabled. This offset seemed like a good middle ground to reduce those artifacts.
+		bb_inner.Expand(off);
+	}
+	if ((ColorFlags & ImGuiColorEditFlags_AlphaPreviewHalf) && col_rgb.w < 1.0f)
+	{
+		float mid_x = IM_ROUND((bb_inner.Min.x + bb_inner.Max.x) * 0.5f);
+		ImGui::RenderColorRectWithAlphaCheckerboard(window->DrawList, ImVec2(bb_inner.Min.x + grid_step, bb_inner.Min.y), bb_inner.Max, ImGui::GetColorU32(col_rgb), grid_step, ImVec2(-grid_step + off, off), rounding, ImDrawFlags_RoundCornersRight);
+		window->DrawList->AddRectFilled(bb_inner.Min, ImVec2(mid_x, bb_inner.Max.y), ImGui::GetColorU32(col_rgb_without_alpha), rounding, ImDrawFlags_RoundCornersLeft);
+	}
+	else
+	{
+		// Because GetColorU32() multiplies by the global style Alpha and we don't want to display a checkerboard if the source code had no alpha
+		ImVec4 col_source = (ColorFlags & ImGuiColorEditFlags_AlphaPreview) ? col_rgb : col_rgb_without_alpha;
+		if (col_source.w < 1.0f)
+			ImGui::RenderColorRectWithAlphaCheckerboard(window->DrawList, bb_inner.Min, bb_inner.Max, ImGui::GetColorU32(col_source), grid_step, ImVec2(off, off), rounding);
+		else
+			window->DrawList->AddRectFilled(bb_inner.Min, bb_inner.Max, ImGui::GetColorU32(col_source), rounding);
+	}
+	ImGui::RenderNavHighlight(bb, id);
+	if ((ColorFlags & ImGuiColorEditFlags_NoBorder) == 0)
+	{
+		if (g.Style.FrameBorderSize > 0.0f)
+			ImGui::RenderFrameBorder(bb.Min, bb.Max, rounding);
+		else
+			window->DrawList->AddRect(bb.Min, bb.Max, ImGui::GetColorU32(ImGuiCol_FrameBg), rounding); // Color button are often in need of some sort of border
+	}
+
+	// Drag and Drop Source
+	// NB: The ActiveId test is merely an optional micro-optimization, BeginDragDropSource() does the same test.
+	if (g.ActiveId == id && !(ColorFlags & ImGuiColorEditFlags_NoDragDrop) && ImGui::BeginDragDropSource())
+	{
+		if (ColorFlags & ImGuiColorEditFlags_NoAlpha)
+			ImGui::SetDragDropPayload(IMGUI_PAYLOAD_TYPE_COLOR_3F, &col_rgb, sizeof(float) * 3, ImGuiCond_Once);
+		else
+			ImGui::SetDragDropPayload(IMGUI_PAYLOAD_TYPE_COLOR_4F, &col_rgb, sizeof(float) * 4, ImGuiCond_Once);
+		ImGui::ColorButton(LabelID, Color, ColorFlags);
+		ImGui::SameLine();
+		ImGui::TextEx("Color");
+		ImGui::EndDragDropSource();
+	}
+
+	// Tooltip
+	if (!(ColorFlags & ImGuiColorEditFlags_NoTooltip) && hovered && ImGui::IsItemHovered(ImGuiHoveredFlags_ForTooltip))
+		ImGui::ColorTooltip(LabelID, &Color.x, ColorFlags & (ImGuiColorEditFlags_InputMask_ | ImGuiColorEditFlags_NoAlpha | ImGuiColorEditFlags_AlphaPreview | ImGuiColorEditFlags_AlphaPreviewHalf));
+
+	return pressed;
+}

@@ -31,14 +31,14 @@ public:
 	~FName();
 
 	std::string ToString() const;
+	bool IsValid() const
+	{
+		return operator bool();
+	}
 
 	bool operator==(const FName& Other) const
 	{
 		return ID == Other.ID;
-	}
-	bool operator!=(const FName& Other) const
-	{
-		return ID != Other.ID;
 	}
 	void operator=(const FName& Other)
 	{
@@ -47,6 +47,10 @@ public:
 	bool operator<(const FName& Other) const noexcept
 	{
 		return ID < Other.ID;
+	}
+	operator bool() const
+	{
+		return ID != INDEX_NONE;
 	}
 
 private:

@@ -11,6 +11,7 @@ namespace Shader
 	struct PIXEL_CONSTANT_BUFFER
 	{
 		float GridColor[4];
+		float CursorColor[4];
 		float TransparentColor[4];
 		float GridWidth[2];
 		int	  Flags;
@@ -21,11 +22,10 @@ namespace Shader
 		float GridSize[2];
 		float GridOffset[2];
 		float CRT_BeamPosition[2];
+		float CursorPosition[2];
 
-		float Dummy[44];
+		float Dummy[38];
 	};
-
-	void* LINE_ID = (void*)0x10FFFFFF;
 }
 
 void SetScale(UI::FZXColorView& ZXColorView, ImVec2 NewScale)
@@ -130,15 +130,22 @@ void OnDrawCallback(const ImDrawList* ParentList, const UI::FZXColorView& ZXColo
 			// transfer shader options from shaderOptions to our backend specific pixel shader constant buffer
 			Shader::PIXEL_CONSTANT_BUFFER* ConstantBuffer = (Shader::PIXEL_CONSTANT_BUFFER*)MappedResource.pData;
 			std::memcpy(ConstantBuffer->GridColor, &ZXColorView.GridColor, sizeof(ZXColorView.GridColor));
+			std::memcpy(ConstantBuffer->CursorColor, &ZXColorView.CursorColor, sizeof(ZXColorView.CursorColor));
 			std::memcpy(ConstantBuffer->TransparentColor, &ZXColorView.TransparentColor, sizeof(ZXColorView.TransparentColor));
 			std::memcpy(ConstantBuffer->GridWidth, &ZXColorView.GridWidth, sizeof(ZXColorView.GridWidth));
 			std::memcpy(ConstantBuffer->BackgroundColor, &ZXColorView.BackgroundColor, sizeof(float) * 3);
 			std::memcpy(ConstantBuffer->TextureSize, &ZXColorView.Image.Size, sizeof(ZXColorView.Image.Size));
+			
+			{
+				//const ImVec2 a = (ZXColorView->UV.Min) * ZXColorView->Image.Size;
+				const ImVec2 CursorPosition = (ZXColorView.CursorPosition / ZXColorView.Image.Size)/* - ZXColorView.UV.Min*/;
+				std::memcpy(ConstantBuffer->CursorPosition, &CursorPosition, sizeof(CursorPosition));
+			}
 
 			const FSpectrumDisplay* SpectrumDisplay = reinterpret_cast<const FSpectrumDisplay*>(ZXColorView.UserData.get());
 			if (SpectrumDisplay != nullptr)
 			{
-				ImVec2 CRT_BeamPosition = SpectrumDisplay->CRT_BeamPosition / ZXColorView.Image.Size;
+				const ImVec2 CRT_BeamPosition = SpectrumDisplay->CRT_BeamPosition / ZXColorView.Image.Size;
 				std::memcpy(ConstantBuffer->CRT_BeamPosition, &CRT_BeamPosition, sizeof(CRT_BeamPosition));
 			}
 
@@ -163,6 +170,10 @@ void OnDrawCallback(const ImDrawList* ParentList, const UI::FZXColorView& ZXColo
 				if (ZXColorView.bBeamEnable)
 				{
 					Flags |= BEAM_ENABLE;
+				}
+				if (ZXColorView.bCursorEnable)
+				{
+					Flags |= PIXEL_CURSOR;
 				}
 				if (ZXColorView.bForceNearestSampling)
 				{
@@ -249,7 +260,7 @@ void UI::Set_ZXViewPosition(std::shared_ptr<UI::FZXColorView> ZXColorView, ImVec
 
 void UI::Add_ZXViewDeltaPosition(std::shared_ptr<UI::FZXColorView> ZXColorView, ImVec2 DeltaPosition)
 {
-	ImVec2 uvDelta = ImGui::GetIO().MouseDelta * ZXColorView->ViewSizeUV / ZXColorView->ViewSize;
+	ImVec2 uvDelta = DeltaPosition * ZXColorView->ViewSizeUV / ZXColorView->ViewSize;
 	ZXColorView->ImagePosition -= uvDelta;
 	RoundImagePosition(*ZXColorView);
 }
@@ -262,6 +273,13 @@ Transform2D GetTexelsToPixels(const ImVec2& ScreenTopLeft, const ImVec2& ScreenV
 	Transform.Translate.x = ScreenTopLeft.x - UVTopLeft.x * UVToPixel.x;
 	Transform.Translate.y = ScreenTopLeft.y - UVTopLeft.y * UVToPixel.y;
 	return Transform;
+}
+
+ImVec2 UI::GetMouse(std::shared_ptr<UI::FZXColorView> ZXColorView)
+{
+	Transform2D TexelsToPixels = GetTexelsToPixels(ZXColorView->ViewTopLeftPixel, ZXColorView->ViewSize, ZXColorView->UV.Min, ZXColorView->ViewSizeUV, ZXColorView->Image.Size);
+	Transform2D PixelsToTexels = TexelsToPixels.Inverse();
+	return PixelsToTexels * ImGui::GetMousePos();
 }
 
 void UI::Set_ZXViewScale(std::shared_ptr<UI::FZXColorView> ZXColorView, float Scale)
@@ -329,7 +347,7 @@ void UI::ConvertZXIndexColorToDisplayRGB(FImage& InOutputImage, const std::vecto
 	for (int32_t i = 0; i < Data.size(); ++i)
 	{
 		const uint8_t& Value = Data[i];
-		const UI::ZXSpectrumColor::Type IndexColor = static_cast<UI::ZXSpectrumColor::Type>(Value);
+		const UI::EZXSpectrumColor::Type IndexColor = static_cast<UI::EZXSpectrumColor::Type>(Value);
 		const uint32_t ColorRGBA = ToU32(UI::ZXSpectrumColorRGBA[IndexColor] | 0xFF);
 		RGBA[i] = ColorRGBA;
 	}
@@ -432,7 +450,7 @@ void UI::ZXIndexColorToRGBA(FImage& InOutputImage, const std::vector<uint8_t>& I
 	for (int32_t i = 0; i < IndexedData.size(); ++i)
 	{
 		const uint8_t& Value = IndexedData[i];
-		const UI::ZXSpectrumColor::Type IndexColor = static_cast<UI::ZXSpectrumColor::Type>(Value);
+		const UI::EZXSpectrumColor::Type IndexColor = static_cast<UI::EZXSpectrumColor::Type>(Value);
 		const ImU32 ColorRGBA = ToU32(UI::ZXSpectrumColorRGBA[IndexColor]);
 		RGBA[i] = ColorRGBA;
 	}
@@ -449,15 +467,13 @@ void UI::ZXIndexColorToRGBA(FImage& InOutputImage, const std::vector<uint8_t>& I
 
 }
 
-void UI::ZXIndexColorToAttributeRGBA(
+void UI::ZXIndexColorToZXAttributeColor(
 	const std::vector<uint8_t>& IndexedData,
 	int32_t Width, int32_t Height,
 	std::vector<uint8_t>& OutputInkData,
 	std::vector<uint8_t>& OutputAttributeData,
 	std::vector<uint8_t>& OutputMaskData,
-	uint8_t InkAlways /*= UI::ZXSpectrumColor::None*/,
-	uint8_t TransparentIndex /*= UI::ZXSpectrumColor::Transparent*/,
-	uint8_t ReplaceTransparent /*= UI::ZXSpectrumColor::White*/)
+	const UI::FConversationSettings& Settings)
 {
 	const int32_t Boundary_X = Width >> 3;
 	const int32_t Boundary_Y = Height >> 3;
@@ -483,8 +499,8 @@ void UI::ZXIndexColorToAttributeRGBA(
 			}
 
 			uint8_t PaperColor, InkColor;
-			GetInkPaper(Boundary, PaperColor, InkColor, TransparentIndex, ReplaceTransparent);
-			if (InkAlways == PaperColor)
+			GetInkPaper(Boundary, PaperColor, InkColor, Settings.TransparentIndex, Settings.ReplaceTransparent);
+			if (Settings.InkAlways == PaperColor)
 			{
 				std::swap(PaperColor, InkColor);
 			}
@@ -504,7 +520,7 @@ void UI::ZXIndexColorToAttributeRGBA(
 						PixelsInk |= 1;
 					}
 
-					if (Boundary[BoundaryOffset] == UI::ZXSpectrumColor::Transparent)
+					if (Boundary[BoundaryOffset] == UI::EZXSpectrumColor::Transparent)
 					{
 						Mask |= 1;
 					}
@@ -527,13 +543,32 @@ void UI::ZXIndexColorToAttributeRGBA(
 	}
 }
 
-void UI::ZXDataToToRGBA(
+void UI::ZXAttributeColorToZXIndexColor(
 	FImage& InOutputImage,
-	uint8_t* InkData,
-	uint8_t* AttributeData,
-	uint8_t* MaskData,
 	int32_t Width, int32_t Height,
-	bool bCreate)
+	std::vector<uint8_t>& OutputIndexedData,
+	const std::vector<uint8_t>& InkData,
+	const std::vector<uint8_t>& AttributeData,
+	const std::vector<uint8_t>& MaskData)
+{
+	ZXAttributeColorToImage(
+		InOutputImage,
+		Width, Height,
+		InkData.data(),
+		AttributeData.data(),
+		MaskData.data(),
+		false,
+		&OutputIndexedData);
+}
+
+void UI::ZXAttributeColorToImage(
+	FImage& InOutputImage,
+	int32_t Width, int32_t Height,
+	const uint8_t* InkData,
+	const uint8_t* AttributeData,
+	const uint8_t* MaskData,
+	bool bCreate /*= false*/,
+	std::vector<uint8_t>* OutputIndexedData /*= nullptr*/)
 {
 	const int32_t Size = Width * Height;
 	std::vector<uint32_t> RGBA(Size);
@@ -557,8 +592,8 @@ void UI::ZXDataToToRGBA(
 
 		uint8_t Mask = 0xFF;
 		uint8_t Pixels = 0x00;
-		uint8_t InkColor = ZXSpectrumColor::Black_;
-		uint8_t PaperColor = ZXSpectrumColor::White_;
+		uint8_t InkColor = EZXSpectrumColor::Black_;
+		uint8_t PaperColor = EZXSpectrumColor::White_;
 
 		if (bInk)
 		{
@@ -575,19 +610,19 @@ void UI::ZXDataToToRGBA(
 		if (bAttribute)
 		{
 			const int32_t AttributeOffset = by * Boundary_X + bx;
-			uint8_t Attribute = AttributeData[AttributeOffset];
-			bool bBright = (Attribute >> 6) & 0x01;
+			const uint8_t Attribute = AttributeData[AttributeOffset];
+			const bool bBright = (Attribute >> 6) & 0x01;
 			InkColor = (Attribute & 0x07) | (bBright << 3);
 			PaperColor = ((Attribute >> 3) & 0x07) | (bBright << 3);
 		}
 
-		if (InkColor == ZXSpectrumColor::Transparent)
+		if (InkColor == EZXSpectrumColor::Transparent)
 		{
-			InkColor = ZXSpectrumColor::Black_;
+			InkColor = EZXSpectrumColor::Black_;
 		}
-		if (PaperColor == ZXSpectrumColor::Transparent)
+		if (PaperColor == EZXSpectrumColor::Transparent)
 		{
-			PaperColor = ZXSpectrumColor::Black_;
+			PaperColor = EZXSpectrumColor::Black_;
 		}
 
 		if (bInk || bAttribute)
@@ -600,7 +635,11 @@ void UI::ZXDataToToRGBA(
 		}
 
 		const int8_t ColorInk = (Pixels << dx) & 0x80 ? InkColor : PaperColor;
-		const int8_t Color = ((Mask << dx) & 0x80) ? ZXSpectrumColor::Transparent : ColorInk;
+		const int8_t Color = ((Mask << dx) & 0x80) ? EZXSpectrumColor::Transparent : ColorInk;
+		if (OutputIndexedData)
+		{
+			(*OutputIndexedData)[i] = Color;
+		}
 		const ImU32 ColorRGBA = ToU32(UI::ZXSpectrumColorRGBA[Color]);
 		RGBA[i] = ColorRGBA;
 	}

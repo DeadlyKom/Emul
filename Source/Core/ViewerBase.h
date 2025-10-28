@@ -18,12 +18,12 @@ public:
 	void SetMenuBar(MenuBarHandler Handler);
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
-	//virtual void Initialize() override;
+	virtual void Initialize() override;
 	virtual void Render() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void Destroy() override;
 
-	FEventSystem& GetEventBus() { return EventSystem; }
+	FEventSystem& GetEventSystem() { return EventSystem; }
 
 private:
 	FEventSystem EventSystem;
@@ -56,7 +56,7 @@ public:
 	{
 		if (std::shared_ptr<SViewerBase> Parent = GetParent())
 		{
-			Parent->GetEventBus().Publish(Event);
+			Parent->GetEventSystem().Publish(Event);
 		}
 	}
 
@@ -65,7 +65,7 @@ public:
 	{
 		if (std::shared_ptr<SViewerBase> Parent = GetParent())
 		{
-			Parent->GetEventBus().Subscribe<EventType>(this, std::move(Handler), Tag);
+			Parent->GetEventSystem().Subscribe<EventType>(this, std::move(Handler), Tag);
 		}
 	}
 
@@ -73,7 +73,7 @@ public:
 	{
 		if (std::shared_ptr<SViewerBase> Parent = GetParent())
 		{
-			Parent->GetEventBus().Unsubscribe(this);
+			Parent->GetEventSystem().Unsubscribe(this);
 		}
 	}
 };

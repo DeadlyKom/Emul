@@ -54,6 +54,10 @@ void SViewer::NativeInitialize(const FNativeDataInitialize& _Data)
 
 void SViewer::Initialize()
 {
+	for (auto& [Type, Window] : Windows)
+	{
+		Window->Initialize();
+	}
 }
 
 void SViewer::Render()

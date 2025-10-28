@@ -3,23 +3,26 @@
 #define PIXEL_GRID              1 << 2
 #define BEAM_ENABLE             1 << 3
 #define ALPHA_CHECKERBOARD_GRID 1 << 4
+#define PIXEL_CURSOR            1 << 5
 #define FORCE_NEAREST_SAMPLING  1 << 31
 
 cbuffer pixelBuffer : register(b0)
 {
-    float4  GridColor;
-    float4  TransparentColor;
-    float2  GridWidth;
-    int     Flags;
-    float   TimeCounter;
-    float3  BackgroundColor;
-    int     Dummy_0;
-    float2  TextureSize;
-    float2  GridSize;
-    float2  GridOffset;
-    float2  CRT_BeamPosition;
+    float4 GridColor;
+    float4 CursorColor;
+    float4 TransparentColor;
+    float2 GridWidth;
+    int    Flags;
+    float  TimeCounter;
+    float3 BackgroundColor;
+    int    Dummy_0;
+    float2 TextureSize;
+    float2 GridSize;
+    float2 GridOffset;
+    float2 CRT_BeamPosition;
+    float2 CursorPosition;
 
-    float Dummy[44];
+    float Dummy[34];
 };
 
 struct PS_INPUT
@@ -108,5 +111,27 @@ float4 main(PS_INPUT Input) : SV_TARGET
         }
     }
     ResultColor = lerp(ResultColor, float4(GridColorA.rgb, 1), GridColorA.a * (IsGridA * !!(Flags & GRID)));
+    
+    //if (Flags & PIXEL_CURSOR)
+    {
+        const float2 PixelSize = 1.0f / TextureSize;
+        float2 _CursorPosition = CursorPosition - PixelSize * 0.5f;
+        if (UV.x >= _CursorPosition.x &&
+            UV.y >= _CursorPosition.y &&
+            (UV.x - PixelSize.x * 1) < _CursorPosition.x &&
+            (UV.y - PixelSize.y * 1) < _CursorPosition.y)
+            {
+            ResultColor = CursorColor;
+        }
+    }
+    
+    if (UV.x < 0.0f ||
+        UV.x > 1.0f ||
+        UV.y < 0.0f ||
+        UV.y > 1.0f)
+    {
+        ResultColor = float4(0.25f, 0.25f, 0.25f, 1.0f);
+    }
+    
     return ResultColor;
 }

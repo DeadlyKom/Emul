@@ -32,7 +32,7 @@ void SViewerBase::NativeInitialize(const FNativeDataInitialize& _Data)
 {
 	Super::NativeInitialize(_Data);
 
-	// initialize windows
+	// native initialize windows
 	{
 		FNativeDataInitialize Data = _Data;
 		Data.Parent = shared_from_this();
@@ -41,6 +41,14 @@ void SViewerBase::NativeInitialize(const FNativeDataInitialize& _Data)
 		{
 			Window->NativeInitialize(Data);
 		}
+	}
+}
+
+void SViewerBase::Initialize()
+{
+	for (auto& [Type, Window] : Windows)
+	{
+		Window->Initialize();
 	}
 }
 
