@@ -15,13 +15,13 @@ SPalette::SPalette(EFont::Type _FontName)
 		.SetFontName(_FontName)
 		.SetIncludeInWindows(true))
 {
-	ButtonColorIndex[0] = UI::EZXSpectrumColor::Black_;	// left button
-	ButtonColorIndex[1] = UI::EZXSpectrumColor::White_;	// right button
+	ButtonColor[0] = UI::EZXSpectrumColor::Black_;	// left button
+	ButtonColor[1] = UI::EZXSpectrumColor::White_;	// right button
 
-	ColorSelectedIndex[ESubcolor::Ink] = UI::EZXSpectrumColor::Black_;
-	ColorSelectedIndex[ESubcolor::Paper] = UI::EZXSpectrumColor::Black;
-	ColorSelectedIndex[ESubcolor::Bright] = UI::EZXSpectrumColor::False;
-	ColorSelectedIndex[ESubcolor::Flash] = UI::EZXSpectrumColor::False;
+	Subcolor[ESubcolor::Ink] = UI::EZXSpectrumColor::Black_;
+	Subcolor[ESubcolor::Paper] = UI::EZXSpectrumColor::Black;
+	Subcolor[ESubcolor::Bright] = UI::EZXSpectrumColor::False;
+	Subcolor[ESubcolor::Flash] = UI::EZXSpectrumColor::False;
 }
 
 void SPalette::NativeInitialize(const FNativeDataInitialize& Data)
@@ -34,6 +34,14 @@ void SPalette::NativeInitialize(const FNativeDataInitialize& Data)
 			if (Event.Tag == FEvent_Canvas::CanvasOptionsFlagsTag)
 			{
 				OptionsFlags = Event.OptionsFlags;
+			}
+			else if (Event.Tag == FEvent_Canvas::SelectedColorTag)
+			{
+				ButtonColor[Event.SelectedColor.ButtonIndex & 0x01] = Event.SelectedColor.SelectedColorIndex;
+				if (Event.SelectedColor.SelectedSubcolorIndex < ESubcolor::MAX)
+				{
+					Subcolor[Event.SelectedColor.SelectedSubcolorIndex] = Event.SelectedColor.SelectedColorIndex;
+				}
 			}
 		});
 }
@@ -68,20 +76,20 @@ void SPalette::Display_Colors()
 		ImGui::SameLine();
 		ImGui::SetCursorPosX(ColorBox);
 		ImGui::ColorButton(TEXT("LeftButton##Color"),
-			UI::ToVec4(UI::ZXSpectrumColorRGBA[ButtonColorIndex[0]]),
+			UI::ToVec4(UI::ZXSpectrumColorRGBA[ButtonColor[0]]),
 			ImGuiColorEditFlags_AlphaPreview | ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop, ImVec2(16, 16));
 
 		ImGui::Text("Right");
 		ImGui::SameLine();
 		ImGui::SetCursorPosX(ColorBox);
 		ImGui::ColorButton(TEXT("RightButton##Color"),
-			UI::ToVec4(UI::ZXSpectrumColorRGBA[ButtonColorIndex[1]]),
+			UI::ToVec4(UI::ZXSpectrumColorRGBA[ButtonColor[1]]),
 			ImGuiColorEditFlags_AlphaPreview | ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop, ImVec2(16, 16));
 
 		ImGui::SetCursorPos(StartPosition + ImVec2(PaletteBox, 0.0f));
-		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(0.4f, 0.4f));
+		ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2.4f, 4.4f));
 		for (int32_t i = 0; i < IM_ARRAYSIZE(UI::ZXSpectrumColorRGBA); ++i) {
-			const bool bIsSelected = (ColorSelectedIndex[ESubcolor::Ink] == i);
+			const bool bIsSelected = (Subcolor[ESubcolor::Ink] == i);
 			const std::string ButtonName = std::format(TEXT("IndexButton##Color {}"), i);
 			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, bIsSelected ? 0.0f : 100.0f);
 
@@ -89,18 +97,23 @@ void SPalette::Display_Colors()
 				ImGuiColorEditFlags_AlphaPreview | ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop;
 			uint8_t ButtonPressed = -1;
 			if (UI::ColorButton(ButtonName.c_str(), ButtonPressed, UI::ToVec4(UI::ZXSpectrumColorRGBA[i]), Flags,
-				ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_PressedOnClick, ImVec2(24, 24)))
+				ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_PressedOnClick, ImVec2(16, 16)))
 			{
-				ColorSelectedIndex[ESubcolor::Ink] = i;
+				Subcolor[ESubcolor::Ink] = i;
 
 				if (ButtonPressed < 2)
 				{
-					ButtonColorIndex[ButtonPressed] = i;
+					ButtonColor[ButtonPressed] = i;
 
 					FEvent_PaletteBar Event;
 					Event.Tag = FEvent_PaletteBar::ColorIndexTag;
-					Event.ButtonIndex = ButtonPressed;
-					Event.SelectedColorIndex = (UI::EZXSpectrumColor::Type)i;
+					FSelectedColor SelectedColor
+					{
+						.ButtonIndex = ButtonPressed,
+						.SelectedColorIndex = (UI::EZXSpectrumColor::Type)i,
+						.SelectedSubcolorIndex = (ESubcolor::Type)ButtonPressed,
+					};
+					Event.SelectedColor = SelectedColor;
 					SendEvent(Event);
 				}
 			}
@@ -202,11 +215,11 @@ void SPalette::Display_Colors()
 			break;
 		}
 
-		const bool bBright = ColorSelectedIndex[ESubcolor::Bright] == UI::EZXSpectrumColor::True;
-		const bool bFlash = ColorSelectedIndex[ESubcolor::Flash] == UI::EZXSpectrumColor::True;
+		const bool bBright = Subcolor[ESubcolor::Bright] == UI::EZXSpectrumColor::True;
+		const bool bFlash = Subcolor[ESubcolor::Flash] == UI::EZXSpectrumColor::True;
 
-		uint8_t Ink = ColorSelectedIndex[ESubcolor::Ink] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : ColorSelectedIndex[ESubcolor::Ink] | (bBright << 3);
-		uint8_t Paper = ColorSelectedIndex[ESubcolor::Paper] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : ColorSelectedIndex[ESubcolor::Paper] | (bBright << 3);
+		uint8_t Ink = Subcolor[ESubcolor::Ink] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : Subcolor[ESubcolor::Ink] | (bBright << 3);
+		uint8_t Paper = Subcolor[ESubcolor::Paper] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : Subcolor[ESubcolor::Paper] | (bBright << 3);
 		const uint8_t Bright = BrightColor[bBright];
 
 		if (!bLRButton)
@@ -224,7 +237,7 @@ void SPalette::Display_Colors()
 			ImGui::SameLine();
 			ImGui::SetCursorPosX(ColorBox);
 			ImGui::ColorButton(TEXT("LeftButton##Color"),
-				UI::ToVec4(UI::ZXSpectrumColorRGBA[ButtonColorIndex[0]]),
+				UI::ToVec4(UI::ZXSpectrumColorRGBA[ButtonColor[0]]),
 				ImGuiColorEditFlags_AlphaPreview | ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop, ImVec2(16, 16));
 		}
 
@@ -243,7 +256,7 @@ void SPalette::Display_Colors()
 			ImGui::SameLine();
 			ImGui::SetCursorPosX(ColorBox);
 			ImGui::ColorButton(TEXT("RightButton##Color"),
-				UI::ToVec4(UI::ZXSpectrumColorRGBA[ButtonColorIndex[1]]),
+				UI::ToVec4(UI::ZXSpectrumColorRGBA[ButtonColor[1]]),
 				ImGuiColorEditFlags_AlphaPreview | ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop, ImVec2(16, 16));
 		}
 		if (BrightColorArray)
@@ -260,7 +273,7 @@ void SPalette::Display_Colors()
 			{
 				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2.4f, 4.4f));
 				for (int32_t i = 0; i < Size; ++i) {
-					const bool bIsSelected = (ColorSelectedIndex[SubColorIndex] == i);
+					const bool bIsSelected = (Subcolor[SubColorIndex] == i);
 					const std::string ButtonName = std::format(TEXT("IndexButton##Color {}"), i);
 					ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, bIsSelected ? 0.0f : 100.0f);
 
@@ -272,18 +285,22 @@ void SPalette::Display_Colors()
 						ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_PressedOnClick, ImVec2(16, 16)))
 					{
 						
-						ColorSelectedIndex[SubColorIndex] = SelectValue;
+						Subcolor[SubColorIndex] = SelectValue;
 
 						if (ButtonPressed < 2)
 						{
-							ButtonColorIndex[ButtonPressed] = ColorSelectedIndex[SubColorIndex];
+							ButtonColor[ButtonPressed] = Subcolor[SubColorIndex];
 
 							FEvent_PaletteBar Event;
 							Event.Tag = FEvent_PaletteBar::ColorIndexTag;
-							Event.ButtonIndex = ButtonPressed;
-							Event.SelectedSubColorIndex = SubColorIndex;
 							const uint8_t IPColor = SubColorIndex < 2 ? SelectValue | (bBright << 3) : SelectValue;
-							Event.SelectedColorIndex = (UI::EZXSpectrumColor::Type)IPColor;
+							FSelectedColor SelectedColor
+							{
+								.ButtonIndex = ButtonPressed,
+								.SelectedColorIndex = (UI::EZXSpectrumColor::Type)IPColor,
+								.SelectedSubcolorIndex = SubColorIndex,
+							};
+							Event.SelectedColor = SelectedColor;
 							SendEvent(Event);
 						}
 					}

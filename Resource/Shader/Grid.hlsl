@@ -112,7 +112,7 @@ float4 main(PS_INPUT Input) : SV_TARGET
     }
     ResultColor = lerp(ResultColor, float4(GridColorA.rgb, 1), GridColorA.a * (IsGridA * !!(Flags & GRID)));
     
-    //if (Flags & PIXEL_CURSOR)
+    if (Flags & PIXEL_CURSOR)
     {
         const float2 PixelSize = 1.0f / TextureSize;
         float2 _CursorPosition = CursorPosition - PixelSize * 0.5f;

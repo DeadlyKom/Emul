@@ -3,6 +3,19 @@
 #include <CoreMinimal.h>
 #include <Core/ViewerBase.h>
 
+namespace EToolMode
+{
+	enum Type
+	{
+		None,
+		RectangleMarquee,
+		Pencil,
+		Eraser,
+		Eyedropper,
+		PaintBucket
+	};
+}
+
 class SToolBar : public SViewerChildBase
 {
 	using Super = SViewerChildBase;

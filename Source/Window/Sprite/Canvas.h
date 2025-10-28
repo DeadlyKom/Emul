@@ -5,6 +5,7 @@
 #include "Core/Image.h"
 #include <Utils/UI/Draw_ZXColorVideo.h>
 #include "Palette.h"
+#include "ToolBar.h"
 
 namespace FCanvasOptionsFlags
 {
@@ -35,9 +36,23 @@ private:
 	void Input_HotKeys();
 	void Input_Mouse();
 
+	// set mode
+	void Imput_SetToolMode_None()				{ ToolMode[0] = EToolMode::None;				ToolMode[1] = EToolMode::None; }
+	void Imput_SetToolMode_RectangleMarquee()	{ ToolMode[0] = EToolMode::RectangleMarquee;	ToolMode[1] = EToolMode::None; }
+	void Imput_SetToolMode_Pencil()				{ ToolMode[0] = EToolMode::Pencil;				ToolMode[1] = EToolMode::None; }
+	void Imput_SetToolMode_Eraser()				{ ToolMode[0] = EToolMode::Eraser;				ToolMode[1] = EToolMode::None; }
+	void Imput_SetToolMode_Eyedropper()			{ ToolMode[0] = EToolMode::Eyedropper;			ToolMode[1] = EToolMode::None; }
+	void Imput_SetToolMode_PaintBucket()		{ ToolMode[0] = EToolMode::PaintBucket;			ToolMode[1] = EToolMode::None; }
+	void ApplyToolMode();
+
+	void Handler_Pencil();
+	void Handler_Eyedropper();
+
 	void ConversionToZX(const UI::FConversationSettings& Settings);
 	void ConversionToCanvas(const UI::FConversationSettings& Settings);
 	void Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex);
+
+	void UpdateCursorColor(bool bButton = false);
 
 	bool bDragging;
 	bool bRefreshCanvas;
@@ -46,8 +61,8 @@ private:
 	ImGuiID CanvasID;
 
 	// draw pixels
-	uint8_t ButtonColor[2];
-	uint8_t SubColor[ESubcolor::MAX];
+	UI::EZXSpectrumColor::Type ButtonColor[2];
+	uint8_t Subcolor[ESubcolor::MAX];
 	uint8_t LastSetButtonIndex;
 	uint8_t LastSetPixelColorIndex;
 	ImVec2 LastSetPixelPosition;
@@ -58,4 +73,5 @@ private:
 	uint32_t LastOptionsFlags;
 	std::shared_ptr<UI::FZXColorView> ZXColorView;
 	UI::FConversationSettings ConversationSettings;
+	EToolMode::Type ToolMode[2];
 };

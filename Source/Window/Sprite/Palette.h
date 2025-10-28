@@ -33,6 +33,6 @@ private:
 	void Display_Colors();
 
 	uint32_t OptionsFlags;
-	uint8_t ButtonColorIndex[2];
-	uint8_t ColorSelectedIndex[ESubcolor::MAX];
+	uint8_t ButtonColor[2];
+	uint8_t Subcolor[ESubcolor::MAX];
 };

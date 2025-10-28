@@ -1,6 +1,8 @@
 #include "Canvas.h"
 #include "Utils/UI/Draw.h"
 #include "Events.h"
+#include "Utils/Hotkey.h"
+
 
 namespace
 {
@@ -25,13 +27,16 @@ SCanvas::SCanvas(EFont::Type _FontName)
 	ButtonColor[0] = UI::EZXSpectrumColor::Black_;
 	ButtonColor[1] = UI::EZXSpectrumColor::Black;
 
-	SubColor[ESubcolor::Ink] = UI::EZXSpectrumColor::Black_;
-	SubColor[ESubcolor::Paper] = UI::EZXSpectrumColor::White_;
-	SubColor[ESubcolor::Bright] = UI::EZXSpectrumColor::False;
-	SubColor[ESubcolor::Flash] = UI::EZXSpectrumColor::False;
+	Subcolor[ESubcolor::Ink] = UI::EZXSpectrumColor::Black_;
+	Subcolor[ESubcolor::Paper] = UI::EZXSpectrumColor::White_;
+	Subcolor[ESubcolor::Bright] = UI::EZXSpectrumColor::False;
+	Subcolor[ESubcolor::Flash] = UI::EZXSpectrumColor::False;
 
 	OptionsFlags[0] = FCanvasOptionsFlags::Source;
 	OptionsFlags[1] = FCanvasOptionsFlags::None;
+
+	ToolMode[0] = EToolMode::None;
+	ToolMode[1] = EToolMode::None;
 }
 
 void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
@@ -43,15 +48,12 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 		{
 			if (Event.Tag == FEvent_PaletteBar::ColorIndexTag)
 			{
-				ButtonColor[Event.ButtonIndex & 0x01] = Event.SelectedColorIndex;
-				SubColor[Event.SelectedSubColorIndex] = Event.SelectedColorIndex;
-
-				const bool bBright = SubColor[ESubcolor::Bright] == UI::EZXSpectrumColor::True;
-				const bool bFlash = SubColor[ESubcolor::Flash] == UI::EZXSpectrumColor::True;
-				const uint8_t InkColor = SubColor[ESubcolor::Ink] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : SubColor[ESubcolor::Ink] | (bBright << 3);
-				const uint8_t PaperColor = SubColor[ESubcolor::Paper] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : SubColor[ESubcolor::Paper] | (bBright << 3);
-
-				ZXColorView->CursorColor = UI::ToVec4(UI::ZXSpectrumColorRGBA[InkColor]);
+				ButtonColor[Event.SelectedColor.ButtonIndex & 0x01] = Event.SelectedColor.SelectedColorIndex;
+				if (Event.SelectedColor.SelectedSubcolorIndex < ESubcolor::MAX)
+				{
+					Subcolor[Event.SelectedColor.SelectedSubcolorIndex] = Event.SelectedColor.SelectedColorIndex;
+				}
+				UpdateCursorColor();
 			}
 		});
 }
@@ -117,6 +119,7 @@ void SCanvas::Render()
 	{
 		Input_HotKeys();
 		Input_Mouse();
+		ApplyToolMode();
 
 		ImGui::Spacing();
 		if (ImGui::Button("Options", { 0.0f, 25.0f }))
@@ -264,6 +267,43 @@ void SCanvas::Destroy()
 
 void SCanvas::Input_HotKeys()
 {
+	static std::vector<FHotKey> Hotkeys =
+	{
+		{ ImGuiKey_Escape,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_None,				this)	},	// 
+		{ ImGuiKey_M,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_RectangleMarquee,	this)	},	// 
+		{ ImGuiKey_B,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_Pencil,				this)	},	// 
+		{ ImGuiKey_E,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_Eraser,				this)	},	// 
+		{ ImGuiKey_G,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_PaintBucket,		this)	},	// 
+		{ ImGuiKey_I,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_Eyedropper,			this)	},	//
+		//{ ImGuiMod_Alt | ImGuiKey_MouseLeft,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetMode_Eyedropper, this)			},	// (alt + left mouse button)
+	};
+
+	Shortcut::Handler(Hotkeys);
+
+	ImGuiContext& Context = *ImGui::GetCurrentContext();
+	ImGuiWindow* Window = Context.HoveredWindow;
+	if (!Window || Window->Collapsed || Window->ID != CanvasID)
+	{
+		return;
+	}
+
+	if (ImGui::IsKeyPressed(ImGuiKey_ModAlt) && ToolMode[0] != EToolMode::Eyedropper)
+	{
+		ToolMode[1] = ToolMode[0];
+		ToolMode[0] = EToolMode::Eyedropper;
+	}
+	else if (ImGui::IsKeyReleased(ImGuiKey_ModAlt) && ToolMode[1] != EToolMode::None)
+	{
+		if (ToolMode[1] != EToolMode::Eyedropper)
+		{
+			ToolMode[0] = ToolMode[1];
+		}
+		else
+		{
+			ToolMode[0] = EToolMode::None;
+		}
+		ToolMode[1] = EToolMode::None;
+	}
 }
 
 void SCanvas::Input_Mouse()
@@ -287,14 +327,6 @@ void SCanvas::Input_Mouse()
 		SendEvent(Event);
 	}
 
-	if (Context.IO.MouseDown[ImGuiMouseButton_Left] || Context.IO.MouseDown[ImGuiMouseButton_Right])
-	{
-		const int8_t ButtonIndex = Context.IO.MouseDown[ImGuiMouseButton_Left] ? 0 : 1;
-		const float X = FMath::Clamp((float)FMath::FloorToInt32(ZXColorView->CursorPosition.x), 0.0f, (float)Width - 1);
-		const float Y = FMath::Clamp((float)FMath::FloorToInt32(ZXColorView->CursorPosition.y), 0.0f, (float)Height - 1);
-		Set_PixelToCanvas({ X, Y }, ButtonIndex);
-	}
-
 	if (MouseWheel != 0.0f && !Context.IO.FontAllowUserScaling)
 	{
 		UI::Set_ZXViewScale(ZXColorView, MouseWheel);
@@ -314,6 +346,126 @@ void SCanvas::Input_Mouse()
 		if (Delta.x != 0 || Delta.y != 0)
 		{
 			UI::Add_ZXViewDeltaPosition(ZXColorView, Delta);
+		}
+	}
+}
+
+void SCanvas::ApplyToolMode()
+{
+	ImGuiContext& Context = *ImGui::GetCurrentContext();
+	ImGuiWindow* Window = Context.WheelingWindow ? Context.WheelingWindow : Context.HoveredWindow;
+	if (!Window || Window->Collapsed || Window->ID != CanvasID)
+	{
+		return;
+	}
+
+	switch (ToolMode[0])
+	{
+	case EToolMode::None:
+		ZXColorView->bCursorEnable = false;
+		break;
+	case EToolMode::RectangleMarquee:
+		break;
+	case EToolMode::Pencil:
+		ZXColorView->bCursorEnable = true;
+		Handler_Pencil();
+		break;
+	case EToolMode::Eraser:
+		break;
+	case EToolMode::Eyedropper:
+		ZXColorView->bCursorEnable = false;
+		Handler_Eyedropper();
+		break;
+	case EToolMode::PaintBucket:
+		break;
+	}
+}
+
+void SCanvas::Handler_Pencil()
+{
+	ImGuiContext& Context = *ImGui::GetCurrentContext();
+	if (!Context.IO.MouseDown[ImGuiMouseButton_Left] && !Context.IO.MouseDown[ImGuiMouseButton_Right])
+	{
+		return;
+	}
+
+	const int8_t ButtonIndex = Context.IO.MouseDown[ImGuiMouseButton_Left] ? 0 : 1;
+	const float X = FMath::Clamp((float)FMath::FloorToInt32(ZXColorView->CursorPosition.x), 0.0f, (float)Width - 1);
+	const float Y = FMath::Clamp((float)FMath::FloorToInt32(ZXColorView->CursorPosition.y), 0.0f, (float)Height - 1);
+	Set_PixelToCanvas({ X, Y }, ButtonIndex);
+}
+
+void SCanvas::Handler_Eyedropper()
+{
+	ImGuiContext& Context = *ImGui::GetCurrentContext();
+	if (!Context.IO.MouseDown[ImGuiMouseButton_Left] && !Context.IO.MouseDown[ImGuiMouseButton_Right])
+	{
+		return;
+	}
+	const uint8_t ButtonIndex = Context.IO.MouseDown[ImGuiMouseButton_Left] ? 0 : 1;
+	const float X = FMath::Clamp((float)FMath::FloorToInt32(ZXColorView->CursorPosition.x), 0.0f, (float)Width - 1);
+	const float Y = FMath::Clamp((float)FMath::FloorToInt32(ZXColorView->CursorPosition.y), 0.0f, (float)Height - 1);
+
+	if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
+	{
+		const uint32_t Offset = (uint32_t)Y * Width + (uint32_t)X;
+		ButtonColor[ButtonIndex] = (UI::EZXSpectrumColor::Type)ZXColorView->IndexedData[Offset];
+
+		FEvent_Canvas Event;
+		Event.Tag = FEvent_Canvas::SelectedColorTag;
+		FSelectedColor SelectedColor
+		{
+			.ButtonIndex = ButtonIndex,
+			.SelectedColorIndex = ButtonColor[ButtonIndex],
+			.SelectedSubcolorIndex = (ESubcolor::Type)ButtonIndex,
+		};
+		Event.SelectedColor = SelectedColor;
+		SendEvent(Event);
+		UpdateCursorColor(true);
+	}
+	else
+	{
+		const int32_t Boundary_X = Width >> 3;
+		const int32_t Boundary_Y = Height >> 3;
+
+		const int32_t x = (uint32_t)X;
+		const int32_t y = (uint32_t)Y;
+
+		const int32_t bx = x / 8;
+		const int32_t dx = x % 8;
+		const int32_t by = y / 8;
+		const int32_t dy = y % 8;
+
+		const int32_t InkMaskOffset = (by * 8 + dy) * Boundary_X + bx;
+		uint8_t& Pixels = ZXColorView->InkData[InkMaskOffset];
+		uint8_t& Mask = ZXColorView->MaskData[InkMaskOffset];
+
+		const int32_t AttributeOffset = by * Boundary_X + bx;
+		uint8_t& Attribute = ZXColorView->AttributeData[AttributeOffset];
+
+		const bool bAttributeBright = (Attribute >> 6) & 0x01;
+		const uint8_t AttributeInkColor = (Attribute & 0x07);
+		const uint8_t AttributePaperColor = ((Attribute >> 3) & 0x07);
+
+		const uint8_t PixelBit = 1 << (7 - dx);
+
+		const uint8_t Flags = OptionsFlags[0] & ~FCanvasOptionsFlags::Source;
+		switch (Flags)
+		{
+		case FCanvasOptionsFlags::Ink:																// 0010
+			break;
+		case FCanvasOptionsFlags::Attribute:														// 0100
+			break;
+		case FCanvasOptionsFlags::Ink | FCanvasOptionsFlags::Attribute:								// 0110
+			break;
+		case FCanvasOptionsFlags::Mask:																// 1000
+			break;
+		case FCanvasOptionsFlags::Mask | FCanvasOptionsFlags::Ink:									// 1010
+			break;
+		case FCanvasOptionsFlags::Mask | FCanvasOptionsFlags::Attribute:							// 1100
+			break;
+		case FCanvasOptionsFlags::Mask | FCanvasOptionsFlags::Attribute | FCanvasOptionsFlags::Ink:	// 1110
+			break;
 		}
 	}
 }
@@ -406,13 +558,13 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 			};
 		auto ApplyAttribute = [&]()
 			{
-				const bool bInkTransparent = SubColor[ESubcolor::Ink] == UI::EZXSpectrumColor::Transparent;
-				const bool bPaperTransparent = SubColor[ESubcolor::Paper] == UI::EZXSpectrumColor::Transparent;
+				const bool bInkTransparent = Subcolor[ESubcolor::Ink] == UI::EZXSpectrumColor::Transparent;
+				const bool bPaperTransparent = Subcolor[ESubcolor::Paper] == UI::EZXSpectrumColor::Transparent;
 
-				const uint8_t InkColor = bInkTransparent ? AttributeInkColor : SubColor[ESubcolor::Ink] & 0x07;
-				const uint8_t PaperColor = bPaperTransparent ? AttributePaperColor : SubColor[ESubcolor::Paper] & 0x07;
-				const bool bBright = SubColor[ESubcolor::Bright] == UI::EZXSpectrumColor::True;
-				const bool bFlash = SubColor[ESubcolor::Flash] == UI::EZXSpectrumColor::True;
+				const uint8_t InkColor = bInkTransparent ? AttributeInkColor : Subcolor[ESubcolor::Ink] & 0x07;
+				const uint8_t PaperColor = bPaperTransparent ? AttributePaperColor : Subcolor[ESubcolor::Paper] & 0x07;
+				const bool bBright = Subcolor[ESubcolor::Bright] == UI::EZXSpectrumColor::True;
+				const bool bFlash = Subcolor[ESubcolor::Flash] == UI::EZXSpectrumColor::True;
 
 				const uint8_t AttributeColor = (bFlash << 7) | (bBright << 6) | (PaperColor << 3) | InkColor;
 				Attribute = AttributeColor;
@@ -441,4 +593,21 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 		bNeedConvertZXToCanvas = true;
 	}
 	bRefreshCanvas = true;
+}
+
+void SCanvas::UpdateCursorColor(bool bButton /*= false*/)
+{
+	if (bButton)
+	{
+		ZXColorView->CursorColor = UI::ToVec4(UI::ZXSpectrumColorRGBA[ButtonColor[0]]);
+	}
+	else
+	{
+		const bool bBright = Subcolor[ESubcolor::Bright] == UI::EZXSpectrumColor::True;
+		const bool bFlash = Subcolor[ESubcolor::Flash] == UI::EZXSpectrumColor::True;
+		const uint8_t InkColor = Subcolor[ESubcolor::Ink] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : Subcolor[ESubcolor::Ink] | (bBright << 3);
+		const uint8_t PaperColor = Subcolor[ESubcolor::Paper] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : Subcolor[ESubcolor::Paper] | (bBright << 3);
+
+		ZXColorView->CursorColor = UI::ToVec4(UI::ZXSpectrumColorRGBA[InkColor]);
+	}
 }
