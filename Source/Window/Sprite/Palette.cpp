@@ -31,11 +31,11 @@ void SPalette::NativeInitialize(const FNativeDataInitialize& Data)
 	SubscribeEvent<FEvent_Canvas>(
 		[this](const FEvent_Canvas& Event)
 		{
-			if (Event.Tag == FEvent_Canvas::CanvasOptionsFlagsTag)
+			if (Event.Tag == FEventTag::CanvasOptionsFlagsTag)
 			{
 				OptionsFlags = Event.OptionsFlags;
 			}
-			else if (Event.Tag == FEvent_Canvas::SelectedColorTag)
+			else if (Event.Tag == FEventTag::SelectedColorTag)
 			{
 				ButtonColor[Event.SelectedColor.ButtonIndex & 0x01] = Event.SelectedColor.SelectedColorIndex;
 				if (Event.SelectedColor.SelectedSubcolorIndex < ESubcolor::MAX)
@@ -106,7 +106,7 @@ void SPalette::Display_Colors()
 					ButtonColor[ButtonPressed] = i;
 
 					FEvent_PaletteBar Event;
-					Event.Tag = FEvent_PaletteBar::ColorIndexTag;
+					Event.Tag = FEventTag::SelectedColorTag;
 					FSelectedColor SelectedColor
 					{
 						.ButtonIndex = ButtonPressed,
@@ -292,7 +292,7 @@ void SPalette::Display_Colors()
 							ButtonColor[ButtonPressed] = Subcolor[SubColorIndex];
 
 							FEvent_PaletteBar Event;
-							Event.Tag = FEvent_PaletteBar::ColorIndexTag;
+							Event.Tag = FEventTag::SelectedColorTag;
 							const uint8_t IPColor = SubColorIndex < 2 ? SelectValue | (bBright << 3) : SelectValue;
 							FSelectedColor SelectedColor
 							{

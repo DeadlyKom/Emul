@@ -2,7 +2,7 @@
 
 #include <CoreMinimal.h>
 #include "Viewer.h"
-#include "Core/Image.h"
+#include <Core/Image.h>
 #include "Devices/CPU/Interface_CPU_Z80.h"
 #include "Devices/Memory/Interface_Memory.h"
 

@@ -12,7 +12,7 @@
 #include "Motherboard/Motherboard.h"
 #include "Motherboard/Motherboard_Board.h"
 #include "Core/Fonts.h"
-#include "Core/Image.h"
+#include <Core/Image.h>
 
 namespace
 {

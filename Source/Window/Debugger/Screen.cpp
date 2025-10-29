@@ -1,7 +1,7 @@
 #include "Screen.h"
 
 #include "AppDebugger.h"
-#include "Core/Image.h"
+#include <Core/Image.h>
 #include "Utils/UI/Draw.h"
 #include "Motherboard/Motherboard.h"
 #include "Devices/ControlUnit/Interface_Display.h"

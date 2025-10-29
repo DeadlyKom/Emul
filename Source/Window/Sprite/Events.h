@@ -1,8 +1,19 @@
 #pragma once
 
 #include <Core/Event.h>
+#include <Utils/UI/Draw_ZXColorVideo.h>
+
 #include "Palette.h"
-#include "Utils/UI/Draw_ZXColorVideo.h"
+#include "ToolBar.h"
+
+namespace FEventTag
+{
+	static const FName ChangeToolModeTag = TEXT("ChangeToolMode");
+	static const FName CanvasOptionsFlagsTag = TEXT("CanvasOptionsFlags");
+	static const FName SelectedColorTag = TEXT("SelectedColor");
+	static const FName CanvasSizeTag = TEXT("CanvasSize");;
+	static const FName MousePositionTag = TEXT("MouseState");
+}
 
 struct FSelectedColor
 {
@@ -11,30 +22,35 @@ struct FSelectedColor
 	ESubcolor::Type SelectedSubcolorIndex = ESubcolor::None;
 };
 
+struct FChangeToolMode
+{
+	EToolMode::Type ToolMode;
+};
+
 class FEvent_Canvas : public IEvent
 {
 public:
-	static const FName CanvasOptionsFlagsTag;
-	static const FName SelectedColorTag;
-
 	uint32_t OptionsFlags{};
 	FSelectedColor SelectedColor;
+	FChangeToolMode ChangeToolMode;
 };
 
 class FEvent_StatusBar : public IEvent
 {
 public:
-	static const FName CanvasSizeTag;
-	static const FName MousePositionTag;
 
 	ImVec2 CanvasSize{};
 	ImVec2 MousePosition{};
 };
 
+class FEvent_ToolBar : public IEvent
+{
+public:
+	FChangeToolMode ChangeToolMode;
+};
+
 class FEvent_PaletteBar : public IEvent
 {
 public:
-	static const FName ColorIndexTag;
-
 	FSelectedColor SelectedColor;
 };

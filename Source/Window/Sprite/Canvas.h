@@ -2,7 +2,7 @@
 
 #include <CoreMinimal.h>
 #include <Core/ViewerBase.h>
-#include "Core/Image.h"
+#include <Core/Image.h>
 #include <Utils/UI/Draw_ZXColorVideo.h>
 #include "Palette.h"
 #include "ToolBar.h"
@@ -37,12 +37,15 @@ private:
 	void Input_Mouse();
 
 	// set mode
-	void Imput_SetToolMode_None()				{ ToolMode[0] = EToolMode::None;				ToolMode[1] = EToolMode::None; }
-	void Imput_SetToolMode_RectangleMarquee()	{ ToolMode[0] = EToolMode::RectangleMarquee;	ToolMode[1] = EToolMode::None; }
-	void Imput_SetToolMode_Pencil()				{ ToolMode[0] = EToolMode::Pencil;				ToolMode[1] = EToolMode::None; }
-	void Imput_SetToolMode_Eraser()				{ ToolMode[0] = EToolMode::Eraser;				ToolMode[1] = EToolMode::None; }
-	void Imput_SetToolMode_Eyedropper()			{ ToolMode[0] = EToolMode::Eyedropper;			ToolMode[1] = EToolMode::None; }
-	void Imput_SetToolMode_PaintBucket()		{ ToolMode[0] = EToolMode::PaintBucket;			ToolMode[1] = EToolMode::None; }
+	void SetToolMode(EToolMode::Type NewToolMode, bool bForce = true, bool bEvent = false);
+	bool IsEqualToolMode(EToolMode::Type Equal, uint8_t Index = 0) const { return ToolMode[Index] == Equal; }
+
+	void Imput_SetToolMode_None()				{ SetToolMode(EToolMode::None, true);				}
+	void Imput_SetToolMode_RectangleMarquee()	{ SetToolMode(EToolMode::RectangleMarquee, true);	}
+	void Imput_SetToolMode_Pencil()				{ SetToolMode(EToolMode::Pencil, true);				}
+	void Imput_SetToolMode_Eraser()				{ SetToolMode(EToolMode::Eraser, true);				}
+	void Imput_SetToolMode_Eyedropper()			{ SetToolMode(EToolMode::Eyedropper, true);			}
+	void Imput_SetToolMode_PaintBucket()		{ SetToolMode(EToolMode::PaintBucket, true);		}
 	void ApplyToolMode();
 
 	void Handler_Pencil();

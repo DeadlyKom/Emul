@@ -22,11 +22,11 @@ void SStatusBar::NativeInitialize(const FNativeDataInitialize& Data)
 	SubscribeEvent<FEvent_StatusBar>(
 		[this](const FEvent_StatusBar& Event)
 		{
-			if (Event.Tag == FEvent_StatusBar::CanvasSizeTag)
+			if (Event.Tag == FEventTag::CanvasSizeTag)
 			{
 				CanvasSize = Event.CanvasSize;
 			}
-			else if (Event.Tag == FEvent_StatusBar::MousePositionTag)
+			else if (Event.Tag == FEventTag::MousePositionTag)
 			{
 				MousePosition = Event.MousePosition;
 			}

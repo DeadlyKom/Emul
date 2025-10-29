@@ -46,7 +46,7 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 	SubscribeEvent<FEvent_PaletteBar>(
 		[this](const FEvent_PaletteBar& Event)
 		{
-			if (Event.Tag == FEvent_PaletteBar::ColorIndexTag)
+			if (Event.Tag == FEventTag::SelectedColorTag)
 			{
 				ButtonColor[Event.SelectedColor.ButtonIndex & 0x01] = Event.SelectedColor.SelectedColorIndex;
 				if (Event.SelectedColor.SelectedSubcolorIndex < ESubcolor::MAX)
@@ -54,6 +54,15 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 					Subcolor[Event.SelectedColor.SelectedSubcolorIndex] = Event.SelectedColor.SelectedColorIndex;
 				}
 				UpdateCursorColor();
+			}
+		});
+
+	SubscribeEvent<FEvent_ToolBar>(
+		[this](const FEvent_ToolBar& Event)
+		{
+			if (Event.Tag == FEventTag::ChangeToolModeTag)
+			{
+				SetToolMode(Event.ChangeToolMode.ToolMode, true, true);
 			}
 		});
 }
@@ -70,10 +79,12 @@ void SCanvas::Initialize()
 	UI::QuantizeToZX(ImageData, Width, Height, 4, ZXColorView->IndexedData);
 	UI::ZXIndexColorToRGBA(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
 
-	FEvent_StatusBar Event;
-	Event.Tag = FEvent_StatusBar::CanvasSizeTag;
-	Event.CanvasSize = ImVec2((float)Width, (float)Height);
-	SendEvent(Event);
+	{
+		FEvent_StatusBar Event;
+		Event.Tag = FEventTag::CanvasSizeTag;
+		Event.CanvasSize = ImVec2((float)Width, (float)Height);
+		SendEvent(Event);
+	}
 
 	ConversionToZX(ConversationSettings);
 
@@ -246,7 +257,7 @@ void SCanvas::Render()
 		{
 			OptionsFlags[1] = OptionsFlags[0];
 			FEvent_Canvas Event;
-			Event.Tag = FEvent_Canvas::CanvasOptionsFlagsTag;
+			Event.Tag = FEventTag::CanvasOptionsFlagsTag;
 			Event.OptionsFlags = OptionsFlags[0];
 			SendEvent(Event);
 		}
@@ -287,22 +298,13 @@ void SCanvas::Input_HotKeys()
 		return;
 	}
 
-	if (ImGui::IsKeyPressed(ImGuiKey_ModAlt) && ToolMode[0] != EToolMode::Eyedropper)
+	if (ImGui::IsKeyPressed(ImGuiKey_ModAlt) && !IsEqualToolMode(EToolMode::Eyedropper))
 	{
-		ToolMode[1] = ToolMode[0];
-		ToolMode[0] = EToolMode::Eyedropper;
+		SetToolMode(EToolMode::Eyedropper, false);
 	}
-	else if (ImGui::IsKeyReleased(ImGuiKey_ModAlt) && ToolMode[1] != EToolMode::None)
+	else if (ImGui::IsKeyReleased(ImGuiKey_ModAlt)/* && !IsEqualToolMode(EToolMode::None, 1)*/)
 	{
-		if (ToolMode[1] != EToolMode::Eyedropper)
-		{
-			ToolMode[0] = ToolMode[1];
-		}
-		else
-		{
-			ToolMode[0] = EToolMode::None;
-		}
-		ToolMode[1] = EToolMode::None;
+		SetToolMode(ToolMode[1], false);
 	}
 }
 
@@ -322,7 +324,7 @@ void SCanvas::Input_Mouse()
 	{
 		ZXColorView->CursorPosition = UI::GetMouse(ZXColorView);
 		FEvent_StatusBar Event;
-		Event.Tag = FEvent_StatusBar::MousePositionTag;
+		Event.Tag = FEventTag::MousePositionTag;
 		Event.MousePosition = ZXColorView->CursorPosition;
 		SendEvent(Event);
 	}
@@ -347,6 +349,35 @@ void SCanvas::Input_Mouse()
 		{
 			UI::Add_ZXViewDeltaPosition(ZXColorView, Delta);
 		}
+	}
+}
+
+void SCanvas::SetToolMode(EToolMode::Type NewToolMode, bool bForce /*= true*/, bool bEvent /*= false*/)
+{
+	if (ToolMode[0] != NewToolMode)
+	{
+		ToolMode[1] = bForce ? EToolMode::None : ToolMode[0];
+		ToolMode[0] = NewToolMode;
+	}
+	else if (ToolMode[1] != EToolMode::None)
+	{
+		if (ToolMode[1] != NewToolMode)
+		{
+			ToolMode[0] = ToolMode[1];
+		}
+		else
+		{
+			ToolMode[0] = EToolMode::None;
+		}
+		ToolMode[1] = EToolMode::None;
+	}
+
+	if (!bEvent)
+	{
+		FEvent_Canvas Event;
+		Event.Tag = FEventTag::ChangeToolModeTag;
+		Event.ChangeToolMode.ToolMode = NewToolMode;
+		SendEvent(Event);
 	}
 }
 
@@ -412,7 +443,7 @@ void SCanvas::Handler_Eyedropper()
 		ButtonColor[ButtonIndex] = (UI::EZXSpectrumColor::Type)ZXColorView->IndexedData[Offset];
 
 		FEvent_Canvas Event;
-		Event.Tag = FEvent_Canvas::SelectedColorTag;
+		Event.Tag = FEventTag::SelectedColorTag;
 		FSelectedColor SelectedColor
 		{
 			.ButtonIndex = ButtonIndex,

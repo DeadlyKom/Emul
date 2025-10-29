@@ -392,6 +392,11 @@
     <Image Include="..\Resource\Icons\ArrowRight.png">
       <Filter>Resource\Icons</Filter>
     </Image>
+    <Image Include="..\Resource\Icons\Rectangle Marquee.png" />
+    <Image Include="..\Resource\Icons\Pencil.png" />
+    <Image Include="..\Resource\Icons\Eraser.png" />
+    <Image Include="..\Resource\Icons\Eyedropper.png" />
+    <Image Include="..\Resource\Icons\PaintBucket.png" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ZX-Debugger.rc">

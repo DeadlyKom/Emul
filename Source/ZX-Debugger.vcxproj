@@ -324,7 +324,12 @@
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Resource\Icons\ArrowRight.png" />
+    <Image Include="..\Resource\Icons\Eraser.png" />
+    <Image Include="..\Resource\Icons\Eyedropper.png" />
     <Image Include="..\Resource\Icons\ICONE.ico" />
+    <Image Include="..\Resource\Icons\PaintBucket.png" />
+    <Image Include="..\Resource\Icons\Pencil.png" />
+    <Image Include="..\Resource\Icons\Rectangle Marquee.png" />
   </ItemGroup>
   <ItemGroup>
     <None Include="Core\Font_DefaultNames.inl" />
