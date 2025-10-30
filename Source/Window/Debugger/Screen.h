@@ -31,9 +31,6 @@ public:
 	virtual void Render() override;
 	virtual void Destroy() override;
 
-	// callback
-	void OnDrawCallback(const ImDrawList* ParentList, const ImDrawCmd* CMD);
-
 private:
 	FORCEINLINE FMotherboard& GetMotherboard() const;
 

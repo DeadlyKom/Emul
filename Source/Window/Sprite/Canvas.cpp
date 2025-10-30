@@ -1,12 +1,35 @@
 #include "Canvas.h"
-#include "Utils/UI/Draw.h"
+#include <Utils/UI/Draw.h>
 #include "Events.h"
 #include "Utils/Hotkey.h"
-
 
 namespace
 {
 	static const char* ThisWindowName = TEXT("Canvas");
+	static const char* PopupMenuName = TEXT("Popup Menu Sprite");
+	static const char* CreateSpriteName = "Create Sprite";
+
+	int32_t TextEditNumberCallback(ImGuiInputTextCallbackData* Data)
+	{
+		switch (Data->EventFlag)
+		{
+		case ImGuiInputTextFlags_CallbackCharFilter:
+			if (Data->EventChar < '0' || Data->EventChar > '9')
+			{
+				return 1;
+			}
+			break;
+		case ImGuiInputTextFlags_CallbackEdit:
+			float Value = 0;
+			if (strlen(Data->Buf) > 1)
+			{
+				Value = float(std::stoi(Data->Buf));
+			}
+			*(float*)Data->UserData = Value;
+			break;
+		}
+		return 0;
+	}
 }
 
 SCanvas::SCanvas(EFont::Type _FontName)
@@ -16,13 +39,17 @@ SCanvas::SCanvas(EFont::Type _FontName)
 		.SetIncludeInWindows(true))
 	, bDragging(false)
 	, bRefreshCanvas(false)
+	, bRectangleMarqueeActive(false)
 	, bNeedConvertCanvasToZX(false)
 	, bNeedConvertZXToCanvas(false)
+	, bOpenPopupMenu(false)
+	, bMouseInsideMarquee(false)
 	, LastOptionsFlags(FCanvasOptionsFlags::None)
 	, LastSetPixelColorIndex(UI::EZXSpectrumColor::None)
 	, LastSetPixelPosition(-1.0f, -1.0f)
 	, Width(0)
 	, Height(0)
+	, SpriteCounter(0)
 {
 	ButtonColor[0] = UI::EZXSpectrumColor::Black_;
 	ButtonColor[1] = UI::EZXSpectrumColor::Black;
@@ -77,7 +104,7 @@ void SCanvas::Initialize()
 	//uint8_t* ImageData = FImageBase::LoadToMemory("D:\\Work\\[Sprite]\\Геройчики\\Fake\\111.png", Width, Height);
 	uint8_t* ImageData = FImageBase::LoadToMemory("D:\\Work\\[Sprite]\\Геройчики\\Tile\\Hex\\Hex1.png", Width, Height);
 	UI::QuantizeToZX(ImageData, Width, Height, 4, ZXColorView->IndexedData);
-	UI::ZXIndexColorToRGBA(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
+	UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
 
 	{
 		FEvent_StatusBar Event;
@@ -92,7 +119,12 @@ void SCanvas::Initialize()
 
 	ZXColorView->Device = Data.Device;
 	ZXColorView->DeviceContext = Data.DeviceContext;
-	Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Screen);
+	Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Canvas);
+}
+
+void SCanvas::Tick(float DeltaTime)
+{
+	ZXColorView->TimeCounter += DeltaTime;
 }
 
 void SCanvas::Render()
@@ -112,7 +144,7 @@ void SCanvas::Render()
 	{
 		if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
 		{
-			UI::ZXIndexColorToRGBA(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
+			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
 		}
 		else
 		{
@@ -131,6 +163,7 @@ void SCanvas::Render()
 		Input_HotKeys();
 		Input_Mouse();
 		ApplyToolMode();
+		Draw_PopupMenu();
 
 		ImGui::Spacing();
 		if (ImGui::Button("Options", { 0.0f, 25.0f }))
@@ -276,6 +309,91 @@ void SCanvas::Destroy()
 	UI::Draw_ZXColorView_Shutdown(ZXColorView);
 }
 
+void SCanvas::Draw_PopupMenu()
+{
+	const ImGuiID CreateSpriteID = ImGui::GetCurrentWindow()->GetID(CreateSpriteName);
+
+	if (bOpenPopupMenu = ImGui::BeginPopup(PopupMenuName))
+	{
+		if (ImGui::MenuItem("Add Sprite"))
+		{
+			ImGui::OpenPopup(CreateSpriteID);
+			
+			CreateSpriteSize = ZXColorView->RectangleMarqueeRect.GetSize();
+			sprintf(CreateSpriteNameBuffer, std::format("Sprite {}", ++SpriteCounter).c_str());
+			sprintf(CreateSpriteWidthBuffer, "%i\n", int(CreateSpriteSize.x));
+			sprintf(CreateSpriteHeightBuffer, "%i\n", int(CreateSpriteSize.y));
+		}
+		ImGui::EndPopup();	
+	}
+
+	if (ImGui::BeginPopupModal(CreateSpriteName, NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		const ImVec2 OriginalSpriteSize = ZXColorView->RectangleMarqueeRect.GetSize();
+		const float NormalSizeX = powf(2.0f, ceilf(log2f(OriginalSpriteSize.x)));
+		const float NormalSizeY = powf(2.0f, ceilf(log2f(OriginalSpriteSize.y)));
+
+		const float TextWidth = ImGui::CalcTextSize("A").x;
+		const float TextHeight = ImGui::GetTextLineHeightWithSpacing();
+
+		const ImGuiInputTextFlags InputNumberTextFlags = ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CallbackCharFilter | ImGuiInputTextFlags_CallbackEdit;
+
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
+		ImGui::Text("Name :");
+		ImGui::SameLine(50.0f);
+		ImGui::InputTextEx("##Name", NULL, CreateSpriteNameBuffer, IM_ARRAYSIZE(CreateSpriteNameBuffer), ImVec2(TextWidth * 20.0f, TextHeight), ImGuiInputTextFlags_None);
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
+		ImGui::Text("Size :");
+		ImGui::Separator();
+
+		ImGui::Text("Width :");
+		ImGui::SameLine(50.0f); 
+		ImGui::InputTextEx("##Width", NULL, CreateSpriteWidthBuffer, IM_ARRAYSIZE(CreateSpriteWidthBuffer), ImVec2(TextWidth * 10.0f, TextHeight), InputNumberTextFlags, &TextEditNumberCallback, (void*)&CreateSpriteSize.x);
+		ImGui::SameLine(150.0f);
+		if (ImGui::SliderFloat("##FineTuningX", &CreateSpriteSize.x, 0.0f, NormalSizeX, "%.0f"))
+		{
+			sprintf(CreateSpriteWidthBuffer, "%i\n", int32_t(CreateSpriteSize.x));
+		}
+		
+		ImGui::Text("Height :");
+		ImGui::SameLine(50.0f);
+		ImGui::InputTextEx("##Height", NULL, CreateSpriteHeightBuffer, IM_ARRAYSIZE(CreateSpriteHeightBuffer), ImVec2(TextWidth * 10.0f, TextHeight), InputNumberTextFlags, &TextEditNumberCallback, (void*)&CreateSpriteSize.y);
+		ImGui::SameLine(150.0f);
+		if (ImGui::SliderFloat("##FineTuningY", &CreateSpriteSize.y, 0.0f, NormalSizeY, "%.0f"))
+		{
+			sprintf(CreateSpriteHeightBuffer, "%i\n", int32_t(CreateSpriteSize.y));
+		}
+
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));	
+
+		if (ImGui::ButtonEx("OK", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
+		{
+			FEvent_AddSprite Event;
+			Event.Tag = FEventTag::AddSpriteTag;
+			Event.Width = Width;
+			Event.Height = Height;
+			Event.SpriteRect = ImRect(ZXColorView->RectangleMarqueeRect.Min, ZXColorView->RectangleMarqueeRect.Min + CreateSpriteSize);
+			Event.SpriteName = CreateSpriteNameBuffer;
+
+			Event.IndexedData = ZXColorView->IndexedData;
+			Event.InkData = ZXColorView->InkData;
+			Event.AttributeData = ZXColorView->AttributeData;
+			Event.MaskData = ZXColorView->MaskData;
+
+			SendEvent(Event);
+
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SetItemDefaultFocus();
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
+		{
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
+}
+
 void SCanvas::Input_HotKeys()
 {
 	static std::vector<FHotKey> Hotkeys =
@@ -390,12 +508,17 @@ void SCanvas::ApplyToolMode()
 		return;
 	}
 
+	bMouseInsideMarquee = ZXColorView->RectangleMarqueeRect.Contains(UI::ConverZXViewPositionToPixel(*ZXColorView, ImGui::GetMousePos()));
+
 	switch (ToolMode[0])
 	{
 	case EToolMode::None:
 		ZXColorView->bCursorEnable = false;
+		Reset_RectangleMarquee();
 		break;
 	case EToolMode::RectangleMarquee:
+		ZXColorView->bCursorEnable = false;
+		Handler_RectangleMarquee();
 		break;
 	case EToolMode::Pencil:
 		ZXColorView->bCursorEnable = true;
@@ -412,10 +535,63 @@ void SCanvas::ApplyToolMode()
 	}
 }
 
+void SCanvas::Reset_RectangleMarquee()
+{
+	ZXColorView->RectangleMarqueeRect = ImRect(0.0f, 0.0f, 0.0f, 0.0f);
+	ZXColorView->bVisibilityRectangleMarquee = false;
+	bRectangleMarqueeActive = false;
+	bOpenPopupMenu = false;
+}
+
+void SCanvas::Handler_RectangleMarquee()
+{
+	const ImGuiIO& IO = ImGui::GetIO();
+	const bool bHovered = ImGui::IsWindowHovered();
+
+	const bool Shift = IO.KeyShift;
+	const bool Ctrl = IO.ConfigMacOSXBehaviors ? IO.KeySuper : IO.KeyCtrl;
+	const bool Alt = IO.ConfigMacOSXBehaviors ? IO.KeyCtrl : IO.KeyAlt;
+
+	if (IO.MouseReleased[ImGuiMouseButton_Right])
+	{
+		if (bMouseInsideMarquee)
+		{
+			ImGui::OpenPopup(PopupMenuName);
+		}
+	}
+
+	if (!bOpenPopupMenu && !bRectangleMarqueeActive &&ImGui::IsKeyDown(ImGuiKey_MouseLeft))
+	{
+		ZXColorView->RectangleMarqueeRect.Min = ImMin(ImMax(UI::ConverZXViewPositionToPixel(*ZXColorView, ImGui::GetMousePos()), ImVec2(0.0f, 0.0f)), ZXColorView->Image.Size * ZXColorView->Scale);
+		ZXColorView->RectangleMarqueeRect.Max = ZXColorView->RectangleMarqueeRect.Min;
+
+		ZXColorView->bVisibilityRectangleMarquee = true;
+		bRectangleMarqueeActive = true;
+	}
+	else if (!bOpenPopupMenu && bRectangleMarqueeActive && ImGui::IsKeyDown(ImGuiKey_MouseLeft))
+	{
+		ZXColorView->RectangleMarqueeRect.Max = ImMin(ImMax(UI::ConverZXViewPositionToPixel(*ZXColorView, ImGui::GetMousePos() + ZXColorView->Scale), ImVec2(0.0f, 0.0f)), ZXColorView->Image.Size * ZXColorView->Scale);
+	}
+	else if (ImGui::IsKeyReleased(ImGuiKey_MouseLeft))
+	{
+		bRectangleMarqueeActive = false;
+	}
+	else if (bOpenPopupMenu &&ZXColorView->bVisibilityRectangleMarquee && ImGui::IsKeyPressed(ImGuiKey_MouseLeft))
+	{
+		bOpenPopupMenu = false;
+	}
+}
+
 void SCanvas::Handler_Pencil()
 {
 	ImGuiContext& Context = *ImGui::GetCurrentContext();
-	if (!Context.IO.MouseDown[ImGuiMouseButton_Left] && !Context.IO.MouseDown[ImGuiMouseButton_Right])
+	if (!Context.IO.MouseDown[ImGuiMouseButton_Left] && 
+		!Context.IO.MouseDown[ImGuiMouseButton_Right])
+	{
+		return;
+	}
+
+	if (ZXColorView->bVisibilityRectangleMarquee && (!ZXColorView->bVisibilityRectangleMarquee || !bMouseInsideMarquee))
 	{
 		return;
 	}
@@ -510,7 +686,7 @@ void SCanvas::ConversionToZX(const UI::FConversationSettings& Settings)
 		ZXColorView->AttributeData,
 		ZXColorView->MaskData,
 		Settings);
-	UI::ZXIndexColorToRGBA(
+	UI::ZXIndexColorToImage(
 		ZXColorView->Image,
 		ZXColorView->IndexedData,
 		Width, Height);

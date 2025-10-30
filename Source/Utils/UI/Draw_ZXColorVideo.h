@@ -9,8 +9,9 @@ namespace UI
 	#define GRID					1 << 1
 	#define PIXEL_GRID              1 << 2
 	#define BEAM_ENABLE				1 << 3
-	#define ALPHA_CHECKERBOARD_GRID 1 << 4
-	#define PIXEL_CURSOR			1 << 5
+	#define ALPHA_TRANSPARENT		1 << 4
+	#define ALPHA_CHECKERBOARD_GRID 1 << 5
+	#define PIXEL_CURSOR			1 << 6
 	#define FORCE_NEAREST_SAMPLING  1 << 31
 
 	namespace EZXSpectrumColor
@@ -74,6 +75,8 @@ namespace UI
 			Unknown,
 			Screen,
 			Canvas,
+			Sprite,
+			Line,
 		};
 	}
 
@@ -89,6 +92,7 @@ namespace UI
 		bool bAttributeGrid = false;
 		bool bGrid = false;
 		bool bPixelGrid = true;
+		bool bAlphaTransparent = true;
 		bool bAlphaCheckerboardGrid = true;
 		
 		ImVec2 GridSettingSize = ImVec2(8.0f, 8.0f);				// width in UV coords of grid line
@@ -123,8 +127,10 @@ namespace UI
 		ID3D11DeviceContext* DeviceContext = nullptr;
 
 		// shader
-		ID3D11Buffer* PSCB_Grid = nullptr;
+		ID3D11Buffer* PCB_Grid = nullptr;
 		ID3D11PixelShader* PS_Grid = nullptr;
+		ID3D11Buffer* PCB_MarchingAnts = nullptr;
+		ID3D11PixelShader* PS_LineMarchingAnts = nullptr;
 
 		// shader variable
 		bool bBeamEnable = false;
@@ -155,10 +161,12 @@ namespace UI
 		// user data
 		std::shared_ptr<void> UserData;
 
-		ERenderType::Type RenderType = ERenderType::Unknown;
+		bool bVisibilityRectangleMarquee = false;
+		ImRect RectangleMarqueeRect = ImRect (0.0f, 0.0f, 0.0f, 0.0f);
 	};
 
 	ImVec2 GetMouse(std::shared_ptr<UI::FZXColorView> ZXColorView);
+	void OnDrawCallback_ZXVideo(const ImDrawList* ParentList, const ImDrawCmd* CMD);
 
 	void Draw_ZXColorView_Initialize(std::shared_ptr<UI::FZXColorView>, ERenderType::Type RenderType);
 	void Draw_ZXColorView_Shutdown(std::shared_ptr<UI::FZXColorView> ZXColorView);
@@ -170,18 +178,23 @@ namespace UI
 	ImVec2 ConverZXViewPositionToPixel(UI::FZXColorView& ZXColorView, const ImVec2& Position);
 	void ConvertZXIndexColorToDisplayRGB(FImage& InOutputImage, const std::vector<uint8_t> Data);
 
-
 	void GetInkPaper(const std::vector<uint8_t>& IndicesBoundary, uint8_t& OutputPaperColor, uint8_t& OutputInkColor,
 		int32_t TransparentIndex = UI::EZXSpectrumColor::Transparent, int32_t ReplaceTransparent = UI::EZXSpectrumColor::White);
 	int32_t FindClosestColor(ImU32 Color);
 	void QuantizeToZX(uint8_t* RawImage, int32_t Width, int32_t Height, int32_t Channels, std::vector<uint8_t>& OutputIndexedData);
-	void ZXIndexColorToRGBA(FImage& InOutputImage, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height, bool bCreate = false);
+
+	// conversion of index colors (1 color per dot) to texture image
+	void ZXIndexColorToImage(FImage& InOutputImage, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height, bool bCreate = false);
+	
+	// conversion of index colors (1 color per dot) to ZX format
 	void ZXIndexColorToZXAttributeColor(
 		const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height,
 		std::vector<uint8_t>& OutputInkData,
 		std::vector<uint8_t>& OutputAttributeData,
 		std::vector<uint8_t>& OutputMaskData,
 		const UI::FConversationSettings& Settings);
+
+	// conversion of ZX format to index colors (1 color per dot)
 	void ZXAttributeColorToZXIndexColor(
 		FImage& InOutputImage, 
 		int32_t Width, int32_t Height,
@@ -190,6 +203,7 @@ namespace UI
 		const std::vector<uint8_t>& AttributeData,
 		const std::vector<uint8_t>& MaskData);
 
+	// conversion of ZX format to RGBA
 	void ZXAttributeColorToImage(
 		FImage& InOutputImage,
 		int32_t Width, int32_t Height,

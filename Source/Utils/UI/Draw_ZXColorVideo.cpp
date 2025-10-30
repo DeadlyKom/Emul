@@ -1,6 +1,6 @@
 #include "Draw_ZXColorVideo.h"
 #include "Utils/Shader.h"
-#include "Utils/UI/Draw.h"
+#include <Utils/UI/Draw.h>
 #include "Devices/ControlUnit/Interface_Display.h"
 #include "resource.h"
 
@@ -110,112 +110,157 @@ ImVec2 CalculatePanelSize(UI::FZXColorView& ZXColorView)
 	return DrawImageOffset;
 }
 
-void OnDrawCallback(const ImDrawList* ParentList, const UI::FZXColorView& ZXColorView)
+void UI::OnDrawCallback_ZXVideo(const ImDrawList* ParentList, const ImDrawCmd* CMD)
 {
-	if (ZXColorView.RenderType == UI::ERenderType::Screen)
+	const UI::FZXColorView* ZXColorView = CMD ? reinterpret_cast<const UI::FZXColorView*>(CMD->UserCallbackData) : nullptr;
+	if (!ZXColorView || ZXColorView->PS_Grid == nullptr || ZXColorView->PCB_Grid == nullptr)
 	{
-		if (ZXColorView.PS_Grid == nullptr || ZXColorView.PSCB_Grid == nullptr)
+		return;
+	}
+
+	// map the pixel shader constant buffer and fill values
+	{
+		D3D11_MAPPED_SUBRESOURCE MappedResource;
+		if (ZXColorView->DeviceContext->Map(ZXColorView->PCB_Grid, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource) != S_OK)
 		{
 			return;
 		}
 
-		// map the pixel shader constant buffer and fill values
-		{
-			D3D11_MAPPED_SUBRESOURCE MappedResource;
-			if (ZXColorView.DeviceContext->Map(ZXColorView.PSCB_Grid, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource) != S_OK)
-			{
-				return;
-			}
-
-			// transfer shader options from shaderOptions to our backend specific pixel shader constant buffer
-			Shader::PIXEL_CONSTANT_BUFFER* ConstantBuffer = (Shader::PIXEL_CONSTANT_BUFFER*)MappedResource.pData;
-			std::memcpy(ConstantBuffer->GridColor, &ZXColorView.GridColor, sizeof(ZXColorView.GridColor));
-			std::memcpy(ConstantBuffer->CursorColor, &ZXColorView.CursorColor, sizeof(ZXColorView.CursorColor));
-			std::memcpy(ConstantBuffer->TransparentColor, &ZXColorView.TransparentColor, sizeof(ZXColorView.TransparentColor));
-			std::memcpy(ConstantBuffer->GridWidth, &ZXColorView.GridWidth, sizeof(ZXColorView.GridWidth));
-			std::memcpy(ConstantBuffer->BackgroundColor, &ZXColorView.BackgroundColor, sizeof(float) * 3);
-			std::memcpy(ConstantBuffer->TextureSize, &ZXColorView.Image.Size, sizeof(ZXColorView.Image.Size));
+		// transfer shader options from shaderOptions to our backend specific pixel shader constant buffer
+		Shader::PIXEL_CONSTANT_BUFFER* ConstantBuffer = (Shader::PIXEL_CONSTANT_BUFFER*)MappedResource.pData;
+		std::memcpy(ConstantBuffer->GridColor, &ZXColorView->GridColor, sizeof(ZXColorView->GridColor));
+		std::memcpy(ConstantBuffer->CursorColor, &ZXColorView->CursorColor, sizeof(ZXColorView->CursorColor));
+		std::memcpy(ConstantBuffer->TransparentColor, &ZXColorView->TransparentColor, sizeof(ZXColorView->TransparentColor));
+		std::memcpy(ConstantBuffer->GridWidth, &ZXColorView->GridWidth, sizeof(ZXColorView->GridWidth));
+		std::memcpy(ConstantBuffer->BackgroundColor, &ZXColorView->BackgroundColor, sizeof(float) * 3);
+		std::memcpy(ConstantBuffer->TextureSize, &ZXColorView->Image.Size, sizeof(ZXColorView->Image.Size));
 			
-			{
-				//const ImVec2 a = (ZXColorView->UV.Min) * ZXColorView->Image.Size;
-				const ImVec2 CursorPosition = (ZXColorView.CursorPosition / ZXColorView.Image.Size)/* - ZXColorView.UV.Min*/;
-				std::memcpy(ConstantBuffer->CursorPosition, &CursorPosition, sizeof(CursorPosition));
-			}
-
-			const FSpectrumDisplay* SpectrumDisplay = reinterpret_cast<const FSpectrumDisplay*>(ZXColorView.UserData.get());
-			if (SpectrumDisplay != nullptr)
-			{
-				const ImVec2 CRT_BeamPosition = SpectrumDisplay->CRT_BeamPosition / ZXColorView.Image.Size;
-				std::memcpy(ConstantBuffer->CRT_BeamPosition, &CRT_BeamPosition, sizeof(CRT_BeamPosition));
-			}
-
-			{
-				uint32_t Flags = 0;
-				if (ZXColorView.Options.bAttributeGrid)
-				{
-					Flags |= ATTRIBUTE_GRID;
-				}
-				if (ZXColorView.Options.bGrid)
-				{
-					Flags |= GRID;
-				}
-				if (ZXColorView.Options.bPixelGrid)
-				{
-					Flags |= PIXEL_GRID;
-				}
-				if (ZXColorView.Options.bAlphaCheckerboardGrid)
-				{
-					Flags |= ALPHA_CHECKERBOARD_GRID;
-				}
-				if (ZXColorView.bBeamEnable)
-				{
-					Flags |= BEAM_ENABLE;
-				}
-				if (ZXColorView.bCursorEnable)
-				{
-					Flags |= PIXEL_CURSOR;
-				}
-				if (ZXColorView.bForceNearestSampling)
-				{
-					Flags |= FORCE_NEAREST_SAMPLING;
-				}
-				ConstantBuffer->Flags = Flags;
-
-				ConstantBuffer->GridSize[0] = ZXColorView.Options.GridSettingSize.x;
-				ConstantBuffer->GridSize[1] = ZXColorView.Options.GridSettingSize.y;
-				ConstantBuffer->GridOffset[0] = ZXColorView.Options.GridSettingOffset.x;
-				ConstantBuffer->GridOffset[1] = ZXColorView.Options.GridSettingOffset.y;
-			}
-			ZXColorView.DeviceContext->Unmap(ZXColorView.PSCB_Grid, 0);
+		{
+			//const ImVec2 a = (ZXColorView->UV.Min) * ZXColorView->Image.Size;
+			const ImVec2 CursorPosition = (ZXColorView->CursorPosition / ZXColorView->Image.Size)/* - ZXColorView.UV.Min*/;
+			std::memcpy(ConstantBuffer->CursorPosition, &CursorPosition, sizeof(CursorPosition));
 		}
 
-		// activate shader and buffer
-		ZXColorView.DeviceContext->PSSetShader(ZXColorView.PS_Grid, NULL, 0);
-		ZXColorView.DeviceContext->PSSetConstantBuffers(0, 1, &ZXColorView.PSCB_Grid);
+		const FSpectrumDisplay* SpectrumDisplay = reinterpret_cast<const FSpectrumDisplay*>(ZXColorView->UserData.get());
+		if (SpectrumDisplay != nullptr)
+		{
+			const ImVec2 CRT_BeamPosition = SpectrumDisplay->CRT_BeamPosition / ZXColorView->Image.Size;
+			std::memcpy(ConstantBuffer->CRT_BeamPosition, &CRT_BeamPosition, sizeof(CRT_BeamPosition));
+		}
+
+		{
+			uint32_t Flags = 0;
+			if (ZXColorView->Options.bAttributeGrid)
+			{
+				Flags |= ATTRIBUTE_GRID;
+			}
+			if (ZXColorView->Options.bGrid)
+			{
+				Flags |= GRID;
+			}
+			if (ZXColorView->Options.bPixelGrid)
+			{
+				Flags |= PIXEL_GRID;
+			}
+			if (ZXColorView->Options.bAlphaTransparent)
+			{
+				Flags |= ALPHA_TRANSPARENT;
+			}
+			if (ZXColorView->Options.bAlphaCheckerboardGrid)
+			{
+				Flags |= ALPHA_CHECKERBOARD_GRID;
+			}
+			if (ZXColorView->bBeamEnable)
+			{
+				Flags |= BEAM_ENABLE;
+			}
+			if (ZXColorView->bCursorEnable)
+			{
+				Flags |= PIXEL_CURSOR;
+			}
+			if (ZXColorView->bForceNearestSampling)
+			{
+				Flags |= FORCE_NEAREST_SAMPLING;
+			}
+			ConstantBuffer->Flags = Flags;
+
+			ConstantBuffer->GridSize[0] = ZXColorView->Options.GridSettingSize.x;
+			ConstantBuffer->GridSize[1] = ZXColorView->Options.GridSettingSize.y;
+			ConstantBuffer->GridOffset[0] = ZXColorView->Options.GridSettingOffset.x;
+			ConstantBuffer->GridOffset[1] = ZXColorView->Options.GridSettingOffset.y;
+		}
+		ZXColorView->DeviceContext->Unmap(ZXColorView->PCB_Grid, 0);
 	}
+
+	// activate shader and buffer
+	ZXColorView->DeviceContext->PSSetShader(ZXColorView->PS_Grid, NULL, 0);
+	ZXColorView->DeviceContext->PSSetConstantBuffers(0, 1, &ZXColorView->PCB_Grid);
 }
 
-void DrawCallback(const ImDrawList* ParentList, const ImDrawCmd* CMD)
+void OnDrawCallback_LineMarchingAnts(const ImDrawList* ParentList, const ImDrawCmd* CMD)
 {
 	const UI::FZXColorView* ZXColorView = CMD ? reinterpret_cast<const UI::FZXColorView*>(CMD->UserCallbackData) : nullptr;
-	if (ZXColorView)
+	if (!ZXColorView || ZXColorView->PS_LineMarchingAnts == nullptr || ZXColorView->PCB_MarchingAnts == nullptr)
 	{
-		OnDrawCallback(ParentList, *ZXColorView);
+		return;
 	}
+
+	// map the pixel shader constant buffer and fill values
+	{
+		D3D11_MAPPED_SUBRESOURCE MappedResource;
+		if (ZXColorView->DeviceContext->Map(ZXColorView->PCB_MarchingAnts, 0, D3D11_MAP_WRITE_DISCARD, 0, &MappedResource) != S_OK)
+		{
+			return;
+		}
+		// transfer shader options from shaderOptions to our backend specific pixel shader constant buffer
+		Shader::PIXEL_CONSTANT_BUFFER* ConstantBuffer = (Shader::PIXEL_CONSTANT_BUFFER*)MappedResource.pData;
+		ConstantBuffer->TimeCounter = ZXColorView->TimeCounter;
+		ZXColorView->DeviceContext->Unmap(ZXColorView->PCB_MarchingAnts, 0);
+	}
+	// Activate shader and buffer
+	ZXColorView->DeviceContext->PSSetShader(ZXColorView->PS_LineMarchingAnts, NULL, 0);
+	ZXColorView->DeviceContext->PSSetConstantBuffers(0, 1, &ZXColorView->PCB_MarchingAnts);
 }
 
 void UI::Draw_ZXColorView_Initialize(std::shared_ptr<UI::FZXColorView> ZXColorView, ERenderType::Type RenderType)
 {
 	ZXColorView->PS_Grid = Shader::CreatePixelShaderFromResource(ZXColorView->Device, IDR_PS_GRID);
-	ZXColorView->PSCB_Grid = Shader::CreatePixelShaderConstantBuffer<Shader::PIXEL_CONSTANT_BUFFER>(ZXColorView->Device);
-	ZXColorView->RenderType = RenderType;
+	ZXColorView->PCB_Grid = Shader::CreatePixelShaderConstantBuffer<Shader::PIXEL_CONSTANT_BUFFER>(ZXColorView->Device);
+	if (RenderType == ERenderType::Canvas)
+	{
+		ZXColorView->PS_LineMarchingAnts = Shader::CreatePixelShaderFromResource(ZXColorView->Device, IDR_PS_MA_LINE);
+		ZXColorView->PCB_MarchingAnts = Shader::CreatePixelShaderConstantBuffer<Shader::PIXEL_CONSTANT_BUFFER>(ZXColorView->Device);
+	}
 }
 
 void UI::Draw_ZXColorView_Shutdown(std::shared_ptr<UI::FZXColorView> ZXColorView)
 {
 	Shader::ReleasePixelShader(ZXColorView->PS_Grid);
-	Shader::ReleaseConstantBuffer(ZXColorView->PSCB_Grid);
+	Shader::ReleaseConstantBuffer(ZXColorView->PCB_Grid);
+	Shader::ReleasePixelShader(ZXColorView->PS_LineMarchingAnts);
+	Shader::ReleaseConstantBuffer(ZXColorView->PCB_MarchingAnts);
 	ZXColorView->UserData.reset();
+}
+
+void Draw_RectangleMarquee(std::shared_ptr<UI::FZXColorView> ZXColorView,  const ImRect& Rect)
+{
+	ImRect TmpMarqueeRect = ZXColorView->RectangleMarqueeRect;
+
+	// clamp
+	const ImVec2 Floor = ImFloor(ZXColorView->UV.Min * ZXColorView->Image.Size);
+	TmpMarqueeRect.Min = (TmpMarqueeRect.Min - Floor) * ZXColorView->Scale;
+	TmpMarqueeRect.Max = (TmpMarqueeRect.Max - Floor) * ZXColorView->Scale;
+
+	TmpMarqueeRect.Min = ImMin(ImMax(TmpMarqueeRect.Min, ImVec2(0.0f, 0.0f)), ZXColorView->Image.Size * ZXColorView->Scale);
+	TmpMarqueeRect.Max = ImMin(ImMax(TmpMarqueeRect.Max, ImVec2(0.0f, 0.0f)), ZXColorView->Image.Size * ZXColorView->Scale);
+
+	const ImVec2 TopLeftSubTexel = ZXColorView->ImagePosition * ZXColorView->Scale * ZXColorView->Image.Size - ZXColorView->ViewSize * 0.5f;
+	const ImVec2 TopLeftPixel = ZXColorView->ViewTopLeftPixel - (TopLeftSubTexel - ImFloor(TopLeftSubTexel / ZXColorView->Scale) * ZXColorView->Scale);
+
+	// ToDo разбить прямоугольник на 4 линии и клампить их
+	ImGui::GetWindowDrawList()->_FringeScale = 0.1f;
+	ImGui::GetWindowDrawList()->AddCallback(OnDrawCallback_LineMarchingAnts, ZXColorView.get());
+	ImGui::GetWindowDrawList()->AddRect(TopLeftPixel + TmpMarqueeRect.Min, TopLeftPixel + TmpMarqueeRect.Max, ImGui::GetColorU32(ImGuiCol_Button), 0.0f, 0, 0.001f);
 }
 
 void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)
@@ -242,12 +287,16 @@ void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)
 	ZXColorView->PanelTopLeftPixel = ImGui::GetCursorScreenPos();
 	ImGui::SetCursorPos(ImGui::GetCursorPos() + CalculatePanelSize(*ZXColorView));
 	ZXColorView->ViewTopLeftPixel = ImGui::GetCursorScreenPos();
-	ImRect Rect(Window->DC.CursorPos, Window->DC.CursorPos + ZXColorView->ViewSize);
+	const ImRect Rect(Window->DC.CursorPos, Window->DC.CursorPos + ZXColorView->ViewSize);
 
 	// callback for using our own image shader 
-	ImGui::GetWindowDrawList()->AddCallback(DrawCallback, ZXColorView.get());
+	ImGui::GetWindowDrawList()->AddCallback(OnDrawCallback_ZXVideo, ZXColorView.get());
 	ImGui::GetWindowDrawList()->AddImage(ZXColorView->Image.ShaderResourceView, Rect.Min, Rect.Max, ZXColorView->UV.Min, ZXColorView->UV.Max);
-
+	
+	if (ZXColorView->bVisibilityRectangleMarquee)
+	{
+		Draw_RectangleMarquee(ZXColorView, Rect);
+	}
 	// reset callback for using our own image shader 
 	ImGui::GetWindowDrawList()->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
 }
@@ -443,7 +492,7 @@ void UI::QuantizeToZX(uint8_t* RawImage, int32_t Width, int32_t Height, int32_t 
 	}
 }
 
-void UI::ZXIndexColorToRGBA(FImage& InOutputImage, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height, bool bCreate)
+void UI::ZXIndexColorToImage(FImage& InOutputImage, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height, bool bCreate)
 {
 	const int32_t Size = Width * Height;
 	std::vector<uint32_t> RGBA(Size);
@@ -464,7 +513,6 @@ void UI::ZXIndexColorToRGBA(FImage& InOutputImage, const std::vector<uint8_t>& I
 	{
 		Images.UpdateTexture(InOutputImage.Handle, RGBA.data());
 	}
-
 }
 
 void UI::ZXIndexColorToZXAttributeColor(

@@ -13,6 +13,7 @@ namespace FEventTag
 	static const FName SelectedColorTag = TEXT("SelectedColor");
 	static const FName CanvasSizeTag = TEXT("CanvasSize");;
 	static const FName MousePositionTag = TEXT("MouseState");
+	static const FName AddSpriteTag = TEXT("AddSprite");
 }
 
 struct FSelectedColor
@@ -27,30 +28,45 @@ struct FChangeToolMode
 	EToolMode::Type ToolMode;
 };
 
-class FEvent_Canvas : public IEvent
+struct FEvent_Canvas : public IEvent
 {
-public:
 	uint32_t OptionsFlags{};
 	FSelectedColor SelectedColor;
 	FChangeToolMode ChangeToolMode;
 };
 
-class FEvent_StatusBar : public IEvent
+struct FEvent_StatusBar : public IEvent
 {
-public:
-
 	ImVec2 CanvasSize{};
 	ImVec2 MousePosition{};
 };
 
-class FEvent_ToolBar : public IEvent
+struct FEvent_ToolBar : public IEvent
 {
-public:
 	FChangeToolMode ChangeToolMode;
 };
 
-class FEvent_PaletteBar : public IEvent
+struct FEvent_PaletteBar : public IEvent
 {
-public:
 	FSelectedColor SelectedColor;
+};
+
+//
+struct FEvent_AddSprite : public IEvent
+{
+	// original image size
+	int32_t Width;
+	int32_t Height;
+	ImRect SpriteRect;
+	std::string SpriteName;
+
+	// ZX Spectrum viewing data
+	std::vector<uint8_t> IndexedData;	// indexed image data after QuantizeToZX
+	std::vector<uint8_t> InkData;		// pixels
+	std::vector<uint8_t> AttributeData;	// color ink and color paper (fbpppiii)
+	// f - flag, flash (swap color inc and paper)
+	// b - flag, bright colors
+	// p - 3-bit color paper
+	// i - 3-bit color pixel
+	std::vector<uint8_t> MaskData;		// auto mask from alpha channel
 };

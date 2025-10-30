@@ -7,6 +7,8 @@
 #include "Palette.h"
 #include "ToolBar.h"
 
+#define BUFFER_SIZE_INPUT 32
+
 namespace FCanvasOptionsFlags
 {
 	enum Type
@@ -29,10 +31,13 @@ public:
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
 	virtual void Initialize() override;
+	virtual void Tick(float DeltaTime) override;
 	virtual void Render() override;
 	virtual void Destroy() override;
 
 private:
+	void Draw_PopupMenu();
+
 	void Input_HotKeys();
 	void Input_Mouse();
 
@@ -48,6 +53,8 @@ private:
 	void Imput_SetToolMode_PaintBucket()		{ SetToolMode(EToolMode::PaintBucket, true);		}
 	void ApplyToolMode();
 
+	void Reset_RectangleMarquee();
+	void Handler_RectangleMarquee();
 	void Handler_Pencil();
 	void Handler_Eyedropper();
 
@@ -59,8 +66,11 @@ private:
 
 	bool bDragging;
 	bool bRefreshCanvas;
+	bool bRectangleMarqueeActive;
 	bool bNeedConvertCanvasToZX;
 	bool bNeedConvertZXToCanvas;
+	bool bOpenPopupMenu;
+	bool bMouseInsideMarquee;
 	ImGuiID CanvasID;
 
 	// draw pixels
@@ -74,6 +84,13 @@ private:
 	int32_t Height;
 	uint32_t OptionsFlags[2];
 	uint32_t LastOptionsFlags;
+
+	int32_t SpriteCounter;
+	ImVec2 CreateSpriteSize;
+	char CreateSpriteNameBuffer[BUFFER_SIZE_INPUT] = "";
+	char CreateSpriteWidthBuffer[BUFFER_SIZE_INPUT] = "";
+	char CreateSpriteHeightBuffer[BUFFER_SIZE_INPUT] = "";
+
 	std::shared_ptr<UI::FZXColorView> ZXColorView;
 	UI::FConversationSettings ConversationSettings;
 	EToolMode::Type ToolMode[2];

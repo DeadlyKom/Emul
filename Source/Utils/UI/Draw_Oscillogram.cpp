@@ -1,5 +1,5 @@
 #include "Draw_Oscillogram.h"
-#include "Utils/UI/Draw.h"
+#include <Utils/UI/Draw.h>
 
 void UI::Draw_Oscillogram(const char* TableID, FOscillograph& Oscillograph, const ImVec2& SizeArg /*= ImVec2(-1.0f, -1.0f)*/, const ImVec2* _Padding /*= nullptr*/)
 {

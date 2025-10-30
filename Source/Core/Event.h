@@ -2,9 +2,8 @@
 
 #include <CoreMinimal.h>
 
-class IEvent
+struct IEvent
 {
-public:
 	FName Tag;
 	virtual ~IEvent() = default;
 };

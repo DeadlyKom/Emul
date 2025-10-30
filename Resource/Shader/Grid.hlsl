@@ -2,8 +2,9 @@
 #define GRID					1 << 1
 #define PIXEL_GRID              1 << 2
 #define BEAM_ENABLE             1 << 3
-#define ALPHA_CHECKERBOARD_GRID 1 << 4
-#define PIXEL_CURSOR            1 << 5
+#define ALPHA_TRANSPARENT       1 << 4
+#define ALPHA_CHECKERBOARD_GRID 1 << 5
+#define PIXEL_CURSOR            1 << 6
 #define FORCE_NEAREST_SAMPLING  1 << 31
 
 cbuffer pixelBuffer : register(b0)
@@ -70,7 +71,7 @@ float4 main(PS_INPUT Input) : SV_TARGET
     const float IsGridA = max(TexelEdgeA.x, TexelEdgeA.y);
     const float4 GridColorA = float4(0.0f, 0.0f, 1.0f, 0.75f);
 
-    if (ResultColor.a < 1)
+    if ((Flags & ALPHA_TRANSPARENT) && ResultColor.a < 1)
     {
         if (Flags & ALPHA_CHECKERBOARD_GRID)
         {

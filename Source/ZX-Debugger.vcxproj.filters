@@ -419,6 +419,9 @@
     <None Include="Utils\Signal\BusNames.inl">
       <Filter>Source\Utils\Signal</Filter>
     </None>
+    <None Include="..\Resource\Shader\LineMarchingAnts.hlsl">
+      <Filter>Resource\Shader</Filter>
+    </None>
   </ItemGroup>
   <ItemGroup>
     <Natvis Include="..\test.natvis" />

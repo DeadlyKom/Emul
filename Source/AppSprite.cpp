@@ -13,7 +13,7 @@ namespace
 	static const std::string SpriteName = std::format(TEXT("ZX-Sprite ver. {}.{}"), SPRITE_BUILD_MAJOR, SPRITE_BUILD_MINOR);
 	static const char* MenuEditName = TEXT("Edit");
 
-	const char* ConvertName = "##ConvertTo";
+	const char* ExportToName = "##ExportTo";
 }
 
 FAppSprite::FAppSprite()
@@ -103,10 +103,10 @@ void FAppSprite::LoadIniSettings()
 {
 	const char* DefaultIni = R"(
 [Window][Palette]
-Pos=0,18
-Size=316,79
+Pos=228,18
+Size=780,73
 Collapsed=0
-DockId=0x00000001,0
+DockId=0x00000005,0
 
 [Window][WindowOverViewport_11111111]
 Pos=0,18
@@ -119,60 +119,62 @@ Size=400,400
 Collapsed=0
 
 [Window][Status Bar]
-Pos=0,677
-Size=769,52
+Pos=228,677
+Size=780,52
 Collapsed=0
 DockId=0x00000004,0
 
 [Window][Canvas]
-Pos=0,99
-Size=769,576
+Pos=228,93
+Size=728,582
 Collapsed=0
-DockId=0x00000006,0
+DockId=0x00000001,0
 
 [Window][Tool Bar]
-Pos=318,18
-Size=451,79
+Pos=958,93
+Size=50,582
 Collapsed=0
 DockId=0x00000003,0
 
 [Window][Sprite List]
-Pos=771,18
-Size=237,711
+Pos=0,18
+Size=226,711
 Collapsed=0
-DockId=0x00000008,0
+DockId=0x00000007,0
 
 [Docking][Data]
 DockSpace         ID=0x7C6B3D9B Window=0xA87D555D Pos=456,205 Size=1008,711 Split=X
-  DockNode        ID=0x00000007 Parent=0x7C6B3D9B SizeRef=769,711 Split=Y
-    DockNode      ID=0x00000002 Parent=0x00000007 SizeRef=1008,945 Split=Y
-      DockNode    ID=0x00000005 Parent=0x00000002 SizeRef=1008,79 Split=X Selected=0xDFE559BD
-        DockNode  ID=0x00000001 Parent=0x00000005 SizeRef=316,91 HiddenTabBar=1 Selected=0x7E84447F
-        DockNode  ID=0x00000003 Parent=0x00000005 SizeRef=451,91 HiddenTabBar=1 Selected=0xDFE559BD
-      DockNode    ID=0x00000006 Parent=0x00000002 SizeRef=1008,576 CentralNode=1 HiddenTabBar=1 Selected=0x429E880E
-    DockNode      ID=0x00000004 Parent=0x00000007 SizeRef=1008,52 HiddenTabBar=1 Selected=0x1604805B
-  DockNode        ID=0x00000008 Parent=0x7C6B3D9B SizeRef=237,711 HiddenTabBar=1 Selected=0x7FB5F2E9
+  DockNode        ID=0x00000007 Parent=0x7C6B3D9B SizeRef=226,711 HiddenTabBar=1 Selected=0x7FB5F2E9
+  DockNode        ID=0x00000008 Parent=0x7C6B3D9B SizeRef=1692,711 Split=Y
+    DockNode      ID=0x00000002 Parent=0x00000008 SizeRef=1008,945 Split=Y
+      DockNode    ID=0x00000005 Parent=0x00000002 SizeRef=1008,73 HiddenTabBar=1 Selected=0x7E84447F
+      DockNode    ID=0x00000006 Parent=0x00000002 SizeRef=1008,582 Split=X Selected=0x429E880E
+        DockNode  ID=0x00000001 Parent=0x00000006 SizeRef=1640,576 CentralNode=1 HiddenTabBar=1 Selected=0x429E880E
+        DockNode  ID=0x00000003 Parent=0x00000006 SizeRef=50,576 HiddenTabBar=1 Selected=0xDFE559BD
+    DockNode      ID=0x00000004 Parent=0x00000008 SizeRef=1008,52 HiddenTabBar=1 Selected=0x1604805B
 )";
 	ImGui::LoadIniSettingsFromMemory(DefaultIni);
 }
 
 void FAppSprite::Show_MenuBar()
 {
-	const ImGuiID ConvertID = ImGui::GetCurrentWindow()->GetID(ConvertName);
+	const ImGuiID ConvertID = ImGui::GetCurrentWindow()->GetID(ExportToName);
 	if (ImGui::BeginMenu(MenuEditName))
 	{
-		if (ImGui::MenuItem("Conver"))
+		if (ImGui::MenuItem("Export"))
 		{
 			ImGui::OpenPopup(ConvertID);
 		}
-
+	
 		ImGui::EndMenu();
 	}
 	auto a = ImGui::IsPopupOpen(ConvertID, ImGuiPopupFlags_None);
-	if (ImGui::BeginPopupModal(ConvertName, 0))
+	if (ImGui::BeginPopupModal(ExportToName, 0))
 	{
-		bool b = false;
-		ImGui::Checkbox("Grid", &b);
+		if (ImGui::Button("Cancel", ImVec2(0.0f, 0.0f)))
+		{
+			ImGui::CloseCurrentPopup();
+		}
 		ImGui::EndPopup();
 	}
 }

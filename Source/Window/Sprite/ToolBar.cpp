@@ -47,8 +47,16 @@ void SToolBar::Render()
 		Close();
 		return;
 	}
-	const float DefaultWidth = ImGui::GetContentRegionAvail().x;
-	auto ButtonLambda = [DefaultWidth](const char* ID, FImageHandle ImageHandle, bool bSelectedCondition, float& AvailWidth) -> bool
+
+
+	ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(50.0f, 65.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(1.0f, 1.0f));
+	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(1.0f, 1.0f));
+
+	ImGui::Begin(ThisWindowName, &bOpen);
+	{
+		const float DefaultWidth = ImGui::GetContentRegionAvail().x;
+		auto ButtonLambda = [DefaultWidth](const char* ID, FImageHandle ImageHandle, bool bSelectedCondition, float& AvailWidth) -> bool
 		{
 			FImageBase& Images = FImageBase::Get();
 			FImage& Image = Images.GetImage(ImageHandle);
@@ -78,13 +86,6 @@ void SToolBar::Render()
 			return bResult;
 		};
 
-
-	ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(50.0f, 65.0f));
-	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(1.0f, 1.0f));
-	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(1.0f, 1.0f));
-
-	ImGui::Begin(ThisWindowName, &bOpen);
-	{
 		float AvailWidth = DefaultWidth;
 		if (ButtonLambda("Tools##RectangleMarquee", ImageRectangleMarquee, IsEqualToolMode(EToolMode::RectangleMarquee), AvailWidth))
 		{
@@ -107,7 +108,7 @@ void SToolBar::Render()
 			SetToolMode(EToolMode::PaintBucket, true);
 		}
 
-		ImGui::Text("%i, %i", ToolMode[0], ToolMode[1]);
+		//ImGui::Text("%i, %i", ToolMode[0], ToolMode[1]);
 
 		ImGui::End();
 		ImGui::PopStyleVar(3);
