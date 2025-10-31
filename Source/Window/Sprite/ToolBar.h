@@ -26,7 +26,7 @@ public:
 	virtual ~SToolBar() = default;
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
-	virtual void Initialize() override;
+	virtual void Initialize(const std::any& Arg) override;
 	virtual void Render() override;
 
 private:

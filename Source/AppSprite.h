@@ -16,6 +16,8 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void Render() override;
 	virtual bool IsOver() override;
+	virtual std::vector<std::wstring> DragAndDropExtensions() const override { return { L".png" }; }
+	virtual void DragAndDropFile(const std::filesystem::path& FilePath) override;
 
 private:
 	void LoadIniSettings();

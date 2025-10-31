@@ -62,7 +62,7 @@ public:
 	SDisassembler(EFont::Type _FontName);
 	virtual ~SDisassembler() = default;
 
-	virtual void Initialize() override;
+	virtual void Initialize(const std::any& Arg) override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void Render() override;
 

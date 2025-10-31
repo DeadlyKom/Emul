@@ -2,7 +2,7 @@
 
 namespace
 {
-	static const char* ThisWindowName = TEXT("Call stack");
+	static const wchar_t* ThisWindowName = L"Call stack";
 }
 
 SCallStack::SCallStack(EFont::Type _FontName)
@@ -12,10 +12,6 @@ SCallStack::SCallStack(EFont::Type _FontName)
 		.SetIncludeInWindows(true))
 {}
 
-void SCallStack::Initialize()
-{
-}
-
 void SCallStack::Render()
 {
 	if (!IsOpen())
@@ -24,6 +20,6 @@ void SCallStack::Render()
 		return;
 	}
 
-	ImGui::Begin(ThisWindowName, &bOpen);
+	ImGui::Begin(GetWindowName().c_str(), &bOpen);
 	ImGui::End();
 }

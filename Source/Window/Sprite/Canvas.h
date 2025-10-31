@@ -26,11 +26,11 @@ class SCanvas : public SViewerChildBase
 	using Super = SViewerChildBase;
 	using ThisClass = SCanvas;
 public:
-	SCanvas(EFont::Type _FontName);
+	SCanvas(EFont::Type _FontName, const std::wstring& Name = L"");
 	virtual ~SCanvas() = default;
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
-	virtual void Initialize() override;
+	virtual void Initialize(const std::any& Arg) override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void Render() override;
 	virtual void Destroy() override;

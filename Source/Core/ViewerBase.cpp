@@ -2,7 +2,7 @@
 
 namespace
 {
-	static const char* ThisWindowName = TEXT("ViewerBase");
+	static const wchar_t* ThisWindowName = L"ViewerBase";
 	static const char* MenuWindowsName = TEXT("Windows");
 }
 
@@ -15,11 +15,37 @@ SViewerBase::SViewerBase(EFont::Type _FontName, uint32_t _Width, uint32_t _Heigh
 		.SetHeight(_Height))
 {}
 
-void SViewerBase::AppendWindows(const std::map<EName::Type, std::shared_ptr<SWindow>>& _Windows)
+void SViewerBase::AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Window, const FNativeDataInitialize& _Data, const std::any& Arg)
 {
-	for (const auto& [key, value] : _Windows)
+	if (IsExistsWindow(WindowType, _Window))
 	{
-		Windows[key] = value;
+		return;
+	}
+
+	FNativeDataInitialize Data = _Data;
+	Data.Parent = shared_from_this();
+
+	_Window->NativeInitialize(Data);
+	_Window->Initialize(Arg);
+
+	Windows[WindowType].push_back(_Window);
+}
+
+void SViewerBase::AppendWindows(const std::map<EName::Type, std::shared_ptr<SWindow>>& _Windows, const FNativeDataInitialize& _Data, const std::any& Arg)
+{
+	FNativeDataInitialize Data = _Data;
+	Data.Parent = shared_from_this();
+
+	for (const auto& [Key, Value] : _Windows)
+	{	
+		if (IsExistsWindow(Key, Value))
+		{
+			continue;
+		}
+		Windows[Key].push_back(Value);
+
+		Value->NativeInitialize(Data);
+		Value->Initialize(Arg);
 	}
 }
 
@@ -28,33 +54,10 @@ void SViewerBase::SetMenuBar(MenuBarHandler Handler)
 	Show_MenuBar = Handler;
 }
 
-void SViewerBase::NativeInitialize(const FNativeDataInitialize& _Data)
-{
-	Super::NativeInitialize(_Data);
-
-	// native initialize windows
-	{
-		FNativeDataInitialize Data = _Data;
-		Data.Parent = shared_from_this();
-
-		for (auto& [Type, Window] : Windows)
-		{
-			Window->NativeInitialize(Data);
-		}
-	}
-}
-
-void SViewerBase::Initialize()
-{
-	for (auto& [Type, Window] : Windows)
-	{
-		Window->Initialize();
-	}
-}
-
 void SViewerBase::Render()
 {
 	ImGui::DockSpaceOverViewport();
+
 	if (Input_HotKeys)
 	{
 		Input_HotKeys();
@@ -68,11 +71,21 @@ void SViewerBase::Render()
 
 		if (ImGui::BeginMenu(MenuWindowsName))
 		{
-			for (auto& [Type, Window] : Windows)
+			for (auto& [Key, WindowList] : Windows)
 			{
-				if (Window->IsIncludeInWindows())
+				if (Key == EName::Canvas)
 				{
-					if (ImGui::MenuItem(Window->GetName().c_str(), 0, Window->IsOpen()))
+					continue;
+				}
+
+				for (auto& Window : WindowList)
+				{
+					if (!Window->IsIncludeInWindows())
+					{
+						continue;
+					}
+
+					if (ImGui::MenuItem(Window->GetWindowName().c_str(), 0, Window->IsOpen()))
 					{
 						if (Window->IsOpen())
 						{
@@ -83,7 +96,7 @@ void SViewerBase::Render()
 							Window->Open();
 						}
 					}
-				}
+			}
 			}
 
 			ImGui::EndMenu();
@@ -92,7 +105,7 @@ void SViewerBase::Render()
 		ImGui::EndMainMenuBar();
 	}
 
-	for (auto& [Type, Window] : Windows)
+	for (auto& Window : Windows | std::views::values | std::views::join)
 	{
 		Window->Render();
 	}
@@ -100,7 +113,7 @@ void SViewerBase::Render()
 
 void SViewerBase::Tick(float DeltaTime)
 {
-	for (auto& [Type, Window] : Windows)
+	for (auto& Window : Windows | std::views::values | std::views::join)
 	{
 		Window->Tick(DeltaTime);
 	}
@@ -108,8 +121,18 @@ void SViewerBase::Tick(float DeltaTime)
 
 void SViewerBase::Destroy()
 {
-	for (auto& [Type, Window] : Windows)
+	for (auto& Window : Windows | std::views::values | std::views::join)
 	{
 		Window->Destroy();
 	}
+}
+
+bool SViewerBase::IsExistsWindow(EName::Type WindowType, std::shared_ptr<SWindow> Window) const
+{
+	const auto It = Windows.find(WindowType);
+	return It != Windows.end() ? std::any_of(It->second.begin(), It->second.end(),
+		[=](const std::shared_ptr<SWindow>& ptr)
+		{
+			return ptr == Window;
+		}) : false;
 }

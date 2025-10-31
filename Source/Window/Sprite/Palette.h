@@ -26,7 +26,6 @@ public:
 	virtual ~SPalette() = default;
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
-	virtual void Initialize() override;
 	virtual void Render() override;
 
 private:

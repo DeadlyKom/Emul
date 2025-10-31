@@ -14,7 +14,6 @@ class SMemoryDump : public SViewerChild
 public:
 	SMemoryDump(EFont::Type _FontName);
 
-	virtual void Initialize() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void Render() override;
 

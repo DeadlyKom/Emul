@@ -26,7 +26,7 @@ public:
 	SScreen(EFont::Type _FontName);
 	virtual ~SScreen() = default;
 
-	virtual void Initialize() override;
+	virtual void Initialize(const std::any& Arg) override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void Render() override;
 	virtual void Destroy() override;

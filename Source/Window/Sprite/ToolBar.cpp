@@ -4,7 +4,7 @@
 
 namespace
 {
-	static const char* ThisWindowName = TEXT("Tool Bar");
+	static const wchar_t* ThisWindowName = L"Tool Bar";
 }
 
 SToolBar::SToolBar(EFont::Type _FontName)
@@ -31,7 +31,7 @@ void SToolBar::NativeInitialize(const FNativeDataInitialize& Data)
 		});
 }
 
-void SToolBar::Initialize()
+void SToolBar::Initialize(const std::any& Arg)
 {
 	ImageRectangleMarquee = FImageBase::LoadImageFromResource(IDB_RECTANGLE_MARQUEE, TEXT("PNG")).Handle;
 	ImagePencil = FImageBase::LoadImageFromResource(IDB_PENCIL, TEXT("PNG")).Handle;
@@ -48,12 +48,11 @@ void SToolBar::Render()
 		return;
 	}
 
-
 	ImGui::PushStyleVar(ImGuiStyleVar_WindowMinSize, ImVec2(50.0f, 65.0f));
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(1.0f, 1.0f));
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(1.0f, 1.0f));
 
-	ImGui::Begin(ThisWindowName, &bOpen);
+	ImGui::Begin(GetWindowName().c_str(), &bOpen);
 	{
 		const float DefaultWidth = ImGui::GetContentRegionAvail().x;
 		auto ButtonLambda = [DefaultWidth](const char* ID, FImageHandle ImageHandle, bool bSelectedCondition, float& AvailWidth) -> bool

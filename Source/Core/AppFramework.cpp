@@ -1,9 +1,12 @@
 #include "AppFramework.h"
 
 #include <iostream>
+#include <shellapi.h>
 #include "resource.h"
 #include "backends\imgui_impl_win32.h"
 #include "backends\imgui_impl_dx11.h"
+
+#pragma comment(lib, "shell32.lib")
 
 namespace Path
 {
@@ -32,6 +35,10 @@ static LONG_PTR CALLBACK AppFrameworkProc(HWND hWnd, UINT msg, WPARAM wParam, LP
 	{
 	case WM_CREATE:
 		AppFramework = (FAppFramework*)((LPCREATESTRUCT)lParam)->lpCreateParams;
+		if (AppFramework->DragAndDropExtensions().size() > 0)
+		{
+			DragAcceptFiles(hWnd, TRUE);					// Allow drag & drop into this window
+		}
 		break;
 
 	case WM_SIZE:
@@ -54,6 +61,42 @@ static LONG_PTR CALLBACK AppFrameworkProc(HWND hWnd, UINT msg, WPARAM wParam, LP
 			const RECT* SuggestedRECT = (RECT*)lParam;
 			SetWindowPos(hWnd, NULL, SuggestedRECT->left, SuggestedRECT->top, SuggestedRECT->right - SuggestedRECT->left, SuggestedRECT->bottom - SuggestedRECT->top, SWP_NOZORDER | SWP_NOACTIVATE);
 		}
+		break;
+
+	case WM_DROPFILES:
+	{
+		std::vector<std::wstring> Extensions = AppFramework->DragAndDropExtensions();
+		HDROP hDrop = (HDROP)wParam;
+		UINT fileCount = DragQueryFile(hDrop, 0xFFFFFFFF, NULL, 0);
+		for (UINT i = 0; i < fileCount; ++i)
+		{
+			wchar_t FilePath[MAX_PATH];
+			DragQueryFileW(hDrop, i, FilePath, MAX_PATH);
+
+			// Checking the .png extension
+			std::wstring Path(FilePath);
+			size_t DotPos = Path.find_last_of(L'.');
+			if (DotPos == std::wstring::npos)
+			{
+				continue;
+			}
+
+			std::wstring Ext = Path.substr(DotPos);
+			for (const auto& AllowedExt : Extensions)
+			{
+				if (_wcsicmp(Ext.c_str(), AllowedExt.c_str()) != 0)
+				{
+					continue;
+				}
+
+				MessageBoxW(hWnd, FilePath, L"File accepted!", MB_OK);
+				AppFramework->DragAndDropFile(FilePath);
+				break;
+			}
+		}
+
+		DragFinish(hDrop);
+	}
 		break;
 
 	case WM_DESTROY:

@@ -27,6 +27,8 @@ public:
 	virtual void Render();
 	virtual bool IsOver();
 	virtual void SetRectWindow(uint16_t Width, uint16_t Height);
+	virtual std::vector<std::wstring> DragAndDropExtensions() const { return {}; }
+	virtual void DragAndDropFile(const std::filesystem::path& FilePath) {}
 
 protected:
 	// internal variables

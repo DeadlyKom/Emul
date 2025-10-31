@@ -1,5 +1,7 @@
 #pragma once
 
+#include <locale>
+#include <codecvt>
 #include <CoreMinimal.h>
 #include "Fonts.h"
 
@@ -15,13 +17,13 @@ struct FNativeDataInitialize
 struct FWindowInitializer
 {
 	bool bOpen = true;
-	std::string Name;
+	std::wstring Name;
 	EFont::Type FontName;
 	bool bIncludeInWindows = false;
 	uint32_t Width = -1;
 	uint32_t Height = -1;
 
-	FWindowInitializer& SetName(const std::string& _Name)
+	FWindowInitializer& SetName(const std::wstring& _Name)
 	{
 		Name = _Name;
 		return *this;
@@ -65,7 +67,7 @@ public:
 	{
 		Data = _Data;
 	}
-	virtual void Initialize() {}
+	virtual void Initialize(const std::any& Arg) {}
 	virtual void Render() {}
 	virtual void Tick(float DeltaTime) {}
 	virtual void Update() {}
@@ -76,7 +78,14 @@ public:
 	virtual void Close() { bOpen = false; }
 	virtual bool IsOpen() const { return bOpen; }
 	virtual bool IsIncludeInWindows() const { return bIncludeInWindows; }
-	virtual const std::string& GetName() const { return Name; }
+	virtual std::string ToString() const
+	{
+		return std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>{}.to_bytes(Name);
+	}
+	inline std::string GetWindowName() const
+	{
+		return ToString();
+	}
 
 	virtual void SetWindowDefaultPosSize()
 	{
@@ -99,6 +108,6 @@ protected:
 	uint32_t DefaultWidth;
 	uint32_t DefaultHeight;
 	
-	std::string Name;
+	std::wstring Name;
 	EFont::Type FontName;
 };

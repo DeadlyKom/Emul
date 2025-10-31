@@ -2,7 +2,7 @@
 
 namespace
 {
-	static const char* ThisWindowName = TEXT("Oscillograph");
+	static const wchar_t* ThisWindowName = L"Oscillograph";
 }
 
 SOscillograph::SOscillograph(EFont::Type _FontName)
@@ -12,7 +12,7 @@ SOscillograph::SOscillograph(EFont::Type _FontName)
 		.SetIncludeInWindows(true))
 {}
 
-void SOscillograph::Initialize()
+void SOscillograph::Initialize(const std::any& Arg)
 {
 }
 
@@ -24,7 +24,7 @@ void SOscillograph::Render()
 		return;
 	}
 
-	ImGui::Begin(ThisWindowName, &bOpen);
+	ImGui::Begin(GetWindowName().c_str(), &bOpen);
 	{
 		UI::Draw_Oscillogram("Test", Oscillograph);
 	}

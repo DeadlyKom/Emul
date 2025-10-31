@@ -3,7 +3,7 @@
 
 namespace
 {
-	static const char* ThisWindowName = TEXT("Status Bar");
+	static const wchar_t* ThisWindowName = L"Status Bar";
 }
 
 SStatusBar::SStatusBar(EFont::Type _FontName)
@@ -33,9 +33,6 @@ void SStatusBar::NativeInitialize(const FNativeDataInitialize& Data)
 		});
 }
 
-void SStatusBar::Initialize()
-{}
-
 void SStatusBar::Render()
 {
 	if (!IsOpen())
@@ -44,7 +41,7 @@ void SStatusBar::Render()
 		return;
 	}
 
-	ImGui::Begin(ThisWindowName, &bOpen);
+	ImGui::Begin(GetWindowName().c_str(), &bOpen);
 	{
 		Draw_MousePosition();
 		ImGui::End();

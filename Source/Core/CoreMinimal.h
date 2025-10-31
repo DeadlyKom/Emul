@@ -12,6 +12,7 @@
 #include <memory>
 #include <string>
 #include <thread>
+#include <ranges>
 #include <chrono>
 #include <fstream>
 #include <iostream>

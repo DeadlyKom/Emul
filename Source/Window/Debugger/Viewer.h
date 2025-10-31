@@ -30,7 +30,7 @@ public:
 	virtual ~SViewer() = default;
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
-	virtual void Initialize() override;
+	virtual void Initialize(const std::any& Arg) override;
 	virtual void Render() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void Destroy() override;

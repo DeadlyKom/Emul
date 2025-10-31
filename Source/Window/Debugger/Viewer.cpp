@@ -12,7 +12,7 @@
 
 namespace
 {
-	static const char* ThisWindowName = TEXT("Viewer");
+	static const wchar_t* ThisWindowName = L"Viewer";
 	static const char* MenuFileName = TEXT("File");
 	static const char* MenuEmulationName = TEXT("Emulation");
 	static const char* MenuWindowsName = TEXT("Windows");
@@ -52,11 +52,11 @@ void SViewer::NativeInitialize(const FNativeDataInitialize& _Data)
 	}
 }
 
-void SViewer::Initialize()
+void SViewer::Initialize(const std::any& Arg)
 {
 	for (auto& [Type, Window] : Windows)
 	{
-		Window->Initialize();
+		Window->Initialize(Arg);
 	}
 }
 
@@ -154,7 +154,7 @@ void SViewer::ShowMenu_Windows()
 		{
 			if (Window->IsIncludeInWindows())
 			{
-				if (ImGui::MenuItem(Window->GetName().c_str(), 0, Window->IsOpen()))
+				if (ImGui::MenuItem(Window->GetWindowName().c_str(), 0, Window->IsOpen()))
 				{
 					if (Window->IsOpen())
 					{

@@ -7,7 +7,7 @@
 
 namespace
 {
-	static const char* ThisWindowName = TEXT("Sprite List");
+	static const wchar_t* ThisWindowName = L"Sprite List";
 
 	static constexpr ImVec2 VisibleSizeArray[] =
 	{
@@ -53,9 +53,6 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 		});
 }
 
-void SSpriteList::Initialize()
-{}
-
 void SSpriteList::Render()
 {
 	if (!IsOpen())
@@ -64,7 +61,7 @@ void SSpriteList::Render()
 		return;
 	}
 
-	ImGui::Begin(ThisWindowName, &bOpen);
+	ImGui::Begin(GetWindowName().c_str(), &bOpen);
 	{
 		Input_Mouse();
 		Draw_SpriteList();

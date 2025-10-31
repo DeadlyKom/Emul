@@ -8,7 +8,7 @@
 
 namespace
 {
-	static const char* ThisWindowName = TEXT("Memory dump");
+	static const wchar_t* ThisWindowName = L"Memory dump";
 
 	#define FORMAT_ADDRESS(upper)		(upper ? "%04X" : "%04x")
 
@@ -30,9 +30,6 @@ SMemoryDump::SMemoryDump(EFont::Type _FontName)
 	, MemoryDumpScale(1.0f)
 	, LatestClockCounter(INDEX_NONE)
 	, Status(EThreadStatus::Unknown)
-{}
-
-void SMemoryDump::Initialize()
 {}
 
 void SMemoryDump::Tick(float DeltaTime)
@@ -57,7 +54,7 @@ void SMemoryDump::Render()
 		return;
 	}
 
-	ImGui::Begin(ThisWindowName, &bOpen);
+	ImGui::Begin(GetWindowName().c_str(), &bOpen);
 	{
 		Input_HotKeys();
 		Input_Mouse();

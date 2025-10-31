@@ -127,7 +127,7 @@ void FAppDebugger::Initialize()
 		Data.Device = Device;
 		Data.DeviceContext = DeviceContext;
 		Viewer->NativeInitialize(Data);
-		Viewer->Initialize();
+		Viewer->Initialize({});
 		Viewer->Inut_Debugger();
 	}
 

@@ -8,7 +8,7 @@
 
 namespace
 {
-	static const char* ThisWindowName = TEXT("Screen");
+	static const wchar_t* ThisWindowName = L"Screen";
 	static const char* ResourcePathName = TEXT("SHADER/ZX");
 }
 
@@ -20,7 +20,7 @@ SScreen::SScreen(EFont::Type _FontName)
 	, bDragging(false)										// is user currently dragging to pan view
 {}
 
-void SScreen::Initialize()
+void SScreen::Initialize(const std::any& Arg)
 {
 	ZXColorView = std::make_shared<UI::FZXColorView>();
 
@@ -60,7 +60,7 @@ void SScreen::Render()
 		return;
 	}
 
-	ImGui::Begin(ThisWindowName, &bOpen);
+	ImGui::Begin(GetWindowName().c_str(), &bOpen);
 	{
 		Input_HotKeys();
 		Input_Mouse();

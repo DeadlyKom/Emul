@@ -14,11 +14,10 @@ public:
 	SViewerBase(EFont::Type _FontName, uint32_t _Width, uint32_t _Height);
 	virtual ~SViewerBase() = default;
 
-	void AppendWindows(const std::map<EName::Type, std::shared_ptr<SWindow>>& _Windows);
+	void AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Window, const FNativeDataInitialize& _Data, const std::any& Arg);
+	void AppendWindows(const std::map<EName::Type, std::shared_ptr<SWindow>>& _Windows, const FNativeDataInitialize& _Data, const std::any& Arg);
 	void SetMenuBar(MenuBarHandler Handler);
 
-	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
-	virtual void Initialize() override;
 	virtual void Render() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void Destroy() override;
@@ -26,10 +25,12 @@ public:
 	FEventSystem& GetEventSystem() { return EventSystem; }
 
 private:
+	bool IsExistsWindow(EName::Type WindowType, std::shared_ptr<SWindow> Window) const;
+
 	FEventSystem EventSystem;
 	MenuBarHandler Show_MenuBar;
 	MenuBarHandler Input_HotKeys;
-	std::map<EName::Type, std::shared_ptr<SWindow>> Windows;
+	std::unordered_map<EName::Type, std::vector<std::shared_ptr<SWindow>>> Windows;
 };
 
 class SViewerChildBase : public SWindow

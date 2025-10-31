@@ -35,22 +35,23 @@ void FAppSprite::Initialize()
 	Viewer = std::make_shared<SViewerBase>(NAME_DOS_12, WindowWidth, WindowHeight);
 	if (Viewer)
 	{
-		Viewer->SetMenuBar(std::bind(&ThisClass::Show_MenuBar, this));
-		Viewer->AppendWindows({
-			{ NAME_Canvas,		std::make_shared<SCanvas>(NAME_DOS_12)},
-			{ NAME_Palette,		std::make_shared<SPalette>(NAME_DOS_12)},
-			{ NAME_ToolBar,		std::make_shared<SToolBar>(NAME_DOS_12)},
-			{ NAME_StatusBar,	std::make_shared<SStatusBar>(NAME_DOS_12)},
-			{ NAME_SpriteList,	std::make_shared<SSpriteList>(NAME_DOS_12)},
-			});
-
 		FNativeDataInitialize Data
 		{
 			.Device = Device,
 			.DeviceContext = DeviceContext
 		};
+
 		Viewer->NativeInitialize(Data);
-		Viewer->Initialize();
+		Viewer->Initialize({});
+
+		Viewer->SetMenuBar(std::bind(&ThisClass::Show_MenuBar, this));
+		Viewer->AppendWindows({
+			{ NAME_Palette,		std::make_shared<SPalette>(NAME_DOS_12)},
+			{ NAME_ToolBar,		std::make_shared<SToolBar>(NAME_DOS_12)},
+			{ NAME_StatusBar,	std::make_shared<SStatusBar>(NAME_DOS_12)},
+			{ NAME_SpriteList,	std::make_shared<SSpriteList>(NAME_DOS_12)},
+			}, Data, {});
+		
 	}
 
 	FFonts& Fonts = FFonts::Get();
@@ -97,6 +98,19 @@ void FAppSprite::Render()
 bool FAppSprite::IsOver()
 {
 	return Viewer ? !Viewer->IsOpen() : true;
+}
+
+void FAppSprite::DragAndDropFile(const std::filesystem::path& FilePath)
+{
+	FNativeDataInitialize Data
+	{
+		.Device = Device,
+		.DeviceContext = DeviceContext
+	};
+
+	std::wstring Filename = FilePath.filename().wstring();
+	std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename);
+	Viewer->AddWindow(EName::Canvas, NewCanvas, Data, FilePath);
 }
 
 void FAppSprite::LoadIniSettings()

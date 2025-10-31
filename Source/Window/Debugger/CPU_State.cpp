@@ -6,7 +6,7 @@
 
 namespace
 {
-	static const char* ThisWindowName = TEXT("CPU State");
+	static const wchar_t* ThisWindowName = L"CPU State";
 
 	// set column widths
 	static constexpr float ColumnWidth_Flags = 8;
@@ -25,7 +25,7 @@ SCPU_State::SCPU_State(EFont::Type _FontName)
 	, NewFlags(0)
 {}
 
-void SCPU_State::Initialize()
+void SCPU_State::Initialize(const std::any& Arg)
 {
 	HighlightRegisters =
 	{
@@ -89,7 +89,7 @@ void SCPU_State::Render()
 		return;
 	}
 
-	ImGui::Begin(ThisWindowName, &bOpen);
+	ImGui::Begin(GetWindowName().c_str(), &bOpen);
 	{
 		Input_HotKeys();
 		Draw_States(Status == EThreadStatus::Stop);

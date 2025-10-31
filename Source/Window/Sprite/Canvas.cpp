@@ -5,7 +5,7 @@
 
 namespace
 {
-	static const char* ThisWindowName = TEXT("Canvas");
+	static const wchar_t* ThisWindowName = L"Canvas";
 	static const char* PopupMenuName = TEXT("Popup Menu Sprite");
 	static const char* CreateSpriteName = "Create Sprite";
 
@@ -32,9 +32,9 @@ namespace
 	}
 }
 
-SCanvas::SCanvas(EFont::Type _FontName)
+SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name)
 	: Super(FWindowInitializer()
-		.SetName(ThisWindowName)
+		.SetName(std::format(L"{}##{}", Name.c_str(), ThisWindowName))
 		.SetFontName(_FontName)
 		.SetIncludeInWindows(true))
 	, bDragging(false)
@@ -94,15 +94,23 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 		});
 }
 
-void SCanvas::Initialize()
+void SCanvas::Initialize(const std::any& Arg)
 {
+	if (Arg.type() != typeid(std::filesystem::path))
+	{
+		return;
+	}
+
+	std::filesystem::path FilePath = std::any_cast<std::filesystem::path>(Arg);
+
 	ZXColorView = std::make_shared<UI::FZXColorView>();
 
 	ZXColorView->Scale = ImVec2(2.5f, 2.5f);
 	ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
 
 	//uint8_t* ImageData = FImageBase::LoadToMemory("D:\\Work\\[Sprite]\\Геройчики\\Fake\\111.png", Width, Height);
-	uint8_t* ImageData = FImageBase::LoadToMemory("D:\\Work\\[Sprite]\\Геройчики\\Tile\\Hex\\Hex1.png", Width, Height);
+	//uint8_t* ImageData = FImageBase::LoadToMemory("D:\\Work\\[Sprite]\\Геройчики\\Tile\\Hex\\Hex1.png", Width, Height);
+	uint8_t* ImageData = FImageBase::LoadToMemory(FilePath, Width, Height);
 	UI::QuantizeToZX(ImageData, Width, Height, 4, ZXColorView->IndexedData);
 	UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
 
@@ -158,7 +166,7 @@ void SCanvas::Render()
 		bRefreshCanvas = false;
 	}
 
-	ImGui::Begin(ThisWindowName, &bOpen);
+	ImGui::Begin(GetWindowName().c_str(), &bOpen);
 	{
 		Input_HotKeys();
 		Input_Mouse();

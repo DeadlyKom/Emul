@@ -11,7 +11,7 @@
 
 namespace
 {
-	static const char* ThisWindowName = TEXT("Disassembler");
+	static const wchar_t* ThisWindowName = L"Disassembler";
 
 	// set column widths
 	static constexpr float ColumnWidth_Breakpoint = 2;
@@ -1141,7 +1141,7 @@ SDisassembler::SDisassembler(EFont::Type _FontName)
 	, Status(EThreadStatus::Unknown)
 {}
 
-void SDisassembler::Initialize()
+void SDisassembler::Initialize(const std::any& Arg)
 {
 	ImageProgramCounter = FImageBase::LoadImageFromResource(IDB_ARROW_RIGHT, TEXT("PNG")).Handle;
 }
@@ -1176,7 +1176,7 @@ void SDisassembler::Render()
 		return;
 	}
 
-	ImGui::Begin(ThisWindowName, &bOpen);
+	ImGui::Begin(GetWindowName().c_str(), &bOpen);
 	{
 		Input_HotKeys();
 		Input_Mouse();

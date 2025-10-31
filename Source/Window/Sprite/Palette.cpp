@@ -6,7 +6,7 @@
 
 namespace
 {
-	static const char* ThisWindowName = TEXT("Palette");
+	static const wchar_t* ThisWindowName = L"Palette";
 }
 
 SPalette::SPalette(EFont::Type _FontName)
@@ -46,10 +46,6 @@ void SPalette::NativeInitialize(const FNativeDataInitialize& Data)
 		});
 }
 
-void SPalette::Initialize()
-{
-}
-
 void SPalette::Render()
 {
 	if (!IsOpen())
@@ -58,7 +54,7 @@ void SPalette::Render()
 		return;
 	}
 
-	ImGui::Begin(ThisWindowName, &bOpen);
+	ImGui::Begin(GetWindowName().c_str(), &bOpen);
 	{
 		Display_Colors();
 		ImGui::End();
