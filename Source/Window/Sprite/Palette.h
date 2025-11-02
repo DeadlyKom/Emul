@@ -22,7 +22,7 @@ class SPalette : public SViewerChildBase
 	using Super = SViewerChildBase;
 	using ThisClass = SPalette;
 public:
-	SPalette(EFont::Type _FontName);
+	SPalette(EFont::Type _FontName, std::string _DockSlot = "");
 	virtual ~SPalette() = default;
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;

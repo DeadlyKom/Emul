@@ -36,6 +36,7 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name)
 	: Super(FWindowInitializer()
 		.SetName(std::format(L"{}##{}", Name.c_str(), ThisWindowName))
 		.SetFontName(_FontName)
+		.SetDockSlot("##Layout_Canvas")
 		.SetIncludeInWindows(true))
 	, bDragging(false)
 	, bRefreshCanvas(false)
@@ -137,11 +138,20 @@ void SCanvas::Tick(float DeltaTime)
 
 void SCanvas::Render()
 {
+	SWindow::Render();
+
 	if (!IsOpen())
 	{
 		Close();
 		return;
 	}
+
+	//if (bInitializeWindow)
+	//{
+	//	ImGui::SetNextWindowPos(ImVec2(228, 93));
+	//	ImGui::SetNextWindowSize(ImVec2(728, 582));
+	//	ImGui::SetNextWindowCollapsed(false);
+	//}
 
 	const bool bInk = OptionsFlags[0] & FCanvasOptionsFlags::Ink;
 	const bool bMask = OptionsFlags[0] & FCanvasOptionsFlags::Mask;
@@ -166,8 +176,28 @@ void SCanvas::Render()
 		bRefreshCanvas = false;
 	}
 
-	ImGui::Begin(GetWindowName().c_str(), &bOpen);
+	const bool bNoMove = ToolMode[0] == EToolMode::RectangleMarquee;
+	ImGui::Begin(GetWindowName().c_str(), &bOpen, bNoMove ? ImGuiWindowFlags_NoMove : ImGuiWindowFlags_None);
 	{
+		if (bNoMove)
+		{
+			ImGuiIO& IO = ImGui::GetIO();
+			ImGuiStyle& Style = ImGui::GetStyle();
+			ImVec2 WindowsPos = ImGui::GetWindowPos();
+			ImVec2 WindowsSize = ImGui::GetWindowSize();
+
+			const float TitleHeight = ImGui::GetFontSize() + Style.FramePadding.y * 2.0f;
+
+			const ImVec2 TitleMin = WindowsPos;
+			const ImVec2 TitleMax = ImVec2(WindowsPos.x + WindowsSize.x, WindowsPos.y + TitleHeight);
+
+			if (ImGui::IsMouseDragging(ImGuiMouseButton_Left) &&
+				ImGui::IsMouseHoveringRect(TitleMin, TitleMax, false))
+			{
+				ImGui::SetWindowPos(ImVec2(WindowsPos.x + IO.MouseDelta.x, WindowsPos.y + IO.MouseDelta.y));
+			}
+		}
+
 		Input_HotKeys();
 		Input_Mouse();
 		ApplyToolMode();
@@ -320,7 +350,6 @@ void SCanvas::Destroy()
 void SCanvas::Draw_PopupMenu()
 {
 	const ImGuiID CreateSpriteID = ImGui::GetCurrentWindow()->GetID(CreateSpriteName);
-
 	if (bOpenPopupMenu = ImGui::BeginPopup(PopupMenuName))
 	{
 		if (ImGui::MenuItem("Add Sprite"))

@@ -7,10 +7,11 @@ namespace
 	static const wchar_t* ThisWindowName = L"Tool Bar";
 }
 
-SToolBar::SToolBar(EFont::Type _FontName)
+SToolBar::SToolBar(EFont::Type _FontName, std::string _DockSlot /*= ""*/)
 	: Super(FWindowInitializer()
 		.SetName(ThisWindowName)
 		.SetFontName(_FontName)
+		.SetDockSlot(_DockSlot)
 		.SetIncludeInWindows(true))
 {
 	ToolMode[0] = EToolMode::None;

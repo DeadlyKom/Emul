@@ -134,6 +134,9 @@
     <ClCompile Include="Window\Sprite\Events.cpp">
       <Filter>Source\Window\Sprite</Filter>
     </ClCompile>
+    <ClCompile Include="Window\Common\FileDialog.cpp">
+      <Filter>Source\Window\Common</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source">
@@ -189,6 +192,9 @@
     </Filter>
     <Filter Include="Source\Window\Sprite">
       <UniqueIdentifier>{3bde3ced-6491-4c62-85e0-ef2bbb199dbc}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Window\Common">
+      <UniqueIdentifier>{d06d960c-df8b-4617-a1e3-fb2d036b3c00}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -384,6 +390,9 @@
     <ClInclude Include="Window\Sprite\Events.h">
       <Filter>Source\Window\Sprite</Filter>
     </ClInclude>
+    <ClInclude Include="Window\Common\FileDialog.h">
+      <Filter>Source\Window\Common</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Resource\Icons\ICONE.ico">
@@ -392,11 +401,21 @@
     <Image Include="..\Resource\Icons\ArrowRight.png">
       <Filter>Resource\Icons</Filter>
     </Image>
-    <Image Include="..\Resource\Icons\Rectangle Marquee.png" />
-    <Image Include="..\Resource\Icons\Pencil.png" />
-    <Image Include="..\Resource\Icons\Eraser.png" />
-    <Image Include="..\Resource\Icons\Eyedropper.png" />
-    <Image Include="..\Resource\Icons\PaintBucket.png" />
+    <Image Include="..\Resource\Icons\Eraser.png">
+      <Filter>Resource\Icons</Filter>
+    </Image>
+    <Image Include="..\Resource\Icons\Eyedropper.png">
+      <Filter>Resource\Icons</Filter>
+    </Image>
+    <Image Include="..\Resource\Icons\PaintBucket.png">
+      <Filter>Resource\Icons</Filter>
+    </Image>
+    <Image Include="..\Resource\Icons\Pencil.png">
+      <Filter>Resource\Icons</Filter>
+    </Image>
+    <Image Include="..\Resource\Icons\Rectangle Marquee.png">
+      <Filter>Resource\Icons</Filter>
+    </Image>
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="ZX-Debugger.rc">

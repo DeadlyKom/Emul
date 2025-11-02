@@ -239,6 +239,7 @@
     <ClCompile Include="Utils\UI\Draw_Oscillogram.cpp" />
     <ClCompile Include="Utils\UI\Draw.cpp" />
     <ClCompile Include="Utils\UI\Draw_ZXColorVideo.cpp" />
+    <ClCompile Include="Window\Common\FileDialog.cpp" />
     <ClCompile Include="Window\Debugger\CallStack.cpp" />
     <ClCompile Include="Window\Debugger\CPU_State.cpp" />
     <ClCompile Include="Window\Debugger\Disassembler.cpp" />
@@ -302,6 +303,7 @@
     <ClInclude Include="Utils\UI\Draw_Oscillogram.h" />
     <ClInclude Include="Utils\UI\Draw.h" />
     <ClInclude Include="Utils\UI\Draw_ZXColorVideo.h" />
+    <ClInclude Include="Window\Common\FileDialog.h" />
     <ClInclude Include="Window\Debugger\CallStack.h" />
     <ClInclude Include="Window\Debugger\CPU_State.h" />
     <ClInclude Include="Window\Debugger\Definition.h" />

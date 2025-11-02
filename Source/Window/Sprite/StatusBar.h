@@ -8,7 +8,7 @@ class SStatusBar : public SViewerChildBase
 	using Super = SViewerChildBase;
 	using ThisClass = SStatusBar;
 public:
-	SStatusBar(EFont::Type _FontName);
+	SStatusBar(EFont::Type _FontName, std::string _DockSlot = "");
 	virtual ~SStatusBar() = default;
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;

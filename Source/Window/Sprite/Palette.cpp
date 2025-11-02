@@ -9,10 +9,11 @@ namespace
 	static const wchar_t* ThisWindowName = L"Palette";
 }
 
-SPalette::SPalette(EFont::Type _FontName)
+SPalette::SPalette(EFont::Type _FontName, std::string _DockSlot /*= ""*/)
 	: Super(FWindowInitializer()
 		.SetName(ThisWindowName)
 		.SetFontName(_FontName)
+		.SetDockSlot(_DockSlot)
 		.SetIncludeInWindows(true))
 {
 	ButtonColor[0] = UI::EZXSpectrumColor::Black_;	// left button

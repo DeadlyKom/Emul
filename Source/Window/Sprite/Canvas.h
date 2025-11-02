@@ -25,6 +25,7 @@ class SCanvas : public SViewerChildBase
 {
 	using Super = SViewerChildBase;
 	using ThisClass = SCanvas;
+
 public:
 	SCanvas(EFont::Type _FontName, const std::wstring& Name = L"");
 	virtual ~SCanvas() = default;

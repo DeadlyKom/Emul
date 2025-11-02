@@ -4,6 +4,28 @@
 #include "Event.h"
 #include "Window.h"
 
+struct FDockSlot
+{
+	FDockSlot(const std::string& _SlotName = "", float _SplitRatio = 0.0f, ImGuiDir _SplitDir = ImGuiDir::ImGuiDir_None, std::vector<FDockSlot> _ChildSlots = {})
+		: SlotName(_SlotName)
+		, SplitRatio(_SplitRatio)
+		, SplitDir(_SplitDir)
+		, ParentDockID(0)
+		, ChildSlots(_ChildSlots)
+	{
+		ChildDockID[0] = ChildDockID[1] = 0;
+	}
+
+	// initialize variable
+	std::string SlotName;
+	float SplitRatio;
+	ImGuiDir SplitDir;
+
+	ImGuiID ParentDockID;
+	ImGuiID ChildDockID[2];
+	std::vector<FDockSlot> ChildSlots;
+};
+
 class SViewerBase : public SWindow
 {
 	using Super = SWindow;
@@ -14,19 +36,29 @@ public:
 	SViewerBase(EFont::Type _FontName, uint32_t _Width, uint32_t _Height);
 	virtual ~SViewerBase() = default;
 
-	void AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Window, const FNativeDataInitialize& _Data, const std::any& Arg);
-	void AppendWindows(const std::map<EName::Type, std::shared_ptr<SWindow>>& _Windows, const FNativeDataInitialize& _Data, const std::any& Arg);
-	void SetMenuBar(MenuBarHandler Handler);
-
+	// begin SWindow overrides
+	virtual void Initialize(const std::any& Arg) override;
 	virtual void Render() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void Destroy() override;
+	// end SWindow overrides
+
+	void AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Window, const FNativeDataInitialize& _Data, const std::any& Arg);
+	void AppendWindows(const std::map<EName::Type, std::shared_ptr<SWindow>>& _Windows, const FNativeDataInitialize& _Data, const std::any& Arg);
+	void RemoveWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Window);
+	void SetMenuBar(MenuBarHandler Handler);
+	void ReleaseUnnecessaryWindows();
 
 	FEventSystem& GetEventSystem() { return EventSystem; }
 
 private:
 	bool IsExistsWindow(EName::Type WindowType, std::shared_ptr<SWindow> Window) const;
+	void CreateDockLayout(ImGuiID ParentDockID, FDockSlot& Slot);
+	ImGuiID GetDockID(const std::string& SlotName);
 
+	bool bDockspaceInitialized;
+	ImGuiID DockspaceID;
+	FDockSlot Layout;
 	FEventSystem EventSystem;
 	MenuBarHandler Show_MenuBar;
 	MenuBarHandler Input_HotKeys;

@@ -2,11 +2,12 @@
 #include "Fonts/Dos2000_ru_en.cpp"
 #include "Window/Sprite/Definition.h"
 
-#include "Window/Sprite/Canvas.h"
-#include "Window/Sprite/Palette.h"
-#include "Window/Sprite/ToolBar.h"
-#include "Window/Sprite/StatusBar.h"
-#include "Window/Sprite/SpriteList.h"
+#include <Window/Sprite/Canvas.h>
+#include <Window/Sprite/Palette.h>
+#include <Window/Sprite/ToolBar.h>
+#include <Window/Sprite/StatusBar.h>
+#include <Window/Sprite/SpriteList.h>
+#include <Window/Common/FileDialog.h>
 
 namespace
 {
@@ -41,15 +42,40 @@ void FAppSprite::Initialize()
 			.DeviceContext = DeviceContext
 		};
 
+		FDockSlot Layout =
+		{	"##Root", 1.0f, ImGuiDir_None,
+			{
+				{	"##Layout_SpriteList", 0.2f, ImGuiDir_Left,
+					{
+						{},
+						{	"##Layout_Palette",  0.1f, ImGuiDir_Up,
+							{
+								{},
+								{	"##Layout_StatusBar", 0.08f, ImGuiDir_Down, 
+									{
+										{	"##Layout_ToolBar", 0.06f, ImGuiDir_Right,
+											{
+												{	"##Layout_Canvas", 1.0f, ImGuiDir_None, {} },
+												{}
+											}
+										},
+										{}
+									}
+								}
+							}
+						}
+					}}
+			}};
+
 		Viewer->NativeInitialize(Data);
-		Viewer->Initialize({});
+		Viewer->Initialize(Layout);
 
 		Viewer->SetMenuBar(std::bind(&ThisClass::Show_MenuBar, this));
 		Viewer->AppendWindows({
-			{ NAME_Palette,		std::make_shared<SPalette>(NAME_DOS_12)},
-			{ NAME_ToolBar,		std::make_shared<SToolBar>(NAME_DOS_12)},
-			{ NAME_StatusBar,	std::make_shared<SStatusBar>(NAME_DOS_12)},
-			{ NAME_SpriteList,	std::make_shared<SSpriteList>(NAME_DOS_12)},
+			{ NAME_Palette,		std::make_shared<SPalette>(NAME_DOS_12, "##Layout_Palette")},
+			{ NAME_ToolBar,		std::make_shared<SToolBar>(NAME_DOS_12, "##Layout_ToolBar")},
+			{ NAME_StatusBar,	std::make_shared<SStatusBar>(NAME_DOS_12, "##Layout_StatusBar")},
+			{ NAME_SpriteList,	std::make_shared<SSpriteList>(NAME_DOS_12, "##Layout_SpriteList")},
 			}, Data, {});
 		
 	}
@@ -73,6 +99,11 @@ void FAppSprite::Shutdown()
 
 void FAppSprite::Tick(float DeltaTime)
 {
+	if (Viewer)
+	{
+		Viewer->ReleaseUnnecessaryWindows();
+	}
+
 	FAppFramework::Tick(DeltaTime);
 
 	if (Viewer)
@@ -115,59 +146,65 @@ void FAppSprite::DragAndDropFile(const std::filesystem::path& FilePath)
 
 void FAppSprite::LoadIniSettings()
 {
-	const char* DefaultIni = R"(
-[Window][Palette]
-Pos=228,18
-Size=780,73
-Collapsed=0
-DockId=0x00000005,0
-
-[Window][WindowOverViewport_11111111]
-Pos=0,18
-Size=1008,711
-Collapsed=0
-
-[Window][Debug##Default]
-Pos=60,60
-Size=400,400
-Collapsed=0
-
-[Window][Status Bar]
-Pos=228,677
-Size=780,52
-Collapsed=0
-DockId=0x00000004,0
-
-[Window][Canvas]
-Pos=228,93
-Size=728,582
-Collapsed=0
-DockId=0x00000001,0
-
-[Window][Tool Bar]
-Pos=958,93
-Size=50,582
-Collapsed=0
-DockId=0x00000003,0
-
-[Window][Sprite List]
-Pos=0,18
-Size=226,711
-Collapsed=0
-DockId=0x00000007,0
-
-[Docking][Data]
-DockSpace         ID=0x7C6B3D9B Window=0xA87D555D Pos=456,205 Size=1008,711 Split=X
-  DockNode        ID=0x00000007 Parent=0x7C6B3D9B SizeRef=226,711 HiddenTabBar=1 Selected=0x7FB5F2E9
-  DockNode        ID=0x00000008 Parent=0x7C6B3D9B SizeRef=1692,711 Split=Y
-    DockNode      ID=0x00000002 Parent=0x00000008 SizeRef=1008,945 Split=Y
-      DockNode    ID=0x00000005 Parent=0x00000002 SizeRef=1008,73 HiddenTabBar=1 Selected=0x7E84447F
-      DockNode    ID=0x00000006 Parent=0x00000002 SizeRef=1008,582 Split=X Selected=0x429E880E
-        DockNode  ID=0x00000001 Parent=0x00000006 SizeRef=1640,576 CentralNode=1 HiddenTabBar=1 Selected=0x429E880E
-        DockNode  ID=0x00000003 Parent=0x00000006 SizeRef=50,576 HiddenTabBar=1 Selected=0xDFE559BD
-    DockNode      ID=0x00000004 Parent=0x00000008 SizeRef=1008,52 HiddenTabBar=1 Selected=0x1604805B
-)";
-	ImGui::LoadIniSettingsFromMemory(DefaultIni);
+//	const char* DefaultIni = R"(
+//[Window][Palette]
+//Pos=235,26
+//Size=765,72
+//Collapsed=0
+//DockId=0x00000003,0
+//
+//[Window][WindowOverViewport_11111111]
+//Pos=0,18
+//Size=1008,711
+//Collapsed=0
+//
+//[Window][Debug##Default]
+//Pos=60,60
+//Size=400,400
+//Collapsed=0
+//
+//[Window][Status Bar]
+//Pos=235,669
+//Size=765,52
+//Collapsed=0
+//DockId=0x00000008,0
+//
+//[Window][Canvas]
+//Pos=228,93
+//Size=728,582
+//Collapsed=0
+//DockId=0x7C6B3D9B,0
+//
+//[Window][Tool Bar]
+//Pos=932,100
+//Size=68,567
+//Collapsed=0
+//DockId=0x00000006,0
+//
+//[Window][Sprite List]
+//Pos=8,26
+//Size=225,695
+//Collapsed=0
+//DockId=0x00000001,0
+//
+//[Window][ViewerBase]
+//Pos=0,0
+//Size=1008,729
+//Collapsed=0
+//
+//[Docking][Data]
+//DockSpace         ID=0x7C6B3D9B Pos=456,205 Size=1008,711 CentralNode=1 HiddenTabBar=1
+//DockSpace         ID=0xD2E0236E Window=0x8C6D4AF9 Pos=464,213 Size=992,695 Split=X Selected=0x9CD3E80B
+//  DockNode        ID=0x00000001 Parent=0xD2E0236E SizeRef=225,695 Selected=0x7FB5F2E9
+//  DockNode        ID=0x00000002 Parent=0xD2E0236E SizeRef=695,695 Split=Y Selected=0x9CD3E80B
+//    DockNode      ID=0x00000003 Parent=0x00000002 SizeRef=765,72 Selected=0x7E84447F
+//    DockNode      ID=0x00000004 Parent=0x00000002 SizeRef=765,621 Split=Y Selected=0x9CD3E80B
+//      DockNode    ID=0x00000007 Parent=0x00000004 SizeRef=713,567 Split=X Selected=0x9CD3E80B
+//        DockNode  ID=0x00000005 Parent=0x00000007 SizeRef=695,567 CentralNode=1 Selected=0x211984C5
+//        DockNode  ID=0x00000006 Parent=0x00000007 SizeRef=68,567 Selected=0xDFE559BD
+//      DockNode    ID=0x00000008 Parent=0x00000004 SizeRef=713,52 Selected=0x1604805B
+//)";
+//	ImGui::LoadIniSettingsFromMemory(DefaultIni);
 }
 
 void FAppSprite::Show_MenuBar()
@@ -187,6 +224,15 @@ void FAppSprite::Show_MenuBar()
 	{
 		if (ImGui::Button("Cancel", ImVec2(0.0f, 0.0f)))
 		{
+			std::vector<std::filesystem::directory_entry> Files;
+			const std::string OldPath = Files.empty() ? "" : Files.back().path().parent_path().string();
+			SFileDialog::OpenWindow(Viewer, "Select File", EDialogMode::Select,
+				[this](std::filesystem::path FilePath, EDialogStage Selected) -> void
+				{
+					//OpenFile_Callback(FilePath);
+					SFileDialog::CloseWindow();
+				}, OldPath, "*.*, *.png, *.scr");
+
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::EndPopup();

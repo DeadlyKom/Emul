@@ -6,10 +6,11 @@ namespace
 	static const wchar_t* ThisWindowName = L"Status Bar";
 }
 
-SStatusBar::SStatusBar(EFont::Type _FontName)
+SStatusBar::SStatusBar(EFont::Type _FontName, std::string _DockSlot /*= ""*/)
 	: Super(FWindowInitializer()
 		.SetName(ThisWindowName)
 		.SetFontName(_FontName)
+		.SetDockSlot(_DockSlot)
 		.SetIncludeInWindows(true))
 	, CanvasSize(0.0f, 0.0f)
 	, MousePosition(0.0f, 0.0f)

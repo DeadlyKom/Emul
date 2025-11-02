@@ -22,7 +22,7 @@ class SToolBar : public SViewerChildBase
 	using Super = SViewerChildBase;
 	using ThisClass = SToolBar;
 public:
-	SToolBar(EFont::Type _FontName);
+	SToolBar(EFont::Type _FontName, std::string _DockSlot = "");
 	virtual ~SToolBar() = default;
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;

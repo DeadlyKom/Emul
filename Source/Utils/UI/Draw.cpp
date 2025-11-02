@@ -138,11 +138,11 @@ bool UI::Button(const char* Label, bool bIsPressed, const ImVec2& SizeArg, bool 
 		return false;
 	}
 
-	bool hovered, held;
-	bool pressed = ImGui::ButtonBehavior(bb, ID, &hovered, &held);
+	bool bHovered, bHeld;
+	bool pressed = ImGui::ButtonBehavior(bb, ID, &bHovered, &bHeld);
 
 	// Render
-	const ImU32 ButtonColor = ImGui::GetColorU32(bIsPressed ? ImGuiCol_ButtonActive : (held && hovered) ? ImGuiCol_ButtonActive : hovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
+	const ImU32 ButtonColor = ImGui::GetColorU32(bIsPressed ? ImGuiCol_ButtonActive : (bHeld && bHovered) ? ImGuiCol_ButtonActive : bHovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
 	ImGui::RenderNavHighlight(bb, ID);
 	ImGui::RenderFrame(bb.Min, bb.Max, ButtonColor, true, bIsPressed ? 5.0f : 0.0f);
 	ImGui::RenderTextClipped(bb.Min + Style.FramePadding, bb.Max - Style.FramePadding, Label, NULL, &LabelSize, Aligment, &bb);

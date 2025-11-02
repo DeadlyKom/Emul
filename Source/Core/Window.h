@@ -18,6 +18,7 @@ struct FWindowInitializer
 {
 	bool bOpen = true;
 	std::wstring Name;
+	std::string DockSlot;
 	EFont::Type FontName;
 	bool bIncludeInWindows = false;
 	uint32_t Width = -1;
@@ -31,6 +32,11 @@ struct FWindowInitializer
 	FWindowInitializer& SetFontName(EFont::Type _FontName)
 	{
 		FontName = _FontName;
+		return *this;
+	}
+	FWindowInitializer& SetDockSlot(std::string _DockSlot)
+	{
+		DockSlot = _DockSlot;
 		return *this;
 	}
 	FWindowInitializer& SetIncludeInWindows(bool _bIncludeInWindows)
@@ -53,14 +59,21 @@ struct FWindowInitializer
 class SWindow : public std::enable_shared_from_this<SWindow>
 {
 public:
-	SWindow(FWindowInitializer& WindowInitializer)
-		: bOpen(WindowInitializer.bOpen)
-		, bIncludeInWindows(WindowInitializer.bIncludeInWindows)
-		, DefaultWidth(WindowInitializer.Width)
-		, DefaultHeight(WindowInitializer.Height)
-		, Name(WindowInitializer.Name)
-		, FontName(WindowInitializer.FontName)
-	{}
+	SWindow(const FWindowInitializer& _WindowInitializer)
+		: WindowInitializer(_WindowInitializer)
+		, bOpen(_WindowInitializer.bOpen)
+		, bIncludeInWindows(_WindowInitializer.bIncludeInWindows)
+		, DefaultWidth(_WindowInitializer.Width)
+		, DefaultHeight(_WindowInitializer.Height)
+		, Name(_WindowInitializer.Name)
+		, DockSlot(_WindowInitializer.DockSlot)
+		, FontName(_WindowInitializer.FontName)
+		, bPendingKill(false)
+		, bInitializeWindow(true)
+		, TickCounter(0)
+	{
+		bNeedDock = !DockSlot.empty();
+	}
 	virtual ~SWindow() = default;
 
 	virtual void NativeInitialize(const FNativeDataInitialize& _Data)
@@ -68,7 +81,10 @@ public:
 		Data = _Data;
 	}
 	virtual void Initialize(const std::any& Arg) {}
-	virtual void Render() {}
+	virtual void Render()
+	{
+		bInitializeWindow = ++TickCounter < 3;
+	}
 	virtual void Tick(float DeltaTime) {}
 	virtual void Update() {}
 	virtual void Destroy() {}
@@ -78,15 +94,6 @@ public:
 	virtual void Close() { bOpen = false; }
 	virtual bool IsOpen() const { return bOpen; }
 	virtual bool IsIncludeInWindows() const { return bIncludeInWindows; }
-	virtual std::string ToString() const
-	{
-		return std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>{}.to_bytes(Name);
-	}
-	inline std::string GetWindowName() const
-	{
-		return ToString();
-	}
-
 	virtual void SetWindowDefaultPosSize()
 	{
 		if (DefaultWidth == -1 || DefaultHeight == -1)
@@ -98,16 +105,47 @@ public:
 		ImGui::SetNextWindowPos(ImVec2(WindowPos.x, WindowPos.y), ImGuiCond_FirstUseEver);
 		ImGui::SetNextWindowSize(ImVec2((float)DefaultWidth, (float)DefaultHeight), ImGuiCond_FirstUseEver);
 	}
+	virtual std::string ToString() const
+	{
+		return std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>{}.to_bytes(Name);
+	}
 
+	inline std::string GetWindowName() const
+	{
+		return ToString();
+	}
+	void DestroyWindow() { bPendingKill = true; }
+	bool IsDestroyWindow() const { return bPendingKill; }
+	const FNativeDataInitialize& GetNativeDataInitialize() const { return Data; }
+	void ResetWindow()
+	{
+		bOpen = WindowInitializer.bOpen;
+		bIncludeInWindows = WindowInitializer.bIncludeInWindows;
+		DefaultWidth = WindowInitializer.Width;
+		DefaultHeight = WindowInitializer.Height;
+		Name = WindowInitializer.Name;
+		FontName = WindowInitializer.FontName;
+		bPendingKill = false;
+		bInitializeWindow = true;
+		TickCounter = 0;
+	}
+	std::string GetDockSlot() const { return DockSlot; }
+
+	bool bNeedDock;
 protected:
 	FNativeDataInitialize Data;
+	FWindowInitializer WindowInitializer;
 
 	bool bOpen;
+	bool bPendingKill;
 	bool bIncludeInWindows;
+	bool bInitializeWindow;
 
+	int32_t TickCounter;
 	uint32_t DefaultWidth;
 	uint32_t DefaultHeight;
-	
+
 	std::wstring Name;
+	std::string DockSlot;
 	EFont::Type FontName;
 };
