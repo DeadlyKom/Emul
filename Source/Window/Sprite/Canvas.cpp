@@ -349,6 +349,7 @@ void SCanvas::Destroy()
 
 void SCanvas::Draw_PopupMenu()
 {
+	bool bUpdateSize = false;
 	const ImGuiID CreateSpriteID = ImGui::GetCurrentWindow()->GetID(CreateSpriteName);
 	if (bOpenPopupMenu = ImGui::BeginPopup(PopupMenuName))
 	{
@@ -360,16 +361,20 @@ void SCanvas::Draw_PopupMenu()
 			sprintf(CreateSpriteNameBuffer, std::format("Sprite {}", ++SpriteCounter).c_str());
 			sprintf(CreateSpriteWidthBuffer, "%i\n", int(CreateSpriteSize.x));
 			sprintf(CreateSpriteHeightBuffer, "%i\n", int(CreateSpriteSize.y));
+
+			bRoundingToMultipleEight = true;
+			bRectangularSprite = false;
+
+			const ImVec2 OriginalSpriteSize = ZXColorView->RectangleMarqueeRect.GetSize();
+			Log2SpriteSize = { powf(2.0f, ceilf(log2f(OriginalSpriteSize.x))), powf(2.0f, ceilf(log2f(OriginalSpriteSize.y))) };
+
+			bUpdateSize = true;
 		}
 		ImGui::EndPopup();	
 	}
 
 	if (ImGui::BeginPopupModal(CreateSpriteName, NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
-		const ImVec2 OriginalSpriteSize = ZXColorView->RectangleMarqueeRect.GetSize();
-		const float NormalSizeX = powf(2.0f, ceilf(log2f(OriginalSpriteSize.x)));
-		const float NormalSizeY = powf(2.0f, ceilf(log2f(OriginalSpriteSize.y)));
-
 		const float TextWidth = ImGui::CalcTextSize("A").x;
 		const float TextHeight = ImGui::GetTextLineHeightWithSpacing();
 
@@ -380,24 +385,74 @@ void SCanvas::Draw_PopupMenu()
 		ImGui::SameLine(50.0f);
 		ImGui::InputTextEx("##Name", NULL, CreateSpriteNameBuffer, IM_ARRAYSIZE(CreateSpriteNameBuffer), ImVec2(TextWidth * 20.0f, TextHeight), ImGuiInputTextFlags_None);
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
-		ImGui::Text("Size :");
-		ImGui::Separator();
+		ImGui::SeparatorText("Size :");
+
+		if (ImGui::Checkbox("Multiple of 8", &bRoundingToMultipleEight))
+		{
+			if (!bRoundingToMultipleEight)
+			{
+				const ImVec2 OriginalSpriteSize = ZXColorView->RectangleMarqueeRect.GetSize();
+				Log2SpriteSize = { powf(2.0f, ceilf(log2f(OriginalSpriteSize.x))), powf(2.0f, ceilf(log2f(OriginalSpriteSize.y))) };
+				CreateSpriteSize = ZXColorView->RectangleMarqueeRect.GetSize();
+			}
+			bUpdateSize = true;
+		}
+		if (ImGui::Checkbox("Rectangular sprite", &bRectangularSprite))
+		{
+			if (!bRectangularSprite)
+			{
+				const ImVec2 OriginalSpriteSize = ZXColorView->RectangleMarqueeRect.GetSize();
+				Log2SpriteSize = { powf(2.0f, ceilf(log2f(OriginalSpriteSize.x))), powf(2.0f, ceilf(log2f(OriginalSpriteSize.y))) };
+				CreateSpriteSize = ZXColorView->RectangleMarqueeRect.GetSize();
+			}
+			
+			bUpdateSize = true;
+		}
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));
 
 		ImGui::Text("Width :");
 		ImGui::SameLine(50.0f); 
 		ImGui::InputTextEx("##Width", NULL, CreateSpriteWidthBuffer, IM_ARRAYSIZE(CreateSpriteWidthBuffer), ImVec2(TextWidth * 10.0f, TextHeight), InputNumberTextFlags, &TextEditNumberCallback, (void*)&CreateSpriteSize.x);
 		ImGui::SameLine(150.0f);
-		if (ImGui::SliderFloat("##FineTuningX", &CreateSpriteSize.x, 0.0f, NormalSizeX, "%.0f"))
+
+		if (ImGui::SliderFloat("##FineTuningX", &CreateSpriteSize.x, 8.0f, Log2SpriteSize.x, "%.0f"))
 		{
-			sprintf(CreateSpriteWidthBuffer, "%i\n", int32_t(CreateSpriteSize.x));
+			if (bRectangularSprite)
+			{
+				CreateSpriteSize.y = CreateSpriteSize.x;
+				Log2SpriteSize.y = Log2SpriteSize.x;
+			}
+			bUpdateSize = true;
 		}
 		
 		ImGui::Text("Height :");
 		ImGui::SameLine(50.0f);
 		ImGui::InputTextEx("##Height", NULL, CreateSpriteHeightBuffer, IM_ARRAYSIZE(CreateSpriteHeightBuffer), ImVec2(TextWidth * 10.0f, TextHeight), InputNumberTextFlags, &TextEditNumberCallback, (void*)&CreateSpriteSize.y);
 		ImGui::SameLine(150.0f);
-		if (ImGui::SliderFloat("##FineTuningY", &CreateSpriteSize.y, 0.0f, NormalSizeY, "%.0f"))
+		if (ImGui::SliderFloat("##FineTuningY", &CreateSpriteSize.y, bRoundingToMultipleEight ? 8.0f : 1.0f, Log2SpriteSize.y, "%.0f"))
 		{
+			if (bRectangularSprite)
+			{
+				CreateSpriteSize.x = CreateSpriteSize.y;
+				Log2SpriteSize.x = Log2SpriteSize.y;
+			}
+
+			bUpdateSize = true;
+		}
+
+		if (bUpdateSize)
+		{
+			if (bRectangularSprite)
+			{
+				const float MinSize = ImMin(CreateSpriteSize.x, CreateSpriteSize.y);
+				CreateSpriteSize = { MinSize, MinSize };
+			}
+			if (bRoundingToMultipleEight)
+			{
+				CreateSpriteSize.x = ceilf(CreateSpriteSize.x / 8.0f) * 8.0f;
+				CreateSpriteSize.y = ceilf(CreateSpriteSize.y / 8.0f) * 8.0f;
+			}
+			sprintf(CreateSpriteWidthBuffer, "%i\n", int32_t(CreateSpriteSize.x));
 			sprintf(CreateSpriteHeightBuffer, "%i\n", int32_t(CreateSpriteSize.y));
 		}
 

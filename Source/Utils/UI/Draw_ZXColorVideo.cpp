@@ -257,10 +257,10 @@ void Draw_RectangleMarquee(std::shared_ptr<UI::FZXColorView> ZXColorView,  const
 	const ImVec2 TopLeftSubTexel = ZXColorView->ImagePosition * ZXColorView->Scale * ZXColorView->Image.Size - ZXColorView->ViewSize * 0.5f;
 	const ImVec2 TopLeftPixel = ZXColorView->ViewTopLeftPixel - (TopLeftSubTexel - ImFloor(TopLeftSubTexel / ZXColorView->Scale) * ZXColorView->Scale);
 
-	// ToDo разбить прямоугольник на 4 линии и клампить их
+	// ToDo: split the rectangle into 4 lines and clamp them
 	ImGui::GetWindowDrawList()->_FringeScale = 0.1f;
 	ImGui::GetWindowDrawList()->AddCallback(OnDrawCallback_LineMarchingAnts, ZXColorView.get());
-	ImGui::GetWindowDrawList()->AddRect(TopLeftPixel + TmpMarqueeRect.Min, TopLeftPixel + TmpMarqueeRect.Max, ImGui::GetColorU32(ImGuiCol_Button), 0.0f, 0, 0.001f);
+	ImGui::GetWindowDrawList()->AddRect(TopLeftPixel + TmpMarqueeRect.Min, TopLeftPixel + TmpMarqueeRect.Max, ImGui::GetColorU32(ImGuiCol_Button), 0.0f, 0, ImMax(ZXColorView->TexelsToPixels.Scale.x, 1.0f) / ZXColorView->Scale.x);
 }
 
 void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)

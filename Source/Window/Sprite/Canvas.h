@@ -72,6 +72,11 @@ private:
 	bool bNeedConvertZXToCanvas;
 	bool bOpenPopupMenu;
 	bool bMouseInsideMarquee;
+
+	// popup menu 'New Sprite'
+	bool bRoundingToMultipleEight;
+	bool bRectangularSprite;
+
 	ImGuiID CanvasID;
 
 	// draw pixels
@@ -88,6 +93,7 @@ private:
 
 	int32_t SpriteCounter;
 	ImVec2 CreateSpriteSize;
+	ImVec2 Log2SpriteSize;
 	char CreateSpriteNameBuffer[BUFFER_SIZE_INPUT] = "";
 	char CreateSpriteWidthBuffer[BUFFER_SIZE_INPUT] = "";
 	char CreateSpriteHeightBuffer[BUFFER_SIZE_INPUT] = "";
