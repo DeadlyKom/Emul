@@ -137,6 +137,15 @@
     <ClCompile Include="Window\Common\FileDialog.cpp">
       <Filter>Source\Window\Common</Filter>
     </ClCompile>
+    <ClCompile Include="Core\Settings.cpp">
+      <Filter>Source\Core</Filter>
+    </ClCompile>
+    <ClCompile Include="Settings\SpriteSettings.cpp">
+      <Filter>Source\Settings</Filter>
+    </ClCompile>
+    <ClCompile Include="Utils\IO.cpp">
+      <Filter>Source\Utils</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source">
@@ -195,6 +204,9 @@
     </Filter>
     <Filter Include="Source\Window\Common">
       <UniqueIdentifier>{d06d960c-df8b-4617-a1e3-fb2d036b3c00}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Settings">
+      <UniqueIdentifier>{733474d2-c4a9-4c2b-a9d4-96ab0dd9277b}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -392,6 +404,15 @@
     </ClInclude>
     <ClInclude Include="Window\Common\FileDialog.h">
       <Filter>Source\Window\Common</Filter>
+    </ClInclude>
+    <ClInclude Include="Core\Settings.h">
+      <Filter>Source\Core</Filter>
+    </ClInclude>
+    <ClInclude Include="Settings\SpriteSettings.h">
+      <Filter>Source\Settings</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\IO.h">
+      <Filter>Source\Utils</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

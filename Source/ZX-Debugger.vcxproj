@@ -213,6 +213,7 @@
     <ClCompile Include="AppDebugger.cpp" />
     <ClCompile Include="Core\Fonts.cpp" />
     <ClCompile Include="Core\Image.cpp" />
+    <ClCompile Include="Core\Settings.cpp" />
     <ClCompile Include="Core\SystemTime.cpp" />
     <ClCompile Include="Core\TimerManager.cpp" />
     <ClCompile Include="Core\ViewerBase.cpp" />
@@ -232,7 +233,9 @@
     <ClCompile Include="Motherboard\Motherboard_Board.cpp" />
     <ClCompile Include="Motherboard\Motherboard_ClockGenerator.cpp" />
     <ClCompile Include="Motherboard\Motherboard_Thread.cpp" />
+    <ClCompile Include="Settings\SpriteSettings.cpp" />
     <ClCompile Include="Utils\Delegate.cpp" />
+    <ClCompile Include="Utils\IO.cpp" />
     <ClCompile Include="Utils\Name.cpp" />
     <ClCompile Include="Utils\Signal\Bus.cpp" />
     <ClCompile Include="Utils\Signal\OscillogramManager.cpp" />
@@ -263,6 +266,7 @@
     <ClInclude Include="Core\Event.h" />
     <ClInclude Include="Core\Fonts.h" />
     <ClInclude Include="Core\Image.h" />
+    <ClInclude Include="Core\Settings.h" />
     <ClInclude Include="Core\SystemTime.h" />
     <ClInclude Include="Core\TimerManager.h" />
     <ClInclude Include="Core\Transform.h" />
@@ -284,6 +288,8 @@
     <ClInclude Include="Motherboard\Motherboard_ClockGenerator.h" />
     <ClInclude Include="Motherboard\Motherboard_Thread.h" />
     <ClInclude Include="resource.h" />
+    <ClInclude Include="Settings\SpriteSettings.h" />
+    <ClInclude Include="Utils\IO.h" />
     <ClInclude Include="Utils\Pipeline.h" />
     <ClInclude Include="Utils\Memory.h" />
     <ClInclude Include="Utils\ProfilerScope.h" />

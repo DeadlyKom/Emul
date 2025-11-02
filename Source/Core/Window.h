@@ -69,7 +69,6 @@ public:
 		, DockSlot(_WindowInitializer.DockSlot)
 		, FontName(_WindowInitializer.FontName)
 		, bPendingKill(false)
-		, bInitializeWindow(true)
 		, TickCounter(0)
 	{
 		bNeedDock = !DockSlot.empty();
@@ -81,10 +80,7 @@ public:
 		Data = _Data;
 	}
 	virtual void Initialize(const std::any& Arg) {}
-	virtual void Render()
-	{
-		bInitializeWindow = ++TickCounter < 3;
-	}
+	virtual void Render() {}
 	virtual void Tick(float DeltaTime) {}
 	virtual void Update() {}
 	virtual void Destroy() {}
@@ -126,7 +122,6 @@ public:
 		Name = WindowInitializer.Name;
 		FontName = WindowInitializer.FontName;
 		bPendingKill = false;
-		bInitializeWindow = true;
 		TickCounter = 0;
 	}
 	std::string GetDockSlot() const { return DockSlot; }
@@ -139,7 +134,6 @@ protected:
 	bool bOpen;
 	bool bPendingKill;
 	bool bIncludeInWindows;
-	bool bInitializeWindow;
 
 	int32_t TickCounter;
 	uint32_t DefaultWidth;

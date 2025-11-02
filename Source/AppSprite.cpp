@@ -1,6 +1,7 @@
 #include "AppSprite.h"
 #include "Fonts/Dos2000_ru_en.cpp"
 #include "Window/Sprite/Definition.h"
+#include <Settings/SpriteSettings.h>
 
 #include <Window/Sprite/Canvas.h>
 #include <Window/Sprite/Palette.h>
@@ -29,6 +30,7 @@ void FAppSprite::Initialize()
 	FAppFramework::Initialize();
 	LOG("Initialize 'Sprite' application.");
 	LoadIniSettings();
+	LoadSettings();
 
 	FImageBase& Images = FImageBase::Get();
 	Images.Initialize(Device, DeviceContext);
@@ -205,6 +207,12 @@ void FAppSprite::LoadIniSettings()
 //      DockNode    ID=0x00000008 Parent=0x00000004 SizeRef=713,52 Selected=0x1604805B
 //)";
 //	ImGui::LoadIniSettingsFromMemory(DefaultIni);
+}
+
+void FAppSprite::LoadSettings()
+{
+	std::string Filename = "Settings.cfg";
+	FSpriteSettings::Get().Load((std::filesystem::current_path() / Filename).string());
 }
 
 void FAppSprite::Show_MenuBar()

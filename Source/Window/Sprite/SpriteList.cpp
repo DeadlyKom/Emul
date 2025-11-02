@@ -2,6 +2,13 @@
 #include <Utils/UI/Draw.h>
 #include <Utils/UI/Draw_ZXColorVideo.h>
 #include <Window/Common/FileDialog.h>
+#include <Settings/SpriteSettings.h>
+#include <json/json.hpp>
+#include <Utils/IO.h>
+
+#define STB_IMAGE_WRITE_IMPLEMENTATION
+#include "stb/stb_image_write.h"
+
 #include "resource.h"
 #include "Events.h"
 #include "Canvas.h"
@@ -33,6 +40,7 @@ SSpriteList::SSpriteList(EFont::Type _FontName, std::string _DockSlot /*= ""*/)
 		.SetIncludeInWindows(true))
 	, bNeedKeptOpened_ExportPopup(false)
 	, ScaleVisible(2)
+	, IndexSelectedScript(INDEX_NONE)
 {}
 
 void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
@@ -60,6 +68,15 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 void SSpriteList::Initialize(const std::any& Arg)
 {
 	CurrentPath = CurrentPath.empty() ? std::filesystem::current_path().string() : CurrentPath;
+
+	FSpriteSettings& SpriteSettings = FSpriteSettings::Get();
+	auto ScriptFilesOptional = SpriteSettings.GetValue<std::map<std::string, std::string>>(
+		{ FSpriteSettings::ScriptFilesTag, typeid(std::map<std::string, std::string>) });
+
+	if (ScriptFilesOptional.has_value())
+	{
+		ScriptFiles = ScriptFilesOptional.value();
+	}
 }
 
 void SSpriteList::Render()
@@ -111,7 +128,6 @@ void SSpriteList::Render()
 			if (ImGui::BeginPopupModal(ExportToName, nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize))
 			{
 				Draw_ExportSprites();
-				/*ImGui::EndPopup();*/
 			}
 			if (!bEnabled) ImGui::EndDisabled();
 			ImGui::SameLine();
@@ -272,17 +288,81 @@ bool SSpriteList::Draw_ButtonSprite(const char* StringID, FSprite& Sprite, const
 void SSpriteList::Draw_ExportSprites()
 {
 	static bool bOpenFileDialog = false;
-	const float TextHeight = ImGui::GetTextLineHeightWithSpacing(); 
+	const float TextWidth = ImGui::CalcTextSize("A").x;
+	const float TextHeight = ImGui::GetTextLineHeightWithSpacing();
+
 	ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
+	ImGui::SeparatorText("Path");
 	ImGui::Text("%s", CurrentPath.c_str());
-	ImGui::SameLine(450.0f);
+	ImGui::SameLine(512.0f);
 	if (ImGui::Button("...", ImVec2(0.0f, 0.0f)))
 	{
 		bOpenFileDialog = true;
 		ImGui::CloseCurrentPopup();
 	}
-	ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
-	if (ImGui::Button("Cancel", ImVec2(0.0f, 0.0f)))
+	ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));
+	ImGui::SeparatorText("Script");
+
+	if (ImGui::IsWindowAppearing())
+	{
+		ScriptFileNames.clear();
+		ScriptFileNames.reserve(ScriptFiles.size());
+		std::transform(
+			ScriptFiles.begin(), ScriptFiles.end(),
+			std::back_inserter(ScriptFileNames),
+			[](const auto& pair) { return pair.first; }
+		);
+	}
+
+	if (ImGui::BeginCombo("##ScriptCombo", IndexSelectedScript == INDEX_NONE ? "None" : ScriptFileNames[IndexSelectedScript].c_str(), 0))
+	{
+		static ImGuiTextFilter Filter;
+		if (ImGui::IsWindowAppearing())
+		{
+			ImGui::SetKeyboardFocusHere();
+			Filter.Clear();
+		}
+		ImGui::SetNextItemShortcut(ImGuiMod_Ctrl | ImGuiKey_F);
+		Filter.Draw("##Filter", -FLT_MIN);
+
+		for (int32_t Index = 0; Index < ScriptFileNames.size(); ++Index)
+		{
+			const bool bIsSelected = (IndexSelectedScript == Index);
+			if (Filter.PassFilter(ScriptFileNames[Index].c_str()))
+			{
+				if (ImGui::Selectable(ScriptFileNames[Index].c_str(), bIsSelected))
+				{
+					IndexSelectedScript = Index;
+				}
+			}
+		}
+		ImGui::EndCombo();
+	}
+	ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));
+	ImGui::BeginDisabled(IndexSelectedScript == INDEX_NONE);
+	if (ImGui::ButtonEx("OK", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
+	{
+		// export sprites
+		{
+			std::vector<FSprite> SelectedSprites;
+			for (const FSprite& Sprite : Sprites)
+			{
+				if (!Sprite.bSelected)
+				{
+					continue;
+				}
+				SelectedSprites.push_back(Sprite);
+			}
+			ExportSprites(ScriptFiles[ScriptFileNames[IndexSelectedScript]], CurrentPath, SelectedSprites);
+		}
+
+		bNeedKeptOpened_ExportPopup = false;
+		ImGui::CloseCurrentPopup();
+	}
+	ImGui::EndDisabled();
+	ImGui::SetItemDefaultFocus();
+	ImGui::SameLine();
+	if (ImGui::Button("Cancel", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 	{
 		bNeedKeptOpened_ExportPopup = false;
 		ImGui::CloseCurrentPopup();
@@ -342,14 +422,16 @@ void SSpriteList::AddSprite(
 
 		const int32_t Boundary_X = Width >> 3;
 		const int32_t Boundary_Y = Height >> 3;
+		const int32_t SpriteBoundary_X = NormalSizeX >> 3;
+		const int32_t SpriteBoundary_Y = NormalSizeY >> 3;
 
-		const int32_t PixelSize = Boundary_X * NewSprite.Height;
+		const int32_t PixelSize = SpriteBoundary_X * NewSprite.Height;
 		std::vector<uint8_t>& NewInkData = NewSprite.ZXColorView->InkData;
 		NewInkData.resize(PixelSize);
 		std::vector<uint8_t>& NewMaskData = NewSprite.ZXColorView->MaskData;
 		NewMaskData.resize(PixelSize);
 
-		const int32_t AttributeSize = Boundary_X * Boundary_Y;
+		const int32_t AttributeSize = SpriteBoundary_X * SpriteBoundary_Y;
 		std::vector<uint8_t>& NewAttributeData = NewSprite.ZXColorView->AttributeData;
 		NewAttributeData.resize(AttributeSize);
 
@@ -432,4 +514,91 @@ void SSpriteList::AddSprite(
 	Draw_ZXColorView_Initialize(NewSprite.ZXColorView, UI::ERenderType::Sprite);
 
 	Sprites.push_back(NewSprite);
+}
+
+void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, const std::filesystem::path& ExportPath, std::vector<FSprite> SelectedSprites)
+{
+	nlohmann::ordered_json Json;
+
+	auto ToUtf8 = [](const std::wstring& wstr) -> std::string
+		{
+			std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> conv;
+			return conv.to_bytes(wstr);
+		};
+
+	for (const FSprite& Sprite : SelectedSprites)
+	{
+		std::filesystem::path IndexedDataFilePath;
+		if (Sprite.ZXColorView->IndexedData.size() > 0)
+		{
+			IndexedDataFilePath = ExportPath / std::format("IndexedData_{}.png", Sprite.Name);
+
+			constexpr int32_t Channels = 4;
+			std::vector<uint32_t> RGBA(Sprite.Width * Sprite.Height);
+			{
+				for (uint32_t y = 0; y < Sprite.Height; ++y)
+				{
+					for (uint32_t x = 0; x < Sprite.Width; ++x)
+					{
+						const uint32_t Offset = y * Sprite.Width + x;
+						const uint8_t ColorIndex = Sprite.ZXColorView->IndexedData[Offset];
+						const ImU32 ColorRGBA = UI::ToU32(UI::ZXSpectrumColorRGBA[ColorIndex]);
+						RGBA[Offset] = ColorRGBA;
+					}
+				}
+			}
+
+			if (!stbi_write_png(
+				IndexedDataFilePath.string().c_str(),
+				Sprite.Width,
+				Sprite.Height,
+				Channels,
+				RGBA.data(),
+				Sprite.Width * Channels
+			))
+			{
+				std::cerr << "Failed to write PNG!" << std::endl;
+			}
+		}
+
+		std::filesystem::path InkDataFilePath;
+		if (Sprite.ZXColorView->InkData.size() > 0)
+		{
+			InkDataFilePath = ExportPath / std::format("InkData_{}.bin", Sprite.Name);
+			IO::SaveBinaryData(Sprite.ZXColorView->InkData, InkDataFilePath);
+		}
+
+		std::filesystem::path AttributeDataFilePath;
+		if (Sprite.ZXColorView->AttributeData.size() > 0)
+		{
+			AttributeDataFilePath = ExportPath / std::format("AttributeData_{}.bin", Sprite.Name);
+			IO::SaveBinaryData(Sprite.ZXColorView->AttributeData, AttributeDataFilePath);
+		}
+
+		std::filesystem::path MaskDataFilePath;
+		if (Sprite.ZXColorView->MaskData.size() > 0)
+		{
+			MaskDataFilePath = ExportPath / std::format("MaskData_{}.bin", Sprite.Name);
+			IO::SaveBinaryData(Sprite.ZXColorView->MaskData, MaskDataFilePath);
+		}
+
+		Json.push_back(
+			{
+				{"Name", Sprite.Name},
+				{"Width", Sprite.Width},
+				{"Height", Sprite.Height},
+
+				{"InkData", ToUtf8(InkDataFilePath.wstring())},
+				{"AttributeData", ToUtf8(AttributeDataFilePath.wstring())},
+				{"MaskData", ToUtf8(MaskDataFilePath.wstring())},
+			});
+	}
+
+	std::filesystem::path JsonFilePath = ExportPath / "Export.json";
+	std::ofstream JsonFile(JsonFilePath, std::ios::binary);
+	if (JsonFile.is_open())
+	{
+		JsonFile << Json.dump(4);
+		JsonFile.close();
+	}
 }

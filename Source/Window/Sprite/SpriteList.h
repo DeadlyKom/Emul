@@ -53,9 +53,16 @@ private:
 		const std::vector<uint8_t>& AttributeData,
 		const std::vector<uint8_t>& MaskData);
 
+	void ExportSprites(const std::filesystem::path& ScriptFilePath, const std::filesystem::path& ExportPath, std::vector<FSprite> SelectedSprites);
+
 	bool bNeedKeptOpened_ExportPopup;
 	uint32_t ScaleVisible;
 	ImGuiID SpriteListID;
 	std::string CurrentPath;
 	std::vector<FSprite> Sprites;
+
+	// popup menu 'Export'
+	int32_t IndexSelectedScript;
+	std::vector<std::string> ScriptFileNames;
+	std::map<std::string, std::string> ScriptFiles;
 };

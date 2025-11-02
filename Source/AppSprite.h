@@ -21,6 +21,7 @@ public:
 
 private:
 	void LoadIniSettings();
+	void LoadSettings();
 	void Show_MenuBar();
 
 	std::shared_ptr<SViewerBase> Viewer;

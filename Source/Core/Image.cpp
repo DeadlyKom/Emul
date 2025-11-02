@@ -3,12 +3,12 @@
 #include "Utils/Resource.h"
 
 #define STB_IMAGE_IMPLEMENTATION
-#include "stb\stb_image.h"
+#include "stb/stb_image.h"
 
 #define STB_IMAGE_RESIZE_IMPLEMENTATION
 #define STBIR_DEFAULT_FILTER_UPSAMPLE    STBIR_FILTER_BOX
 #define STBIR_DEFAULT_FILTER_DOWNSAMPLE  STBIR_FILTER_BOX
-#include "stb\stb_image_resize.h"
+#include "stb/stb_image_resize.h"
 
 namespace
 {

@@ -38,13 +38,13 @@ void SFileDialog::Render()
 		return;
 	}
 
-	if (bInitializeWindow)
-	{
-		ImGui::SetNextWindowSize(ImVec2(850.0f, 420.0f));
-	}
-
 	if (ImGui::Begin(FileDialogName.c_str(), &bOpen, ImGuiWindowFlags_NoDocking | ImGuiWindowFlags_NoCollapse))
 	{
+		if (ImGui::IsWindowAppearing())
+		{
+			ImGui::SetNextWindowSize(ImVec2(850.0f, 420.0f));
+		}
+
 		ImVec2 DirectorySize;
 		ImVec2 FilesSize;
 		float LeftButton;
@@ -105,8 +105,6 @@ void SFileDialog::Render()
 
 		ImGui::End();
 	}
-
-	SWindow::Render();
 
 	switch (DialogStage)
 	{
@@ -288,7 +286,7 @@ void SFileDialog::ShowFiles(const ImVec2& Size)
 	ImGui::BeginChild("Files", Size, true, ImGuiWindowFlags_HorizontalScrollbar);
 	ImGui::Columns(4);
 
-	if (bInitializeWindow)
+	if (ImGui::IsWindowAppearing())
 	{
 		ImGui::SetColumnWidth(0, Size.x * 0.5f);
 		ImGui::SetColumnWidth(1, Size.x * 0.1f);
