@@ -4,6 +4,14 @@
 #include "Fonts.h"
 #include "SystemTime.h"
 
+enum class EPathType
+{
+	Ini,
+	Log,
+	Config,
+	Export,
+};
+
 class FAppFramework
 {
 public:
@@ -16,6 +24,7 @@ public:
 		static std::shared_ptr<T> InstanceAppFramework(new T());
 		return *InstanceAppFramework.get();
 	}
+	static std::filesystem::path GetPath(EPathType PathType);
 
 	int32_t Launch(const std::map<std::string, std::string>& Args);
 
@@ -29,6 +38,7 @@ public:
 	virtual void SetRectWindow(uint16_t Width, uint16_t Height);
 	virtual std::vector<std::wstring> DragAndDropExtensions() const { return {}; }
 	virtual void DragAndDropFile(const std::filesystem::path& FilePath) {}
+	virtual void SaveDefaultImGuiIni() {}
 
 protected:
 	// internal variables
@@ -63,7 +73,6 @@ private:
 	void CleanupRenderTarget();
 
 	bool InitField();
-	void SaveDefaultImGuiIni();
 	bool StartupGUI();
 	void ShutdownGUI();
 

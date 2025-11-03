@@ -16,6 +16,8 @@ namespace
 	static const char* MenuEditName = TEXT("Edit");
 
 	const char* ExportToName = "##ExportTo";
+
+	static const char* SettingsFilename = "Settings.cfg";
 }
 
 FAppSprite::FAppSprite()
@@ -29,7 +31,7 @@ void FAppSprite::Initialize()
 
 	FAppFramework::Initialize();
 	LOG("Initialize 'Sprite' application.");
-	LoadIniSettings();
+
 	LoadSettings();
 
 	FImageBase& Images = FImageBase::Get();
@@ -146,73 +148,9 @@ void FAppSprite::DragAndDropFile(const std::filesystem::path& FilePath)
 	Viewer->AddWindow(EName::Canvas, NewCanvas, Data, FilePath);
 }
 
-void FAppSprite::LoadIniSettings()
-{
-//	const char* DefaultIni = R"(
-//[Window][Palette]
-//Pos=235,26
-//Size=765,72
-//Collapsed=0
-//DockId=0x00000003,0
-//
-//[Window][WindowOverViewport_11111111]
-//Pos=0,18
-//Size=1008,711
-//Collapsed=0
-//
-//[Window][Debug##Default]
-//Pos=60,60
-//Size=400,400
-//Collapsed=0
-//
-//[Window][Status Bar]
-//Pos=235,669
-//Size=765,52
-//Collapsed=0
-//DockId=0x00000008,0
-//
-//[Window][Canvas]
-//Pos=228,93
-//Size=728,582
-//Collapsed=0
-//DockId=0x7C6B3D9B,0
-//
-//[Window][Tool Bar]
-//Pos=932,100
-//Size=68,567
-//Collapsed=0
-//DockId=0x00000006,0
-//
-//[Window][Sprite List]
-//Pos=8,26
-//Size=225,695
-//Collapsed=0
-//DockId=0x00000001,0
-//
-//[Window][ViewerBase]
-//Pos=0,0
-//Size=1008,729
-//Collapsed=0
-//
-//[Docking][Data]
-//DockSpace         ID=0x7C6B3D9B Pos=456,205 Size=1008,711 CentralNode=1 HiddenTabBar=1
-//DockSpace         ID=0xD2E0236E Window=0x8C6D4AF9 Pos=464,213 Size=992,695 Split=X Selected=0x9CD3E80B
-//  DockNode        ID=0x00000001 Parent=0xD2E0236E SizeRef=225,695 Selected=0x7FB5F2E9
-//  DockNode        ID=0x00000002 Parent=0xD2E0236E SizeRef=695,695 Split=Y Selected=0x9CD3E80B
-//    DockNode      ID=0x00000003 Parent=0x00000002 SizeRef=765,72 Selected=0x7E84447F
-//    DockNode      ID=0x00000004 Parent=0x00000002 SizeRef=765,621 Split=Y Selected=0x9CD3E80B
-//      DockNode    ID=0x00000007 Parent=0x00000004 SizeRef=713,567 Split=X Selected=0x9CD3E80B
-//        DockNode  ID=0x00000005 Parent=0x00000007 SizeRef=695,567 CentralNode=1 Selected=0x211984C5
-//        DockNode  ID=0x00000006 Parent=0x00000007 SizeRef=68,567 Selected=0xDFE559BD
-//      DockNode    ID=0x00000008 Parent=0x00000004 SizeRef=713,52 Selected=0x1604805B
-//)";
-//	ImGui::LoadIniSettingsFromMemory(DefaultIni);
-}
-
 void FAppSprite::LoadSettings()
 {
-	std::string Filename = "Settings.cfg";
-	FSpriteSettings::Get().Load((std::filesystem::current_path() / Filename).string());
+	FSpriteSettings::Get().Load((FAppFramework::GetPath(EPathType::Config) / SettingsFilename).string());
 }
 
 void FAppSprite::Show_MenuBar()

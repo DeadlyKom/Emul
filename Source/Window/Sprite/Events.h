@@ -10,18 +10,11 @@ namespace FEventTag
 {
 	static const FName ChangeToolModeTag = TEXT("ChangeToolMode");
 	static const FName CanvasOptionsFlagsTag = TEXT("CanvasOptionsFlags");
-	static const FName SelectedColorTag = TEXT("SelectedColor");
+	static const FName ChangeColorTag = TEXT("ChangeColor");
 	static const FName CanvasSizeTag = TEXT("CanvasSize");;
 	static const FName MousePositionTag = TEXT("MouseState");
 	static const FName AddSpriteTag = TEXT("AddSprite");
 }
-
-struct FSelectedColor
-{
-	uint8_t ButtonIndex{};
-	UI::EZXSpectrumColor::Type SelectedColorIndex = UI::EZXSpectrumColor::None;
-	ESubcolor::Type SelectedSubcolorIndex = ESubcolor::None;
-};
 
 struct FChangeToolMode
 {
@@ -31,7 +24,6 @@ struct FChangeToolMode
 struct FEvent_Canvas : public IEvent
 {
 	uint32_t OptionsFlags{};
-	FSelectedColor SelectedColor;
 	FChangeToolMode ChangeToolMode;
 };
 
@@ -46,13 +38,14 @@ struct FEvent_ToolBar : public IEvent
 	FChangeToolMode ChangeToolMode;
 };
 
-struct FEvent_PaletteBar : public IEvent
+struct FEvent_Color : public IEvent
 {
-	FSelectedColor SelectedColor;
+	uint8_t ButtonIndex = INDEX_NONE;											// pressed mouse button
+	UI::EZXSpectrumColor::Type SelectedColorIndex = UI::EZXSpectrumColor::None;	// zx color
+	ESubcolor::Type SelectedSubcolorIndex = ESubcolor::None;					// type ink/paper/bright
 };
 
-//
-struct FEvent_AddSprite : public IEvent
+struct FEvent_Sprite : public IEvent
 {
 	// original image size
 	int32_t Width;

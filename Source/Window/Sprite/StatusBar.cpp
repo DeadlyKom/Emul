@@ -49,6 +49,11 @@ void SStatusBar::Render()
 	}
 }
 
+void SStatusBar::Destroy()
+{
+	UnsubscribeAll();
+}
+
 void SStatusBar::Draw_MousePosition()
 {
 	const int32_t X = FMath::Clamp(FMath::FloorToInt32(MousePosition.x), 0, (int32_t)CanvasSize.x - 1);

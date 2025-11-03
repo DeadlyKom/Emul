@@ -30,6 +30,7 @@ public:
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
 	virtual void Initialize(const std::any& Arg) override;
 	virtual void Render() override;
+	virtual void Destroy() override;
 
 private:
 	void Input_Mouse();
@@ -58,7 +59,7 @@ private:
 	bool bNeedKeptOpened_ExportPopup;
 	uint32_t ScaleVisible;
 	ImGuiID SpriteListID;
-	std::string CurrentPath;
+	std::filesystem::path CurrentPath;
 	std::vector<FSprite> Sprites;
 
 	// popup menu 'Export'

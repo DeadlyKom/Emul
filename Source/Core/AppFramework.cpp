@@ -12,6 +12,7 @@ namespace Path
 {
 	static const char* Log = "Saved/Logs";
 	static const char* Config = "Saved/Config";
+	static const char* Export = "Saved/Export";
 
 	static const char* IniFilename = "imgui.ini";
 }
@@ -129,6 +130,20 @@ FAppFramework::FAppFramework()
 
 FAppFramework::~FAppFramework()
 {}
+
+std::filesystem::path FAppFramework::GetPath(EPathType PathType)
+{
+	switch (PathType)
+	{
+	case EPathType::Log:
+		return Path::Log;
+	case EPathType::Config:
+		return Path::Config;
+	case EPathType::Export:
+		return Path::Export;
+	}
+	return std::filesystem::current_path();
+}
 
 int32_t FAppFramework::Launch(const std::map<std::string, std::string>& Args)
 {
@@ -525,16 +540,20 @@ bool FAppFramework::InitField()
 		}
 	}
 
+	if (!std::filesystem::exists(Path::Export, ec))
+	{
+		if (!std::filesystem::create_directories(Path::Export))
+		{
+			return false;
+		}
+	}
+
 	if (!std::filesystem::exists(IniFilePath.c_str(), ec))
 	{
 		SaveDefaultImGuiIni();
 	}
 
 	return true;
-}
-
-void FAppFramework::SaveDefaultImGuiIni()
-{
 }
 
 bool FAppFramework::StartupGUI()

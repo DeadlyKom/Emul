@@ -115,6 +115,11 @@ void SToolBar::Render()
 	}
 }
 
+void SToolBar::Destroy()
+{
+	UnsubscribeAll();
+}
+
 void SToolBar::SetToolMode(EToolMode::Type NewToolMode, bool bForce /*= true*/, bool bEvent /*= false*/)
 {
 	if (ToolMode[0] != NewToolMode)

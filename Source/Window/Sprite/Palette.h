@@ -27,6 +27,7 @@ public:
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
 	virtual void Render() override;
+	virtual void Destroy() override;
 
 private:
 	void Display_Colors();

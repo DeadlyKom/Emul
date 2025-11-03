@@ -81,7 +81,7 @@ private:
 
 	// draw pixels
 	UI::EZXSpectrumColor::Type ButtonColor[2];
-	uint8_t Subcolor[ESubcolor::MAX];
+	UI::EZXSpectrumColor::Type Subcolor[ESubcolor::MAX];
 	uint8_t LastSetButtonIndex;
 	uint8_t LastSetPixelColorIndex;
 	ImVec2 LastSetPixelPosition;

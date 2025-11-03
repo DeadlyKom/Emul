@@ -42,7 +42,8 @@ void SFileDialog::Render()
 	{
 		if (ImGui::IsWindowAppearing())
 		{
-			ImGui::SetNextWindowSize(ImVec2(850.0f, 420.0f));
+			ImGui::SetWindowSize(ImVec2(850.0f, 420.0f));
+			ImGui::SetWindowCollapsed(false);
 		}
 
 		ImVec2 DirectorySize;

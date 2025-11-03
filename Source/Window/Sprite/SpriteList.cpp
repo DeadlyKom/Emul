@@ -1,8 +1,9 @@
 #include "SpriteList.h"
+#include <Core/AppFramework.h>
 #include <Utils/UI/Draw.h>
-#include <Utils/UI/Draw_ZXColorVideo.h>
-#include <Window/Common/FileDialog.h>
 #include <Settings/SpriteSettings.h>
+#include <Window/Common/FileDialog.h>
+#include <Utils/UI/Draw_ZXColorVideo.h>
 #include <json/json.hpp>
 #include <Utils/IO.h>
 
@@ -47,8 +48,8 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 {
 	Super::NativeInitialize(Data);
 
-	SubscribeEvent<FEvent_AddSprite>(
-		[this](const FEvent_AddSprite& Event)
+	SubscribeEvent<FEvent_Sprite>(
+		[this](const FEvent_Sprite& Event)
 		{
 			if (Event.Tag == FEventTag::AddSpriteTag)
 			{
@@ -67,7 +68,7 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 
 void SSpriteList::Initialize(const std::any& Arg)
 {
-	CurrentPath = CurrentPath.empty() ? std::filesystem::current_path().string() : CurrentPath;
+	CurrentPath = FAppFramework::GetPath(EPathType::Export);
 
 	FSpriteSettings& SpriteSettings = FSpriteSettings::Get();
 	auto ScriptFilesOptional = SpriteSettings.GetValue<std::map<std::string, std::string>>(
@@ -141,6 +142,11 @@ void SSpriteList::Render()
 		}
 		ImGui::End();
 	}
+}
+
+void SSpriteList::Destroy()
+{
+	UnsubscribeAll();
 }
 
 void SSpriteList::Input_Mouse()
@@ -293,7 +299,7 @@ void SSpriteList::Draw_ExportSprites()
 
 	ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
 	ImGui::SeparatorText("Path");
-	ImGui::Text("%s", CurrentPath.c_str());
+	ImGui::Text("%s", std::filesystem::absolute(CurrentPath).string().c_str());
 	ImGui::SameLine(512.0f);
 	if (ImGui::Button("...", ImVec2(0.0f, 0.0f)))
 	{
@@ -445,27 +451,40 @@ void SSpriteList::AddSprite(
 				const int32_t by = y / 8;
 				const int32_t dy = y % 8;
 
+				const int32_t Sprbx = (x - (uint32_t)SpriteRect.Min.x) / 8;
+				const int32_t Sprby = (y - (uint32_t)SpriteRect.Min.y) / 8;
+				const int32_t Sprdy = (y - (uint32_t)SpriteRect.Min.y) % 8;
+
 				uint8_t Mask = 0xFF;
 				uint8_t Pixels = 0x00;
 				uint8_t InkColor = UI::EZXSpectrumColor::Black_;
 				uint8_t PaperColor = UI::EZXSpectrumColor::White_;
 
-				//if (bInk)
+				// Ink
 				{
 					const int32_t InkOffset = (by * 8 + dy) * Boundary_X + bx;
 					Pixels = InkData[InkOffset];
+
+					const int32_t NewInkOffset = (Sprby * 8 + Sprdy) * SpriteBoundary_X + Sprbx;
+					NewInkData[NewInkOffset] = Pixels;
 				}
 
-				//if (bMask)
+				// Mask
 				{
 					const int32_t MaskOffset = (by * 8 + dy) * Boundary_X + bx;
-					Mask = MaskData[MaskOffset];
+					Mask = ~MaskData[MaskOffset];
+					const int32_t NewMaskOffset = (Sprby * 8 + Sprdy) * SpriteBoundary_X + Sprbx;
+					NewMaskData[NewMaskOffset] = Mask;
 				}
 
-				//if (bAttribute)
+				// Attribute
 				{
 					const int32_t AttributeOffset = by * Boundary_X + bx;
 					const uint8_t Attribute = AttributeData[AttributeOffset];
+
+					const int32_t NewAttributeOffset = Sprby * SpriteBoundary_X + Sprbx;
+					NewAttributeData[NewAttributeOffset] = Attribute;
+
 					const bool bBright = (Attribute >> 6) & 0x01;
 					InkColor = (Attribute & 0x07) | (bBright << 3);
 					PaperColor = ((Attribute >> 3) & 0x07) | (bBright << 3);
@@ -480,21 +499,10 @@ void SSpriteList::AddSprite(
 					PaperColor = UI::EZXSpectrumColor::Black_;
 				}
 
-				//if (bInk || bAttribute)
-				//{
-					Mask = ~Mask;
-				//}
-				//else
-				//{
-				//	std::swap(InkColor, PaperColor);
-				//}
-
 				const int8_t ColorInk = (Pixels << dx) & 0x80 ? InkColor : PaperColor;
 				const int8_t Color = ((Mask << dx) & 0x80) ? UI::EZXSpectrumColor::Transparent : ColorInk;
-				//if (OutputIndexedData)
-				{
-					NewIndexedData[Index] = Color;
-				}
+				NewIndexedData[Index] = Color;
+
 				const ImU32 ColorRGBA = UI::ToU32(UI::ZXSpectrumColorRGBA[Color]);
 				RGBA[Index] = ColorRGBA;
 
@@ -518,7 +526,22 @@ void SSpriteList::AddSprite(
 
 void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, const std::filesystem::path& ExportPath, std::vector<FSprite> SelectedSprites)
 {
+	std::error_code ec;
 	nlohmann::ordered_json Json;
+
+	if (!ScriptFilePath.empty())
+	{
+		try
+		{
+			std::filesystem::copy_file(ScriptFilePath, ExportPath / ScriptFilePath.filename(), std::filesystem::copy_options::overwrite_existing);
+		}
+		catch (const std::filesystem::filesystem_error& e)
+		{
+			std::cerr << "Error copying file: " << e.what() << std::endl;
+			std::cerr << "Source path: " << e.path1() << "\n";
+			std::cerr << "Destination path: " << e.path2() << "\n";
+		}
+	}
 
 	auto ToUtf8 = [](const std::wstring& wstr) -> std::string
 		{
@@ -532,6 +555,11 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 		if (Sprite.ZXColorView->IndexedData.size() > 0)
 		{
 			IndexedDataFilePath = ExportPath / std::format("IndexedData_{}.png", Sprite.Name);
+			const std::filesystem::path UniqueIndexedDataFilePath = IO::GetUniquePath(IndexedDataFilePath, ec);
+			if (ec)
+			{
+				return;
+			}
 
 			constexpr int32_t Channels = 4;
 			std::vector<uint32_t> RGBA(Sprite.Width * Sprite.Height);
@@ -549,7 +577,7 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 			}
 
 			if (!stbi_write_png(
-				IndexedDataFilePath.string().c_str(),
+				UniqueIndexedDataFilePath.string().c_str(),
 				Sprite.Width,
 				Sprite.Height,
 				Channels,
@@ -595,7 +623,12 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 	}
 
 	std::filesystem::path JsonFilePath = ExportPath / "Export.json";
-	std::ofstream JsonFile(JsonFilePath, std::ios::binary);
+	const std::filesystem::path UniqueJsonFilePath = IO::GetUniquePath(JsonFilePath, ec);
+	if (ec)
+	{
+		return;
+	}
+	std::ofstream JsonFile(UniqueJsonFilePath, std::ios::binary);
 	if (JsonFile.is_open())
 	{
 		JsonFile << Json.dump(4);

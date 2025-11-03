@@ -71,17 +71,20 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 {
 	Super::NativeInitialize(Data);
 
-	SubscribeEvent<FEvent_PaletteBar>(
-		[this](const FEvent_PaletteBar& Event)
+	SubscribeEvent<FEvent_Color>(
+		[this](const FEvent_Color& Event)
 		{
-			if (Event.Tag == FEventTag::SelectedColorTag)
+			Event.ButtonIndex;				// pressed mouse button
+			Event.SelectedColorIndex;		// zx color
+			Event.SelectedSubcolorIndex;	// type ink/paper/bright
+
+			if (Event.Tag == FEventTag::ChangeColorTag)
 			{
-				ButtonColor[Event.SelectedColor.ButtonIndex & 0x01] = Event.SelectedColor.SelectedColorIndex;
-				if (Event.SelectedColor.SelectedSubcolorIndex < ESubcolor::MAX)
+				ButtonColor[Event.ButtonIndex & 0x01] = Event.SelectedColorIndex;
+				if (Event.SelectedSubcolorIndex < ESubcolor::MAX)
 				{
-					Subcolor[Event.SelectedColor.SelectedSubcolorIndex] = Event.SelectedColor.SelectedColorIndex;
+					Subcolor[Event.SelectedSubcolorIndex] = Event.SelectedColorIndex;
 				}
-				UpdateCursorColor();
 			}
 		});
 
@@ -145,13 +148,6 @@ void SCanvas::Render()
 		Close();
 		return;
 	}
-
-	//if (bInitializeWindow)
-	//{
-	//	ImGui::SetNextWindowPos(ImVec2(228, 93));
-	//	ImGui::SetNextWindowSize(ImVec2(728, 582));
-	//	ImGui::SetNextWindowCollapsed(false);
-	//}
 
 	const bool bInk = OptionsFlags[0] & FCanvasOptionsFlags::Ink;
 	const bool bMask = OptionsFlags[0] & FCanvasOptionsFlags::Mask;
@@ -345,6 +341,7 @@ void SCanvas::Render()
 void SCanvas::Destroy()
 {
 	UI::Draw_ZXColorView_Shutdown(ZXColorView);
+	UnsubscribeAll();
 }
 
 void SCanvas::Draw_PopupMenu()
@@ -460,7 +457,7 @@ void SCanvas::Draw_PopupMenu()
 
 		if (ImGui::ButtonEx("OK", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
-			FEvent_AddSprite Event;
+			FEvent_Sprite Event;
 			Event.Tag = FEventTag::AddSpriteTag;
 			Event.Width = Width;
 			Event.Height = Height;
@@ -710,16 +707,15 @@ void SCanvas::Handler_Eyedropper()
 		const uint32_t Offset = (uint32_t)Y * Width + (uint32_t)X;
 		ButtonColor[ButtonIndex] = (UI::EZXSpectrumColor::Type)ZXColorView->IndexedData[Offset];
 
-		FEvent_Canvas Event;
-		Event.Tag = FEventTag::SelectedColorTag;
-		FSelectedColor SelectedColor
+		FEvent_Color Event;
 		{
-			.ButtonIndex = ButtonIndex,
-			.SelectedColorIndex = ButtonColor[ButtonIndex],
-			.SelectedSubcolorIndex = (ESubcolor::Type)ButtonIndex,
-		};
-		Event.SelectedColor = SelectedColor;
+			Event.Tag = FEventTag::ChangeColorTag;
+			Event.ButtonIndex = ButtonIndex;								// pressed mouse button
+			Event.SelectedColorIndex = ButtonColor[ButtonIndex];			// zx color
+			Event.SelectedSubcolorIndex = (ESubcolor::Type)ButtonIndex;		// ink (LKM), paper (RKM)
+		}
 		SendEvent(Event);
+		
 		UpdateCursorColor(true);
 	}
 	else
@@ -845,7 +841,11 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 
 		auto ApplyPixel = [&]()
 			{
-				const bool bOperation = (ColorIndex & 0x07) == UI::EZXSpectrumColor::Black /*|| ButtonIndex != 0*/;
+				if (ColorIndex == EZXColor::Transparent)
+				{
+					return;
+				}
+				const bool bOperation = (ColorIndex & 0x07) == UI::EZXSpectrumColor::Black ;
 				if (bOperation)
 				{
 					Pixels |= PixelBit;									// set bit
@@ -870,7 +870,7 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 			};
 		auto ApplyMask = [&]()
 			{
-				const bool bOperation = ColorIndex == UI::EZXSpectrumColor::Transparent/* || ButtonIndex == 0*/;
+				const bool bOperation = ColorIndex != UI::EZXSpectrumColor::Transparent;
 				if (bOperation)
 				{
 					Mask |= PixelBit;									// set bit

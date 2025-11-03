@@ -213,3 +213,5 @@ namespace UI
 		bool bCreate = false,
 		std::vector<uint8_t>* OutputIndexedData = nullptr);
 }
+
+using EZXColor = UI::EZXSpectrumColor::Type;

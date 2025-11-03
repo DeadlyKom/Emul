@@ -20,7 +20,6 @@ public:
 	virtual void DragAndDropFile(const std::filesystem::path& FilePath) override;
 
 private:
-	void LoadIniSettings();
 	void LoadSettings();
 	void Show_MenuBar();
 
