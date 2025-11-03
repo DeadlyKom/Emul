@@ -651,15 +651,26 @@ void SCanvas::Handler_RectangleMarquee()
 
 	if (!bOpenPopupMenu && !bRectangleMarqueeActive &&ImGui::IsKeyDown(ImGuiKey_MouseLeft))
 	{
-		ZXColorView->RectangleMarqueeRect.Min = ImMin(ImMax(UI::ConverZXViewPositionToPixel(*ZXColorView, ImGui::GetMousePos()), ImVec2(0.0f, 0.0f)), ZXColorView->Image.Size * ZXColorView->Scale);
-		ZXColorView->RectangleMarqueeRect.Max = ZXColorView->RectangleMarqueeRect.Min;
+		ZXColorView->RectStart = UI::ConverZXViewPositionToPixel(*ZXColorView, ImGui::GetMousePos());
+		ZXColorView->RectEnd = ZXColorView->RectStart;
 
 		ZXColorView->bVisibilityRectangleMarquee = true;
 		bRectangleMarqueeActive = true;
 	}
 	else if (!bOpenPopupMenu && bRectangleMarqueeActive && ImGui::IsKeyDown(ImGuiKey_MouseLeft))
 	{
-		ZXColorView->RectangleMarqueeRect.Max = ImMin(ImMax(UI::ConverZXViewPositionToPixel(*ZXColorView, ImGui::GetMousePos() + ZXColorView->Scale), ImVec2(0.0f, 0.0f)), ZXColorView->Image.Size * ZXColorView->Scale);
+		ZXColorView->RectEnd = UI::ConverZXViewPositionToPixel(*ZXColorView, ImGui::GetMousePos());
+
+		ImVec2 p1 = ZXColorView->RectStart;
+		ImVec2 p2 = ZXColorView->RectEnd;
+
+		// normalize the rectangle (Min is always to the left/above, Max is to the right/below)
+		ZXColorView->RectangleMarqueeRect.Min = ImVec2(ImMin(p1.x, p2.x), ImMin(p1.y, p2.y));
+		ZXColorView->RectangleMarqueeRect.Max = ImVec2(ImMax(p1.x, p2.x), ImMax(p1.y, p2.y));
+
+		// last pixel inclusion compensation
+		ZXColorView->RectangleMarqueeRect.Max.x += 1.0f;
+		ZXColorView->RectangleMarqueeRect.Max.y += 1.0f;
 	}
 	else if (ImGui::IsKeyReleased(ImGuiKey_MouseLeft))
 	{
@@ -669,6 +680,10 @@ void SCanvas::Handler_RectangleMarquee()
 	{
 		bOpenPopupMenu = false;
 	}
+
+	//ImGui::Text("Min (%f, %f), Max (%f, %f)",
+	//	ZXColorView->RectangleMarqueeRect.Min.x, ZXColorView->RectangleMarqueeRect.Min.y,
+	//	ZXColorView->RectangleMarqueeRect.Max.x, ZXColorView->RectangleMarqueeRect.Max.y);
 }
 
 void SCanvas::Handler_Pencil()

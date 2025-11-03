@@ -1,4 +1,4 @@
-#include "Draw_ZXColorVideo.h"
+﻿#include "Draw_ZXColorVideo.h"
 #include "Utils/Shader.h"
 #include <Utils/UI/Draw.h>
 #include "Devices/ControlUnit/Interface_Display.h"
@@ -59,11 +59,11 @@ void RoundImagePosition(UI::FZXColorView& ZXColorView)
 
 	if (ZXColorView.Scale.x >= 1.0f)
 	{
-		TopLeftSubTexel.x = FMath::Round(TopLeftSubTexel.x);
+		TopLeftSubTexel.x = /*FMath::Round*/(TopLeftSubTexel.x);
 	}
 	if (ZXColorView.Scale.y >= 1.0f)
 	{
-		TopLeftSubTexel.y = FMath::Round(TopLeftSubTexel.y);
+		TopLeftSubTexel.y = /*FMath::Round*/(TopLeftSubTexel.y);
 	}
 	ZXColorView.ImagePosition = (TopLeftSubTexel + ZXColorView.ViewSize * 0.5f) / (ZXColorView.Scale * ZXColorView.Image.Size);
 }
@@ -242,25 +242,104 @@ void UI::Draw_ZXColorView_Shutdown(std::shared_ptr<UI::FZXColorView> ZXColorView
 	ZXColorView->UserData.reset();
 }
 
-void Draw_RectangleMarquee(std::shared_ptr<UI::FZXColorView> ZXColorView,  const ImRect& Rect)
+bool ClampLineToRect(ImVec2& p1, ImVec2& p2, const ImRect& rect)
 {
-	ImRect TmpMarqueeRect = ZXColorView->RectangleMarqueeRect;
+	// horizontal line
+	if (p1.y == p2.y)
+	{
+		if (p1.y <= rect.Min.y || p1.y >= rect.Max.y)
+		{
+			// completely outside the Y-axis
+			return false;
+		}
+		p1.x = ImClamp(p1.x, rect.Min.x, rect.Max.x);
+		p2.x = ImClamp(p2.x, rect.Min.x, rect.Max.x);
+		return (p1.x < p2.x);
+	}
+	// vertical line
+	if (p1.x == p2.x)
+	{
+		if (p1.x <= rect.Min.x || p1.x >= rect.Max.x)
+		{
+			// completely outside the X-axis
+			return false;
+		}
+		p1.y = ImClamp(p1.y, rect.Min.y, rect.Max.y);
+		p2.y = ImClamp(p2.y, rect.Min.y, rect.Max.y);
+		return (p1.y < p2.y);
+	}
+	return false;
+}
 
-	// clamp
+void Draw_RectangleMarquee(std::shared_ptr<UI::FZXColorView> ZXColorView, const ImRect& VisibleRect)
+{	
+	ImRect RectangleMarqueeRectTmp = ZXColorView->RectangleMarqueeRect;
+
+	// convert to local pixel coordinates
 	const ImVec2 Floor = ImFloor(ZXColorView->UV.Min * ZXColorView->Image.Size);
-	TmpMarqueeRect.Min = (TmpMarqueeRect.Min - Floor) * ZXColorView->Scale;
-	TmpMarqueeRect.Max = (TmpMarqueeRect.Max - Floor) * ZXColorView->Scale;
+	RectangleMarqueeRectTmp.Min = (RectangleMarqueeRectTmp.Min - Floor) * ZXColorView->Scale;
+	RectangleMarqueeRectTmp.Max = (RectangleMarqueeRectTmp.Max - Floor) * ZXColorView->Scale;
 
-	TmpMarqueeRect.Min = ImMin(ImMax(TmpMarqueeRect.Min, ImVec2(0.0f, 0.0f)), ZXColorView->Image.Size * ZXColorView->Scale);
-	TmpMarqueeRect.Max = ImMin(ImMax(TmpMarqueeRect.Max, ImVec2(0.0f, 0.0f)), ZXColorView->Image.Size * ZXColorView->Scale);
+	// clamp to the image boundaries
+	const ImVec2 ImgScaled = ZXColorView->Image.Size * ZXColorView->Scale;
+	RectangleMarqueeRectTmp.Min = ImClamp(RectangleMarqueeRectTmp.Min, ImVec2(0, 0), ImgScaled);
+	RectangleMarqueeRectTmp.Max = ImClamp(RectangleMarqueeRectTmp.Max, ImVec2(0, 0), ImgScaled);
 
-	const ImVec2 TopLeftSubTexel = ZXColorView->ImagePosition * ZXColorView->Scale * ZXColorView->Image.Size - ZXColorView->ViewSize * 0.5f;
-	const ImVec2 TopLeftPixel = ZXColorView->ViewTopLeftPixel - (TopLeftSubTexel - ImFloor(TopLeftSubTexel / ZXColorView->Scale) * ZXColorView->Scale);
+	// screen position
+	const ImVec2 TopLeftSubTexel = (ZXColorView->ImagePosition * ZXColorView->Scale * ZXColorView->Image.Size) - ZXColorView->ViewSize * 0.5f;
+	const ImVec2 TopLeftPixel = (ZXColorView->ViewTopLeftPixel - (TopLeftSubTexel - ImFloor(TopLeftSubTexel / ZXColorView->Scale) * ZXColorView->Scale));
 
-	// ToDo: split the rectangle into 4 lines and clamp them
-	ImGui::GetWindowDrawList()->_FringeScale = 0.1f;
-	ImGui::GetWindowDrawList()->AddCallback(OnDrawCallback_LineMarchingAnts, ZXColorView.get());
-	ImGui::GetWindowDrawList()->AddRect(TopLeftPixel + TmpMarqueeRect.Min, TopLeftPixel + TmpMarqueeRect.Max, ImGui::GetColorU32(ImGuiCol_Button), 0.0f, 0, ImMax(ZXColorView->TexelsToPixels.Scale.x, 1.0f) / ZXColorView->Scale.x);
+	ImVec2 A = TopLeftPixel + RectangleMarqueeRectTmp.Min;
+	ImVec2 B = TopLeftPixel + RectangleMarqueeRectTmp.Max;
+
+	ImDrawList* DrawList = ImGui::GetWindowDrawList();
+	DrawList->_FringeScale = 0.0625f;
+	DrawList->AddCallback(OnDrawCallback_LineMarchingAnts, ZXColorView.get());
+
+	const ImU32 Color = ImGui::GetColorU32(ImGuiCol_Button);
+	const float Thickness = 1.0f;// ImMax(ZXColorView->TexelsToPixels.Scale.x, 1.0f) / ZXColorView->Scale.x;
+
+	// crop to visible area
+	ImVec2 VisibleMin = VisibleRect.Min;
+	ImVec2 VisibleMax = VisibleRect.Max;
+
+	// we check whether the rectangle is at least partially visible
+	if (B.x < VisibleMin.x || A.x > VisibleMax.x || B.y < VisibleMin.y || A.y > VisibleMax.y)
+	{
+		// completely behind the screen - no drawing
+		DrawList->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
+		return;
+	}
+
+	// clamping the lines
+	ImVec2 Top1 = ImClamp(ImVec2(A.x, A.y), VisibleMin, VisibleMax);
+	ImVec2 Top2 = ImClamp(ImVec2(B.x, A.y), VisibleMin, VisibleMax);
+	ImVec2 Bottom1 = ImClamp(ImVec2(A.x, B.y), VisibleMin, VisibleMax);
+	ImVec2 bottom2 = ImClamp(ImVec2(B.x, B.y), VisibleMin, VisibleMax);
+	ImVec2 Left1 = ImClamp(ImVec2(A.x, A.y), VisibleMin, VisibleMax);
+	ImVec2 Left2 = ImClamp(ImVec2(A.x, B.y), VisibleMin, VisibleMax);
+	ImVec2 Right1 = ImClamp(ImVec2(B.x, A.y), VisibleMin, VisibleMax);
+	ImVec2 Right2 = ImClamp(ImVec2(B.x, B.y), VisibleMin, VisibleMax);
+
+	// draw only visible lines
+	if (ClampLineToRect(Top1, Top2, VisibleRect))
+	{
+		DrawList->AddLine(Top1, Top2, Color, Thickness);
+	}
+	if (ClampLineToRect(Bottom1, bottom2, VisibleRect))
+	{
+		DrawList->AddLine(Bottom1, bottom2, Color, Thickness);
+	}
+	if (ClampLineToRect(Left1, Left2, VisibleRect))
+	{
+		DrawList->AddLine(Left1, Left2, Color, Thickness);
+	}
+	if (ClampLineToRect(Right1, Right2, VisibleRect))
+	{
+		DrawList->AddLine(Right1, Right2, Color, Thickness);
+	}
+
+	DrawList->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
 }
 
 void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)

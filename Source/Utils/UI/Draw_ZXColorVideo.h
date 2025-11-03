@@ -163,6 +163,7 @@ namespace UI
 
 		bool bVisibilityRectangleMarquee = false;
 		ImRect RectangleMarqueeRect = ImRect (0.0f, 0.0f, 0.0f, 0.0f);
+		ImVec2 RectStart, RectEnd;
 	};
 
 	ImVec2 GetMouse(std::shared_ptr<UI::FZXColorView> ZXColorView);
