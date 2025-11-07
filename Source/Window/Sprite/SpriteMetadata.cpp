@@ -47,7 +47,6 @@ void SSpriteMetadata::Render()
 		{
 			Draw_Metadata();
 		}
-		
 		ImGui::End();
 	}
 }
@@ -128,13 +127,60 @@ void SSpriteMetadata::Draw_Regions(const ImVec2& Size)
 					ImGui::EndTooltip();
 				}
 
+				static std::unordered_map<int32_t, bool> EditingProperty;
+
 				for (int32_t PropertyIndex = 0; PropertyIndex < SpriteMetaRegion.Properties.size(); ++PropertyIndex)
 				{
-					const FSpriteProperty& Property = SpriteMetaRegion.Properties[PropertyIndex];
+					FSpriteProperty& Property = SpriteMetaRegion.Properties[PropertyIndex];
 					const bool bIsSelectedProperty = bIsSelectedRegion && PropertyIndex == IndexSelectedProperty;
-					if (ImGui::Selectable(Property.Name.c_str(), bIsSelectedProperty))
+
+					// Enable editing by pressing F2
+					if (bIsSelectedProperty && ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_F2))
 					{
-						IndexSelectedProperty = PropertyIndex;
+						EditingProperty[PropertyIndex] = true;
+					}
+
+					// Enable double-click editing
+					if (EditingProperty[PropertyIndex])
+					{
+						ImGui::SetKeyboardFocusHere();
+
+						char InputBuffer[128];
+						std::strncpy(InputBuffer, Property.Name.c_str(), sizeof(InputBuffer));
+						InputBuffer[sizeof(InputBuffer) - 1] = '\0';
+
+						if (ImGui::InputText(std::format("##PropertyName{}", PropertyIndex).c_str(), InputBuffer, sizeof(InputBuffer),
+							ImGuiInputTextFlags_EnterReturnsTrue |
+							ImGuiInputTextFlags_AutoSelectAll |
+							ImGuiInputTextFlags_AlwaysOverwrite))
+						{
+							Property.Name = InputBuffer;
+							EditingProperty[PropertyIndex] = false; // save and exit editing mode
+						}
+
+						// If you press ESC, you cancel editing
+						if (ImGui::IsKeyPressed(ImGuiKey_Escape))
+						{
+							EditingProperty[PropertyIndex] = false;
+						}
+						// Click outside the field - we also finish editing
+						if (!ImGui::IsItemHovered() && ImGui::IsMouseClicked(0))
+						{
+							EditingProperty[PropertyIndex] = false;
+						}
+						ImGui::SetItemDefaultFocus(); // the cursor is immediately in InputText
+					}
+					else
+					{
+						if (ImGui::Selectable(Property.Name.c_str(), bIsSelectedProperty))
+						{
+							IndexSelectedProperty = PropertyIndex;
+						}
+
+						if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0))
+						{
+							EditingProperty[PropertyIndex] = true;
+						}
 					}
 				}
 			}

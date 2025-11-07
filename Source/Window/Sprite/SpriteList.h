@@ -1,6 +1,7 @@
 #pragma once
 
 #include <CoreMinimal.h>
+#include <json/json.hpp>
 #include <Core/ViewerBase.h>
 #include <Utils/UI/Draw_ZXColorVideo.h>
 
@@ -77,6 +78,17 @@ struct FSpriteProperty
 	ValueType Variant;
 };
 
+inline void to_json(nlohmann::ordered_json& j, const FSpriteProperty& p)
+{
+	std::visit([&](auto&& arg)
+		{
+			j = {
+				{"Type", p.Name},
+				{"Value", arg}
+			};
+		}, p.Variant);
+}
+
 struct FSpriteMetaRegion
 {
 	ImRect Rect;
@@ -86,6 +98,19 @@ struct FSpriteMetaRegion
 	bool bVisible = true;
 	std::shared_ptr<UI::FZXColorView> ZXColorView;
 };
+
+inline void to_json(nlohmann::ordered_json& j, const FSpriteMetaRegion& region)
+{
+	j = {
+		{"RegionRect", std::vector<int>{
+			static_cast<int>(region.Rect.Min.x),
+			static_cast<int>(region.Rect.Min.y),
+			static_cast<int>(region.Rect.Max.x),
+			static_cast<int>(region.Rect.Max.y)
+		}},
+		{"Metadata", region.Properties}
+	};
+}
 
 struct FSprite
 {

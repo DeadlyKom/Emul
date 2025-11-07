@@ -223,7 +223,6 @@ void SSpriteList::Draw_SpriteList()
 		bool bHovered = false;
 		if (UI::Draw_ButtonZXColorSprite(StringID.c_str(), Sprite, VisibleSize, {}, &bHovered))
 		{
-			//Sprite->bSelected = !Sprite->bSelected;
 			IndexSelectedSprite = Index;
 			SendSelectedSprite();
 		}
@@ -571,7 +570,7 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 			IO::SaveBinaryData(Sprite->ZXColorView->MaskData, MaskDataFilePath);
 		}
 
-		Json.push_back(
+		nlohmann::ordered_json SpriteJson =
 			{
 				{"SprName", Sprite->Name},
 				{"SprWidth", Sprite->Width},
@@ -583,7 +582,10 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 				{"InkData", ToUtf8(InkDataFilePath.wstring())},
 				{"AttributeData", ToUtf8(AttributeDataFilePath.wstring())},
 				{"MaskData", ToUtf8(MaskDataFilePath.wstring())},
-			});
+				{"Regions", Sprite->Regions },
+			};
+
+		Json.push_back(SpriteJson);
 	}
 
 	std::filesystem::path JsonFilePath = IO::NormalizePath(ExportPath / "Export.json");
