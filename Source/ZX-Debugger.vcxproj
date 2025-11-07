@@ -254,6 +254,7 @@
     <ClCompile Include="Window\Sprite\Events.cpp" />
     <ClCompile Include="Window\Sprite\Palette.cpp" />
     <ClCompile Include="Window\Sprite\SpriteList.cpp" />
+    <ClCompile Include="Window\Sprite\SpriteMetadata.cpp" />
     <ClCompile Include="Window\Sprite\StatusBar.cpp" />
     <ClCompile Include="Window\Sprite\ToolBar.cpp" />
   </ItemGroup>
@@ -289,6 +290,7 @@
     <ClInclude Include="Motherboard\Motherboard_Thread.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Settings\SpriteSettings.h" />
+    <ClInclude Include="Utils\Array.h" />
     <ClInclude Include="Utils\IO.h" />
     <ClInclude Include="Utils\Pipeline.h" />
     <ClInclude Include="Utils\Memory.h" />
@@ -324,6 +326,7 @@
     <ClInclude Include="Window\Sprite\Events.h" />
     <ClInclude Include="Window\Sprite\Palette.h" />
     <ClInclude Include="Window\Sprite\SpriteList.h" />
+    <ClInclude Include="Window\Sprite\SpriteMetadata.h" />
     <ClInclude Include="Window\Sprite\StatusBar.h" />
     <ClInclude Include="Window\Sprite\ToolBar.h" />
   </ItemGroup>

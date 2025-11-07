@@ -5,6 +5,7 @@
 #define ALPHA_TRANSPARENT       1 << 4
 #define ALPHA_CHECKERBOARD_GRID 1 << 5
 #define PIXEL_CURSOR            1 << 6
+#define ONLY_NEAREST_SAMPLING   1 << 30
 #define FORCE_NEAREST_SAMPLING  1 << 31
 
 cbuffer pixelBuffer : register(b0)
@@ -53,9 +54,14 @@ float4 main(PS_INPUT Input) : SV_TARGET
     float2 TexelEdge = step(Texel - floor(Texel), GridWidth);
     float IsGrid = max(TexelEdge.x, TexelEdge.y);
     float4 SimpleColor = Texture0.Sample(Sampler0, UV);
+    
+    if (Flags & ONLY_NEAREST_SAMPLING)
+    {
+        return SimpleColor;
+    }
+    
     float4 ResultColor = SimpleColor;
     ResultColor.rgb += BackgroundColor * (1.0 - ResultColor.a);
-
 
     float2 UV_g = UV;
     UV_g.y *= TextureSize.y / TextureSize.x;

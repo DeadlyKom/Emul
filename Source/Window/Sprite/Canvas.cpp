@@ -1,13 +1,14 @@
 #include "Canvas.h"
-#include <Utils/UI/Draw.h>
 #include "Events.h"
 #include "Utils/Hotkey.h"
+#include "SpriteList.h"
+#include <Utils/UI/Draw.h>
 
 namespace
 {
 	static const wchar_t* ThisWindowName = L"Canvas";
-	static const char* PopupMenuName = TEXT("Popup Menu Sprite");
-	static const char* CreateSpriteName = "Create Sprite";
+	static const char* PopupMenuName = TEXT("##PopupMenuSprite");
+	static const char* CreateSpriteName = "##CreateSprite";
 
 	int32_t TextEditNumberCallback(ImGuiInputTextCallbackData* Data)
 	{
@@ -32,7 +33,7 @@ namespace
 	}
 }
 
-SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name)
+SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::filesystem::path& _SourcePathFile)
 	: Super(FWindowInitializer()
 		.SetName(std::format(L"{}##{}", Name.c_str(), ThisWindowName))
 		.SetFontName(_FontName)
@@ -50,7 +51,7 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name)
 	, LastSetPixelPosition(-1.0f, -1.0f)
 	, Width(0)
 	, Height(0)
-	, SpriteCounter(0)
+	, SourcePathFile(_SourcePathFile)
 {
 	ButtonColor[0] = UI::EZXSpectrumColor::Black_;
 	ButtonColor[1] = UI::EZXSpectrumColor::Black;
@@ -96,6 +97,15 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 				SetToolMode(Event.ChangeToolMode.ToolMode, true, true);
 			}
 		});
+
+	SubscribeEvent<FEvent_SelectedSprite>(
+		[this](const FEvent_SelectedSprite& Event)
+		{
+			if (Event.Tag == FEventTag::SelectedSpritesChangedTag)
+			{
+				SelectedSprites = Event.Sprites;
+			}
+		});
 }
 
 void SCanvas::Initialize(const std::any& Arg)
@@ -137,6 +147,11 @@ void SCanvas::Initialize(const std::any& Arg)
 void SCanvas::Tick(float DeltaTime)
 {
 	ZXColorView->TimeCounter += DeltaTime;
+
+	for (const std::shared_ptr<FSprite>& Sprite : SelectedSprites)
+	{
+		Sprite->ZXColorView->TimeCounter += DeltaTime;
+	}
 }
 
 void SCanvas::Render()
@@ -202,9 +217,9 @@ void SCanvas::Render()
 		ImGui::Spacing();
 		if (ImGui::Button("Options", { 0.0f, 25.0f }))
 		{
-			ImGui::OpenPopup("Context");
+			ImGui::OpenPopup("##Context");
 		}
-		if (ImGui::BeginPopup("Context"))
+		if (ImGui::BeginPopup("##Context"))
 		{
 			ImGui::Checkbox("Grid", &ZXColorView->Options.bGrid);
 			ImGui::Checkbox("Attribute Grid", &ZXColorView->Options.bAttributeGrid);
@@ -346,14 +361,105 @@ void SCanvas::Destroy()
 
 void SCanvas::Draw_PopupMenu()
 {
-	bool bUpdateSize = false;
 	const ImGuiID CreateSpriteID = ImGui::GetCurrentWindow()->GetID(CreateSpriteName);
+
+	auto AddRegionLambda = [=, this](int32_t SelectIndex) -> bool
+		{
+			IndexSelectedSprites = SelectIndex;
+
+			const std::shared_ptr<FSprite>& Sprite = SelectedSprites[IndexSelectedSprites];
+			ImRect SpriteRect(
+				float(Sprite->SpritePositionToImageX), float(Sprite->SpritePositionToImageY),
+				float(Sprite->SpritePositionToImageX + Sprite->Width), float(Sprite->SpritePositionToImageY + Sprite->Height));
+			ImRect RegionRect = ZXColorView->RectangleMarqueeRect;
+			if (!SpriteRect.Overlaps(RegionRect))
+			{
+				return false;
+			}
+			RegionRect.ClipWith(SpriteRect);
+			ImRect LocalRegionRect = ImRect(
+				RegionRect.Min.x - (float)Sprite->SpritePositionToImageX, RegionRect.Min.y - (float)Sprite->SpritePositionToImageY,
+				RegionRect.Max.x - (float)Sprite->SpritePositionToImageX, RegionRect.Max.y - (float)Sprite->SpritePositionToImageY);
+
+			FSpriteMetaRegion NewRegion
+			{
+				.Rect = LocalRegionRect,
+				.ZXColorView = std::make_shared<UI::FZXColorView>(),
+			};
+
+			NewRegion.ZXColorView->bOnlyNearestSampling = true;
+			NewRegion.ZXColorView->Device = Data.Device;
+			NewRegion.ZXColorView->DeviceContext = Data.DeviceContext;
+			UI::Draw_ZXColorView_Initialize(NewRegion.ZXColorView, UI::ERenderType::Sprite);
+
+			{
+				const int32_t Size = Sprite->Width * Sprite->Height;
+				std::vector<uint32_t> RGBA(Size, 0);
+
+				if (!NewRegion.ZXColorView->Image.IsValid())
+				{
+					for (uint32_t y = (uint32_t)NewRegion.Rect.Min.y; y < (uint32_t)NewRegion.Rect.Max.y; ++y)
+					{
+						for (uint32_t x = (uint32_t)NewRegion.Rect.Min.x; x < (uint32_t)NewRegion.Rect.Max.x; ++x)
+						{
+							const int8_t Color = UI::EZXSpectrumColor::Black_;
+							const ImU32 ColorRGBA = UI::ToU32(UI::ZXSpectrumColorRGBA[Color]);
+
+							const uint32_t Index = y * Sprite->Width + x;
+							RGBA[Index] = ColorRGBA;
+						}
+					}
+					NewRegion.ZXColorView->Image = FImageBase::Get().CreateTexture(RGBA.data(), Sprite->Width, Sprite->Height, D3D11_CPU_ACCESS_READ, D3D11_USAGE_DEFAULT);
+				}
+			}
+
+			SelectedSprites[IndexSelectedSprites]->Regions.push_back(NewRegion);
+			return true;
+		};
+
 	if (bOpenPopupMenu = ImGui::BeginPopup(PopupMenuName))
 	{
 		if (ImGui::MenuItem("Add Sprite"))
 		{
 			ImGui::OpenPopup(CreateSpriteID);
-			
+		}
+		
+		if (SelectedSprites.size() == 1)
+		{
+			if (ImGui::MenuItem("Add Region"))
+			{
+				AddRegionLambda(0);
+			}
+		}
+		else if (SelectedSprites.size() > 1)
+		{
+			if (ImGui::BeginMenu("Add Region"))
+			{
+				for (int32_t i = 0; i < SelectedSprites.size(); ++i)
+				{
+					const std::shared_ptr<FSprite>& Sprite = SelectedSprites[i];
+					if (ImGui::MenuItem(Sprite->Name.c_str()))
+					{
+						AddRegionLambda(i);
+					}
+				}
+				ImGui::EndMenu();
+			}
+		}
+
+		ImGui::EndPopup();	
+	}
+	
+	Draw_PopupMenu_CreateSprite();
+}
+
+void SCanvas::Draw_PopupMenu_CreateSprite()
+{
+	bool bUpdateSize = false;
+	if (ImGui::BeginPopupModal(CreateSpriteName, NULL, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		if (ImGui::IsWindowAppearing())
+		{
 			CreateSpriteSize = ZXColorView->RectangleMarqueeRect.GetSize();
 			sprintf(CreateSpriteNameBuffer, std::format("Sprite {}", ++SpriteCounter).c_str());
 			sprintf(CreateSpriteWidthBuffer, "%i\n", int(CreateSpriteSize.x));
@@ -367,22 +473,18 @@ void SCanvas::Draw_PopupMenu()
 
 			bUpdateSize = true;
 		}
-		ImGui::EndPopup();	
-	}
 
-	if (ImGui::BeginPopupModal(CreateSpriteName, NULL, ImGuiWindowFlags_AlwaysAutoResize))
-	{
 		const float TextWidth = ImGui::CalcTextSize("A").x;
 		const float TextHeight = ImGui::GetTextLineHeightWithSpacing();
 
 		const ImGuiInputTextFlags InputNumberTextFlags = ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CallbackCharFilter | ImGuiInputTextFlags_CallbackEdit;
 
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
-		ImGui::Text("Name :");
+		ImGui::Text("Name : ");
 		ImGui::SameLine(50.0f);
 		ImGui::InputTextEx("##Name", NULL, CreateSpriteNameBuffer, IM_ARRAYSIZE(CreateSpriteNameBuffer), ImVec2(TextWidth * 20.0f, TextHeight), ImGuiInputTextFlags_None);
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
-		ImGui::SeparatorText("Size :");
+		ImGui::SeparatorText("Size : ");
 
 		if (ImGui::Checkbox("Multiple of 8", &bRoundingToMultipleEight))
 		{
@@ -402,13 +504,13 @@ void SCanvas::Draw_PopupMenu()
 				Log2SpriteSize = { powf(2.0f, ceilf(log2f(OriginalSpriteSize.x))), powf(2.0f, ceilf(log2f(OriginalSpriteSize.y))) };
 				CreateSpriteSize = ZXColorView->RectangleMarqueeRect.GetSize();
 			}
-			
+
 			bUpdateSize = true;
 		}
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));
 
 		ImGui::Text("Width :");
-		ImGui::SameLine(50.0f); 
+		ImGui::SameLine(50.0f);
 		ImGui::InputTextEx("##Width", NULL, CreateSpriteWidthBuffer, IM_ARRAYSIZE(CreateSpriteWidthBuffer), ImVec2(TextWidth * 10.0f, TextHeight), InputNumberTextFlags, &TextEditNumberCallback, (void*)&CreateSpriteSize.x);
 		ImGui::SameLine(150.0f);
 
@@ -421,7 +523,7 @@ void SCanvas::Draw_PopupMenu()
 			}
 			bUpdateSize = true;
 		}
-		
+
 		ImGui::Text("Height :");
 		ImGui::SameLine(50.0f);
 		ImGui::InputTextEx("##Height", NULL, CreateSpriteHeightBuffer, IM_ARRAYSIZE(CreateSpriteHeightBuffer), ImVec2(TextWidth * 10.0f, TextHeight), InputNumberTextFlags, &TextEditNumberCallback, (void*)&CreateSpriteSize.y);
@@ -453,7 +555,7 @@ void SCanvas::Draw_PopupMenu()
 			sprintf(CreateSpriteHeightBuffer, "%i\n", int32_t(CreateSpriteSize.y));
 		}
 
-		ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));	
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));
 
 		if (ImGui::ButtonEx("OK", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
@@ -463,6 +565,7 @@ void SCanvas::Draw_PopupMenu()
 			Event.Height = Height;
 			Event.SpriteRect = ImRect(ZXColorView->RectangleMarqueeRect.Min, ZXColorView->RectangleMarqueeRect.Min + CreateSpriteSize);
 			Event.SpriteName = CreateSpriteNameBuffer;
+			Event.SourcePathFile = SourcePathFile;
 
 			Event.IndexedData = ZXColorView->IndexedData;
 			Event.InkData = ZXColorView->InkData;
@@ -551,6 +654,9 @@ void SCanvas::Input_Mouse()
 	// dragging
 	if (bDragging)
 	{
+		// hard reset any popup menu
+		ImGui::CloseCurrentPopup();
+
 		const ImVec2 Delta = ImGui::GetIO().MouseDelta;
 		if (Delta.x != 0 || Delta.y != 0)
 		{

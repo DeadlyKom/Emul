@@ -3,6 +3,7 @@
 #include <Utils/UI/Draw.h>
 #include "Devices/ControlUnit/Interface_Display.h"
 #include "resource.h"
+#include <Window/Sprite/SpriteList.h>
 
 namespace Shader
 {
@@ -178,6 +179,10 @@ void UI::OnDrawCallback_ZXVideo(const ImDrawList* ParentList, const ImDrawCmd* C
 			{
 				Flags |= PIXEL_CURSOR;
 			}
+			if (ZXColorView->bOnlyNearestSampling)
+			{
+				Flags |= ONLY_NEAREST_SAMPLING;
+			}
 			if (ZXColorView->bForceNearestSampling)
 			{
 				Flags |= FORCE_NEAREST_SAMPLING;
@@ -271,9 +276,9 @@ bool ClampLineToRect(ImVec2& p1, ImVec2& p2, const ImRect& rect)
 	return false;
 }
 
-void Draw_RectangleMarquee(std::shared_ptr<UI::FZXColorView> ZXColorView, const ImRect& VisibleRect)
+void Draw_RectangleMarquee(std::shared_ptr<UI::FZXColorView> ZXColorView, const ImRect& VisibleRect, ImRect* RectangleRect = nullptr)
 {	
-	ImRect RectangleMarqueeRectTmp = ZXColorView->RectangleMarqueeRect;
+	ImRect RectangleMarqueeRectTmp = RectangleRect != nullptr ? *RectangleRect : ZXColorView->RectangleMarqueeRect;
 
 	// convert to local pixel coordinates
 	const ImVec2 Floor = ImFloor(ZXColorView->UV.Min * ZXColorView->Image.Size);
@@ -281,9 +286,9 @@ void Draw_RectangleMarquee(std::shared_ptr<UI::FZXColorView> ZXColorView, const 
 	RectangleMarqueeRectTmp.Max = (RectangleMarqueeRectTmp.Max - Floor) * ZXColorView->Scale;
 
 	// clamp to the image boundaries
-	const ImVec2 ImgScaled = ZXColorView->Image.Size * ZXColorView->Scale;
-	RectangleMarqueeRectTmp.Min = ImClamp(RectangleMarqueeRectTmp.Min, ImVec2(0, 0), ImgScaled);
-	RectangleMarqueeRectTmp.Max = ImClamp(RectangleMarqueeRectTmp.Max, ImVec2(0, 0), ImgScaled);
+	//const ImVec2 ImgScaled = ZXColorView->Image.Size * ZXColorView->Scale;
+	//RectangleMarqueeRectTmp.Min = ImClamp(RectangleMarqueeRectTmp.Min, ImVec2(0, 0), ImgScaled);
+	//RectangleMarqueeRectTmp.Max = ImClamp(RectangleMarqueeRectTmp.Max, ImVec2(0, 0), ImgScaled);
 
 	// screen position
 	const ImVec2 TopLeftSubTexel = (ZXColorView->ImagePosition * ZXColorView->Scale * ZXColorView->Image.Size) - ZXColorView->ViewSize * 0.5f;
@@ -307,7 +312,6 @@ void Draw_RectangleMarquee(std::shared_ptr<UI::FZXColorView> ZXColorView, const 
 	if (B.x < VisibleMin.x || A.x > VisibleMax.x || B.y < VisibleMin.y || A.y > VisibleMax.y)
 	{
 		// completely behind the screen - no drawing
-		DrawList->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
 		return;
 	}
 
@@ -338,8 +342,6 @@ void Draw_RectangleMarquee(std::shared_ptr<UI::FZXColorView> ZXColorView, const 
 	{
 		DrawList->AddLine(Right1, Right2, Color, Thickness);
 	}
-
-	DrawList->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
 }
 
 void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)
@@ -378,6 +380,126 @@ void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)
 	}
 	// reset callback for using our own image shader 
 	ImGui::GetWindowDrawList()->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
+}
+
+bool UI::Draw_ButtonZXColorSprite(
+	const char* StringID,
+	std::shared_ptr<FSprite> Sprite,
+	const ImVec2& VisibleSize,
+	const FButtonZXColorSpriteSettings& Settings,
+	bool* OutputHovered,
+	const ImVec4& BackgroundColor,
+	const ImVec4& TintColor,
+	const ImVec4& SelectedColor)
+{
+	ImGuiWindow* Window = ImGui::GetCurrentWindow();
+	if (Window->SkipItems)
+	{
+		return false;
+	}
+
+	const ImGuiID ID = Window->GetID(StringID);
+	const ImGuiStyle& Style = ImGui::GetStyle();
+	const ImVec2 LabelSize = ImGui::CalcTextSize(StringID, NULL, true);
+
+	const ImVec2 Padding = Style.FramePadding;
+	const ImRect Rect(Window->DC.CursorPos, Window->DC.CursorPos + VisibleSize + Padding * 2.0f);
+	ImGui::ItemSize(Rect);
+	if (!ImGui::ItemAdd(Rect, ID))
+	{
+		return false;
+	}
+
+	bool bHovered, bHeld;
+	const bool bPressed = ImGui::ButtonBehavior(Rect, ID, &bHovered, &bHeld);
+	if (OutputHovered != nullptr)
+	{
+		*OutputHovered = bHovered;
+	}
+
+	// show tooltip
+	if (Settings.bVisibleTooltip)
+	{
+		if (bHovered)
+		{
+			Sprite->HoverStartTime = Sprite->HoverStartTime < 0.0f ? ImGui::GetTime() : Sprite->HoverStartTime;
+		}
+		else
+		{
+			Sprite->HoverStartTime = -1.0;
+		}
+		if (Sprite->HoverStartTime > 0.0f && ImGui::GetTime() - Sprite->HoverStartTime > 0.5f)
+		{
+			ImGui::BeginTooltip();
+			ImGui::TextUnformatted("Sprite info:");
+			ImGui::Spacing();
+			ImGui::TextUnformatted(std::format(" - size: {} x {}", Sprite->Width, Sprite->Height).c_str());
+			if (Settings.bVisibleAdvencedTooltip)
+			{
+				ImGui::TextUnformatted(std::format(" - metadata: {}", Sprite->Regions.size() == 0 ? "none" : std::format("{}", Sprite->Regions.size()).c_str()).c_str());
+				ImGui::TextUnformatted(std::format(" - selected: {}", Sprite->bSelected ? "true" : "false").c_str());
+			}
+			ImGui::EndTooltip();
+		}
+	}
+
+	const float SpriteMin = ImMin((float)Sprite->Width, (float)Sprite->Height);
+	const float SpriteMax = ImMax((float)Sprite->Width, (float)Sprite->Height);
+
+	// render
+	ImVec2 p0 = Rect.Min + Padding;
+	ImVec2 p1 = Rect.Max - Padding;
+
+	ImGui::RenderNavHighlight(Rect, ID);
+	const ImU32 ButtonColor = Sprite->bSelected ? UI::ColorToU32(SelectedColor) : ImGui::GetColorU32((bHeld && bHovered && Settings.bHovered) ? ImGuiCol_ButtonActive : (bHovered && Settings.bHovered)? ImGuiCol_ButtonHovered : ImGuiCol_Button);
+	ImGui::RenderFrame(Rect.Min, Rect.Max, ButtonColor, true, ImClamp((float)ImMin(Padding.x, Padding.y), 0.0f, Style.FrameRounding));
+	if (BackgroundColor.w > 0.0f)
+	{
+		Window->DrawList->AddRectFilled(p0, p1, ImGui::GetColorU32(BackgroundColor));
+	}
+
+	const ImVec2 Scale = VisibleSize / SpriteMax;
+	ImVec2 NewPadding((SpriteMax - Sprite->Width) * 0.5f, (SpriteMax - Sprite->Height) * 0.5f);
+	p0 += NewPadding * Scale;
+	p1 -= NewPadding * Scale;
+
+	ImGui::PushClipRect(p0, p1, true);
+	{
+		const FImage& Image = Sprite->ZXColorView->Image;
+		// callback for using our own image shader 
+		ImGui::GetWindowDrawList()->AddCallback(UI::OnDrawCallback_ZXVideo, Sprite->ZXColorView.get());
+		ImGui::GetWindowDrawList()->AddImage(
+			Sprite->ZXColorView->Image.ShaderResourceView, 
+			p0, p0 + Image.Size * Scale, 
+			ImVec2(0.0f, 0.0f), ImVec2(1.0, 1.0f),
+			ImGui::GetColorU32(TintColor));
+
+		// reset callback for using our own image shader 
+		ImGui::GetWindowDrawList()->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
+		
+		for (const FButtonZXColorSpriteSettings::FLayer& Layer : Settings.Layers)
+		{
+			if (!Layer.ZXColorView)
+			{
+				continue;
+			}
+			std::shared_ptr<UI::FZXColorView> ZXColorView = Layer.ZXColorView;
+			FImage& Image = ZXColorView->Image;
+
+			ImGui::GetWindowDrawList()->AddCallback(UI::OnDrawCallback_ZXVideo, ZXColorView.get());
+			ImGui::GetWindowDrawList()->AddImage(
+				Image.ShaderResourceView,
+				p0 + Layer.Offset * Scale,
+				p0 + (Layer.Offset + Image.Size) * Scale,
+				ImVec2(0.0f, 0.0f), ImVec2(1.0, 1.0f),
+				ImGui::GetColorU32(Layer.TintColor));
+		}
+		// reset callback for using our own image shader 
+		ImGui::GetWindowDrawList()->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
+	}
+	ImGui::PopClipRect();
+
+	return bPressed;
 }
 
 void UI::Set_ZXViewPosition(std::shared_ptr<UI::FZXColorView> ZXColorView, ImVec2 NewPosition)

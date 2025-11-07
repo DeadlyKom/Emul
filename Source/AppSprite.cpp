@@ -1,4 +1,5 @@
 #include "AppSprite.h"
+#include <Utils/IO.h>
 #include "Fonts/Dos2000_ru_en.cpp"
 #include "Window/Sprite/Definition.h"
 #include <Settings/SpriteSettings.h>
@@ -9,13 +10,16 @@
 #include <Window/Sprite/StatusBar.h>
 #include <Window/Sprite/SpriteList.h>
 #include <Window/Common/FileDialog.h>
+#include <Window/Sprite/SpriteMetadata.h>
 
 namespace
 {
 	static const std::string SpriteName = std::format(TEXT("ZX-Sprite ver. {}.{}"), SPRITE_BUILD_MAJOR, SPRITE_BUILD_MINOR);
 	static const char* MenuEditName = TEXT("Edit");
+	static const char* MenuMetadataName = TEXT("Metadata");
 
 	const char* ExportToName = "##ExportTo";
+	static const char* AddMetaToRegionName = "##AddMetaToRegion";
 
 	static const char* SettingsFilename = "Settings.cfg";
 }
@@ -76,10 +80,11 @@ void FAppSprite::Initialize()
 
 		Viewer->SetMenuBar(std::bind(&ThisClass::Show_MenuBar, this));
 		Viewer->AppendWindows({
-			{ NAME_Palette,		std::make_shared<SPalette>(NAME_DOS_12, "##Layout_Palette")},
-			{ NAME_ToolBar,		std::make_shared<SToolBar>(NAME_DOS_12, "##Layout_ToolBar")},
-			{ NAME_StatusBar,	std::make_shared<SStatusBar>(NAME_DOS_12, "##Layout_StatusBar")},
-			{ NAME_SpriteList,	std::make_shared<SSpriteList>(NAME_DOS_12, "##Layout_SpriteList")},
+			{ NAME_Palette,			std::make_shared<SPalette>(NAME_DOS_12, "##Layout_Palette")},
+			{ NAME_ToolBar,			std::make_shared<SToolBar>(NAME_DOS_12, "##Layout_ToolBar")},
+			{ NAME_StatusBar,		std::make_shared<SStatusBar>(NAME_DOS_12, "##Layout_StatusBar")},
+			{ NAME_SpriteList,		std::make_shared<SSpriteList>(NAME_DOS_12, "##Layout_SpriteList")},
+			{ NAME_SpriteMetadata,	std::make_shared<SSpriteMetadata>(NAME_DOS_12)},
 			}, Data, {});
 		
 	}
@@ -144,13 +149,13 @@ void FAppSprite::DragAndDropFile(const std::filesystem::path& FilePath)
 	};
 
 	std::wstring Filename = FilePath.filename().wstring();
-	std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename);
+	std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, FilePath);
 	Viewer->AddWindow(EName::Canvas, NewCanvas, Data, FilePath);
 }
 
 void FAppSprite::LoadSettings()
 {
-	FSpriteSettings::Get().Load((FAppFramework::GetPath(EPathType::Config) / SettingsFilename).string());
+	FSpriteSettings::Get().Load(IO::NormalizePath((FAppFramework::GetPath(EPathType::Config) / SettingsFilename).string()));
 }
 
 void FAppSprite::Show_MenuBar()
@@ -160,12 +165,26 @@ void FAppSprite::Show_MenuBar()
 	{
 		if (ImGui::MenuItem("Export"))
 		{
-			ImGui::OpenPopup(ConvertID);
+			ImGui::OpenPopup(ConvertID);	
 		}
 	
 		ImGui::EndMenu();
 	}
-	auto a = ImGui::IsPopupOpen(ConvertID, ImGuiPopupFlags_None);
+
+	if (Viewer && ImGui::BeginMenu(MenuMetadataName))
+	{
+		if (ImGui::MenuItem("Show window", nullptr, false, !Viewer->IsWindowVisibility(NAME_SpriteMetadata)))
+		{
+			Viewer->SetWindowVisibility(NAME_SpriteMetadata);
+		}
+
+		if (ImGui::MenuItem("ToDo"))
+		{
+		}
+
+		ImGui::EndMenu();
+	}
+
 	if (ImGui::BeginPopupModal(ExportToName, 0))
 	{
 		if (ImGui::Button("Cancel", ImVec2(0.0f, 0.0f)))

@@ -21,13 +21,15 @@ namespace FCanvasOptionsFlags
 	};
 }
 
+struct FSprite;
+
 class SCanvas : public SViewerChildBase
 {
 	using Super = SViewerChildBase;
 	using ThisClass = SCanvas;
 
 public:
-	SCanvas(EFont::Type _FontName, const std::wstring& Name = L"");
+	SCanvas(EFont::Type _FontName, const std::wstring& Name = L"", const std::filesystem::path& SourcePathFile = {});
 	virtual ~SCanvas() = default;
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
@@ -38,6 +40,7 @@ public:
 
 private:
 	void Draw_PopupMenu();
+	void Draw_PopupMenu_CreateSprite();
 
 	void Input_HotKeys();
 	void Input_Mouse();
@@ -77,6 +80,10 @@ private:
 	bool bRoundingToMultipleEight;
 	bool bRectangularSprite;
 
+	// popup menu 'Add Meta'
+	int32_t IndexSelectedSprites;
+	std::vector<std::shared_ptr<FSprite>> SelectedSprites;
+
 	ImGuiID CanvasID;
 
 	// draw pixels
@@ -91,9 +98,9 @@ private:
 	uint32_t OptionsFlags[2];
 	uint32_t LastOptionsFlags;
 
-	int32_t SpriteCounter;
 	ImVec2 CreateSpriteSize;
 	ImVec2 Log2SpriteSize;
+	inline static int32_t SpriteCounter = 0;
 	char CreateSpriteNameBuffer[BUFFER_SIZE_INPUT] = "";
 	char CreateSpriteWidthBuffer[BUFFER_SIZE_INPUT] = "";
 	char CreateSpriteHeightBuffer[BUFFER_SIZE_INPUT] = "";
@@ -101,4 +108,5 @@ private:
 	std::shared_ptr<UI::FZXColorView> ZXColorView;
 	UI::FConversationSettings ConversationSettings;
 	EToolMode::Type ToolMode[2];
+	std::filesystem::path SourcePathFile;
 };

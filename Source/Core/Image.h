@@ -17,7 +17,7 @@ struct FImageHandle
 	{
 		return ID == Other.ID;
 	}
-	bool IsValid()
+	bool IsValid() const
 	{
 		return ID != INDEX_NONE;
 	}
@@ -52,7 +52,7 @@ struct FImage
 			ShaderResourceView = nullptr;
 		}
 	}
-	bool IsValid()
+	bool IsValid() const
 	{
 		return Handle.IsValid();
 	}

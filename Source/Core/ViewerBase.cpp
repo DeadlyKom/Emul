@@ -59,24 +59,6 @@ void SViewerBase::Render()
 		}
 		ImGui::DockSpace(DockspaceID, ImVec2(0, 0), ImGuiDockNodeFlags_AutoHideTabBar);
 
-		//if (ImGui::BeginMenuBar())
-		//{
-		//	if (ImGui::BeginMenu("Windows"))
-		//	{
-		//		if (ImGui::MenuItem("Add new window"))
-		//		{
-		//			static int window_count = 0;
-		//			window_count++;
-		//			std::wstring Filename = L"Window " + std::to_wstring(window_count);
-		//			std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename);
-		//			AddWindow(EName::Canvas, NewCanvas, Data, std::filesystem::path("D:\\Work\\[Sprite]\\Геройчики\\Fake\\111.png"));
-		//			NewCanvas->bNeedDock = true;
-		//		}
-		//		ImGui::EndMenu();
-		//	}
-		//	ImGui::EndMenuBar();
-		//}
-
 		if (ImGui::BeginMainMenuBar())
 		{
 			if (Show_MenuBar)
@@ -125,9 +107,9 @@ void SViewerBase::Render()
 	for (auto& Window : Windows | std::views::values | std::views::join)
 	{
 		Window->Render();
-		if (Window->bNeedDock)
+		if (Window->NeedDock())
 		{
-			Window->bNeedDock = false;
+			Window->ResetDock();
 			ImGui::DockBuilderDockWindow(Window->GetWindowName().c_str(), GetDockID(Window->GetDockSlot()));
 		}
 	}
@@ -147,6 +129,39 @@ void SViewerBase::Destroy()
 	{
 		Window->Destroy();
 	}
+}
+
+void SViewerBase::SetWindowVisibility(EName::Type WindowType, bool bVisibility)
+{
+	const auto It = Windows.find(WindowType);
+	if (It == Windows.end())
+	{
+		return;
+	}
+
+	for (std::shared_ptr<SWindow>& Window : It->second)
+	{
+		Window->SetOpen(bVisibility);
+	}
+}
+
+bool SViewerBase::IsWindowVisibility(EName::Type WindowType) const
+{
+	const auto It = Windows.find(WindowType);
+	if (It == Windows.end())
+	{
+		return false;
+	}
+
+	for (const std::shared_ptr<SWindow>& Window : It->second)
+	{
+		if (Window->IsOpen())
+		{
+			return true;
+		}
+	}
+
+	return false;
 }
 
 void SViewerBase::AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Window, const FNativeDataInitialize& _Data, const std::any& Arg)

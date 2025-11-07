@@ -3,6 +3,8 @@
 #include <CoreMinimal.h>
 #include <Core/Image.h>
 
+struct FSprite;
+
 namespace UI
 {
 	#define ATTRIBUTE_GRID          1 << 0
@@ -12,6 +14,7 @@ namespace UI
 	#define ALPHA_TRANSPARENT		1 << 4
 	#define ALPHA_CHECKERBOARD_GRID 1 << 5
 	#define PIXEL_CURSOR			1 << 6
+	#define ONLY_NEAREST_SAMPLING   1 << 30
 	#define FORCE_NEAREST_SAMPLING  1 << 31
 
 	namespace EZXSpectrumColor
@@ -135,6 +138,7 @@ namespace UI
 		// shader variable
 		bool bBeamEnable = false;
 		bool bCursorEnable = false;
+		bool bOnlyNearestSampling = false;
 		bool bForceNearestSampling = true;								// if true fragment shader will always sample from texel centers
 		float TimeCounter = 0.0f;
 		ImVec2 GridWidth = ImVec2(0.0f, 0.0f);							// width in UV coords of grid line
@@ -166,12 +170,42 @@ namespace UI
 		ImVec2 RectStart, RectEnd;
 	};
 
+	struct FButtonZXColorSpriteSettings
+	{
+		bool bHovered = true;
+		bool bVisibleTooltip = true;
+		bool bVisibleAdvencedTooltip = true;
+
+		struct FLayer
+		{
+			ImVec2 Offset;
+			ImVec4 TintColor;
+			std::shared_ptr<UI::FZXColorView> ZXColorView;
+
+			FLayer(std::shared_ptr< UI::FZXColorView> _ZXColorView = nullptr, ImVec2 _Offset = {0.0f, 0.0f}, const ImVec4& _TintColor = ImVec4(0.0f, 1.0f, 0.0f, 1.0f))
+				: ZXColorView(_ZXColorView)
+				, Offset(_Offset)
+				, TintColor(_TintColor)
+			{}
+		};
+		std::vector<FLayer> Layers;
+	};
+
 	ImVec2 GetMouse(std::shared_ptr<UI::FZXColorView> ZXColorView);
 	void OnDrawCallback_ZXVideo(const ImDrawList* ParentList, const ImDrawCmd* CMD);
 
 	void Draw_ZXColorView_Initialize(std::shared_ptr<UI::FZXColorView>, ERenderType::Type RenderType);
 	void Draw_ZXColorView_Shutdown(std::shared_ptr<UI::FZXColorView> ZXColorView);
 	void Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView);
+	bool Draw_ButtonZXColorSprite(
+		const char* StringID,
+		std::shared_ptr<FSprite> Sprite,
+		const ImVec2& VisibleSize,
+		const FButtonZXColorSpriteSettings& Settings = {},
+		bool* OutputHovered = nullptr,
+		const ImVec4& BackgroundColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f),
+		const ImVec4& TintColor = ImVec4(0.0f, 0.0f, 0.0f, 0.5f),
+		const ImVec4& SelectedColor = ImVec4(1.0f, 0.0f, 0.0f, 1.0f));
 
 	void Set_ZXViewPosition(std::shared_ptr<UI::FZXColorView> ZXColorView, ImVec2 NewPosition);
 	void Add_ZXViewDeltaPosition(std::shared_ptr<UI::FZXColorView> ZXColorView, ImVec2 DeltaPosition);
@@ -184,10 +218,10 @@ namespace UI
 	int32_t FindClosestColor(ImU32 Color);
 	void QuantizeToZX(uint8_t* RawImage, int32_t Width, int32_t Height, int32_t Channels, std::vector<uint8_t>& OutputIndexedData);
 
-	// conversion of index colors (1 color per dot) to texture image
+	// conversion of index colors (1 color per pixel) to texture image
 	void ZXIndexColorToImage(FImage& InOutputImage, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height, bool bCreate = false);
 	
-	// conversion of index colors (1 color per dot) to ZX format
+	// conversion of index colors (1 color per pixel) to ZX format
 	void ZXIndexColorToZXAttributeColor(
 		const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height,
 		std::vector<uint8_t>& OutputInkData,
@@ -195,7 +229,7 @@ namespace UI
 		std::vector<uint8_t>& OutputMaskData,
 		const UI::FConversationSettings& Settings);
 
-	// conversion of ZX format to index colors (1 color per dot)
+	// conversion of ZX format to index colors (1 color per pixel)
 	void ZXAttributeColorToZXIndexColor(
 		FImage& InOutputImage, 
 		int32_t Width, int32_t Height,

@@ -18,6 +18,7 @@ namespace
 {
 	static const wchar_t* ThisWindowName = L"Sprite List";
 	const char* ExportToName = "Export##ExportTo";
+	static const char* PopupMenuName = TEXT("##PopupMenu");
 
 	static constexpr ImVec2 VisibleSizeArray[] =
 	{
@@ -41,6 +42,7 @@ SSpriteList::SSpriteList(EFont::Type _FontName, std::string _DockSlot /*= ""*/)
 		.SetIncludeInWindows(true))
 	, bNeedKeptOpened_ExportPopup(false)
 	, ScaleVisible(2)
+	, IndexSelectedSprite(INDEX_NONE)
 	, IndexSelectedScript(INDEX_NONE)
 {}
 
@@ -56,6 +58,7 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 				AddSprite(
 					Event.SpriteRect,
 					Event.SpriteName,
+					Event.SourcePathFile,
 					Event.Width,
 					Event.Height,
 					Event.IndexedData,
@@ -89,6 +92,8 @@ void SSpriteList::Render()
 	}
 
 	ImGui::Begin(GetWindowName().c_str(), &bOpen);
+
+	PopupMenu_EditMetadataID = ImGui::GetCurrentWindow()->GetID(PopupMenuName);
 	{
 		Input_Mouse();
 
@@ -109,22 +114,23 @@ void SSpriteList::Render()
 			bool bEnabled = Sprites.size() > 0;
 			if (bEnabled)
 			{
-				for (FSprite Sprite : Sprites)
+				for (const std::shared_ptr<FSprite>& Sprite : Sprites)
 				{
-					bEnabled = Sprite.bSelected;
+					bEnabled = Sprite->bSelected;
 					if (bEnabled)
 					{
 						break;
 					}
 				}
 			}
+
 			if (!bEnabled) ImGui::BeginDisabled();
 
-			const ImGuiID ConvertID = ImGui::GetCurrentWindow()->GetID(ExportToName);
+			const ImGuiID ExportToID = ImGui::GetCurrentWindow()->GetID(ExportToName);
 			if (bNeedKeptOpened_ExportPopup || ImGui::Button("Export", ImVec2(0.0f, 0.0f)))
 			{
 				bNeedKeptOpened_ExportPopup = false;
-				ImGui::OpenPopup(ConvertID);
+				ImGui::OpenPopup(ExportToID);
 			}
 			if (ImGui::BeginPopupModal(ExportToName, nullptr, ImGuiWindowFlags_NoResize | ImGuiWindowFlags_AlwaysAutoResize))
 			{
@@ -141,6 +147,30 @@ void SSpriteList::Render()
 			ImGui::PopStyleColor();
 		}
 		ImGui::End();
+	}
+
+	if (ImGui::BeginPopupEx(PopupMenu_EditMetadataID,
+		ImGuiWindowFlags_AlwaysAutoResize |
+		ImGuiWindowFlags_NoTitleBar |
+		ImGuiWindowFlags_NoSavedSettings))
+	{
+		if (IndexSelectedSprite != INDEX_NONE && Sprites.size() > IndexSelectedSprite)
+		{
+			const bool bSelected = Sprites[IndexSelectedSprite]->bSelected;
+			if (!bSelected && ImGui::MenuItem("Select"))
+			{
+				Sprites[IndexSelectedSprite]->bSelected = true;
+			}
+			if (bSelected && ImGui::MenuItem("Deselect"))
+			{
+				Sprites[IndexSelectedSprite]->bSelected = false;
+			}
+		}
+		if (ImGui::MenuItem("Edit Meta"))
+		{
+			SendSelectedSprite();
+		}
+		ImGui::EndPopup();
 	}
 }
 
@@ -177,29 +207,35 @@ void SSpriteList::Draw_SpriteList()
 	ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(1.0f, 1.0f));
 	ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2.0f, 2.0f));
 
-	const ImVec4 BackgroundColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
-	const ImVec4 TintColor = ImVec4(1.0f, 1.0f, 0.0f, 0.5f);
-	const ImVec4 SelectedColor = ImVec4(1.0f, 0.0f, 0.0f, 1.0f);
-
 	const ImGuiStyle& Style = ImGui::GetStyle();
 	const ImVec2 VisibleSize = VisibleSizeArray[ScaleVisible];
 	const float WindowVisible_x2 = ImGui::GetWindowPos().x + ImGui::GetWindowContentRegionMax().x;
-
+	
 	const uint32_t SpriteNum = uint32_t(Sprites.size());
 	for (uint32_t Index = 0; Index < SpriteNum; ++Index)
 	{
 		ImGui::PushID(Index);
 
-		FSprite& Sprite = Sprites[Index];
+		std::shared_ptr<FSprite>& Sprite = Sprites[Index];
 		const std::string StringID = std::format("SpriteButton##%{}", Index);
 
 		ImGui::BeginGroup();
-		if (Draw_ButtonSprite(StringID.c_str(), Sprite, VisibleSize, BackgroundColor, TintColor, SelectedColor))
+		bool bHovered = false;
+		if (UI::Draw_ButtonZXColorSprite(StringID.c_str(), Sprite, VisibleSize, {}, &bHovered))
 		{
-			Sprite.bSelected = !Sprite.bSelected;
+			//Sprite->bSelected = !Sprite->bSelected;
+			IndexSelectedSprite = Index;
+			SendSelectedSprite();
 		}
-		ImGui::Text(Sprite.Name.c_str());
+		ImGui::Text(Sprite->Name.c_str());
 		ImGui::EndGroup();
+
+		const ImGuiIO& IO = ImGui::GetIO();
+		if (bHovered && IO.MouseReleased[ImGuiMouseButton_Right])
+		{
+			ImGui::OpenPopup(PopupMenu_EditMetadataID);
+			IndexSelectedSprite = Index;
+		}
 
 		const float LastButton_x2 = ImGui::GetItemRectMax().x;
 		const float NextButton_x2 = LastButton_x2 + Style.ItemSpacing.x + VisibleSize.x; // Expected position if next button was on same line
@@ -211,84 +247,6 @@ void SSpriteList::Draw_SpriteList()
 	}
 
 	ImGui::PopStyleVar(3);
-}
-
-bool SSpriteList::Draw_ButtonSprite(const char* StringID, FSprite& Sprite, const ImVec2& VisibleSize, const ImVec4& BackgroundColor, const ImVec4& TintColor, const ImVec4& SelectedColor)
-{
-	ImGuiWindow* Window = ImGui::GetCurrentWindow();
-	if (Window->SkipItems)
-	{
-		return false;
-	}
-
-	const ImGuiID ID = Window->GetID(StringID);
-	const ImGuiStyle& Style = ImGui::GetStyle();
-	const ImVec2 LabelSize = ImGui::CalcTextSize(StringID, NULL, true);
-
-	const ImVec2 Padding = Style.FramePadding;
-	const ImRect Rect(Window->DC.CursorPos, Window->DC.CursorPos + VisibleSize + Padding * 2.0f);
-	ImGui::ItemSize(Rect);
-	if (!ImGui::ItemAdd(Rect, ID))
-	{
-		return false;
-	}
-
-	bool bHovered, bHeld;
-	const bool bPressed = ImGui::ButtonBehavior(Rect, ID, &bHovered, &bHeld);
-
-	// show tooltip
-	{
-		if (bHovered)
-		{
-			Sprite.HoverStartTime = Sprite.HoverStartTime < 0.0f ? ImGui::GetTime() : Sprite.HoverStartTime;
-		}
-		else
-		{
-			Sprite.HoverStartTime = -1.0;
-		}
-		if (Sprite.HoverStartTime > 0.0f && ImGui::GetTime() - Sprite.HoverStartTime > 0.5f)
-		{
-			ImGui::BeginTooltip();
-			ImGui::TextUnformatted("Sprite info:");
-			ImGui::Spacing();
-			ImGui::TextUnformatted(std::format(" - size: {} x {}", Sprite.Width, Sprite.Height).c_str());
-			ImGui::TextUnformatted(std::format(" - selected: {}", Sprite.bSelected ? "true" : "false").c_str());
-			ImGui::EndTooltip();
-		}
-	}
-
-	const float SpriteMin = ImMin((float)Sprite.Width, (float)Sprite.Height);
-	const float SpriteMax = ImMax((float)Sprite.Width, (float)Sprite.Height);
-
-	// render
-	ImVec2 p0 = Rect.Min + Padding;
-	ImVec2 p1 = Rect.Max - Padding;
-
-	ImGui::RenderNavHighlight(Rect, ID);
-	const ImU32 ButtonColor = Sprite.bSelected ? UI::ColorToU32(SelectedColor) : ImGui::GetColorU32((bHeld && bHovered) ? ImGuiCol_ButtonActive : bHovered ? ImGuiCol_ButtonHovered : ImGuiCol_Button);
-	ImGui::RenderFrame(Rect.Min, Rect.Max, ButtonColor, true, ImClamp((float)ImMin(Padding.x, Padding.y), 0.0f, Style.FrameRounding));
-	if (BackgroundColor.w > 0.0f)
-	{
-		Window->DrawList->AddRectFilled(p0, p1, ImGui::GetColorU32(BackgroundColor));
-	}
-
-	const ImVec2 Scale = VisibleSize / SpriteMax;
-	ImVec2 NewPadding((SpriteMax - Sprite.Width) * 0.5f, (SpriteMax - Sprite.Height) * 0.5f);
-	p0 += NewPadding * Scale;
-	p1 -= NewPadding * Scale;
-
-	ImGui::PushClipRect(p0, p1, true);
-	{
-		const FImage& Image = Sprite.ZXColorView->Image;
-		// callback for using our own image shader 
-		ImGui::GetWindowDrawList()->AddCallback(UI::OnDrawCallback_ZXVideo, Sprite.ZXColorView.get());
-		ImGui::GetWindowDrawList()->AddImage(Sprite.ZXColorView->Image.ShaderResourceView, p0, p0 + Image.Size * Scale, ImVec2(0.0f, 0.0f), ImVec2(1.0, 1.0f), ImGui::GetColorU32(TintColor));
-		// reset callback for using our own image shader 
-		ImGui::GetWindowDrawList()->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
-	}
-	ImGui::PopClipRect();
-
-	return bPressed;
 }
 
 void SSpriteList::Draw_ExportSprites()
@@ -350,10 +308,10 @@ void SSpriteList::Draw_ExportSprites()
 	{
 		// export sprites
 		{
-			std::vector<FSprite> SelectedSprites;
-			for (const FSprite& Sprite : Sprites)
+			std::vector<std::shared_ptr<FSprite>> SelectedSprites;
+			for (const std::shared_ptr<FSprite>& Sprite : Sprites)
 			{
-				if (!Sprite.bSelected)
+				if (!Sprite->bSelected)
 				{
 					continue;
 				}
@@ -394,36 +352,42 @@ void SSpriteList::Draw_ExportSprites()
 void SSpriteList::AddSprite(
 	const ImRect& SpriteRect,
 	const std::string& Name,
+	const std::filesystem::path& SourcePathFile,
 	int32_t Width, int32_t Height,
 	const std::vector<uint8_t>& IndexedData,
 	const std::vector<uint8_t>& InkData,
 	const std::vector<uint8_t>& AttributeData,
 	const std::vector<uint8_t>& MaskData)
 {
-	FSprite NewSprite;
-	NewSprite.bSelected = false;
-	NewSprite.HoverStartTime = -1.0;
-	NewSprite.Width = (uint32_t)SpriteRect.GetWidth();
-	NewSprite.Height = (uint32_t)SpriteRect.GetHeight();
-	NewSprite.Name = Name;
-	NewSprite.ZXColorView = std::make_shared<UI::FZXColorView>();
-	NewSprite.ZXColorView->Scale = ImVec2(1.0f, 1.0f);
-	NewSprite.ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
+	std::shared_ptr<FSprite> NewSprite = std::make_shared<FSprite>();
+	NewSprite->bSelected = false;
+	NewSprite->HoverStartTime = -1.0;
+	NewSprite->Width = (uint32_t)SpriteRect.GetWidth();
+	NewSprite->Height = (uint32_t)SpriteRect.GetHeight();
+	NewSprite->Name = Name;
+
+	NewSprite->SpritePositionToImageX = (uint32_t)SpriteRect.GetTL().x;
+	NewSprite->SpritePositionToImageY = (uint32_t)SpriteRect.GetTL().y;
+	NewSprite->SourcePathFile = SourcePathFile;
+
+	NewSprite->ZXColorView = std::make_shared<UI::FZXColorView>();
+	NewSprite->ZXColorView->Scale = ImVec2(1.0f, 1.0f);
+	NewSprite->ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
 
 	{
-		const uint32_t NormalSizeX = uint32_t(NewSprite.Width / 8) * 8;
-		const uint32_t NormalSizeY = uint32_t(NewSprite.Height / 8) * 8;
+		const uint32_t NormalSizeX = uint32_t(NewSprite->Width / 8) * 8;
+		const uint32_t NormalSizeY = uint32_t(NewSprite->Height / 8) * 8;
 
-		if (NormalSizeX != NewSprite.Width || NormalSizeY != NewSprite.Height)
+		if (NormalSizeX != NewSprite->Width || NormalSizeY != NewSprite->Height)
 		{
 			// ToDo: convert index color to ZX format
 			return;
 		}
 
-		const int32_t Size = NewSprite.Width * NewSprite.Height;
+		const int32_t Size = NewSprite->Width * NewSprite->Height;
 		std::vector<uint32_t> RGBA(Size);
 
-		std::vector<uint8_t>& NewIndexedData = NewSprite.ZXColorView->IndexedData;
+		std::vector<uint8_t>& NewIndexedData = NewSprite->ZXColorView->IndexedData;
 		NewIndexedData.resize(Size);
 
 		const int32_t Boundary_X = Width >> 3;
@@ -431,14 +395,14 @@ void SSpriteList::AddSprite(
 		const int32_t SpriteBoundary_X = NormalSizeX >> 3;
 		const int32_t SpriteBoundary_Y = NormalSizeY >> 3;
 
-		const int32_t PixelSize = SpriteBoundary_X * NewSprite.Height;
-		std::vector<uint8_t>& NewInkData = NewSprite.ZXColorView->InkData;
+		const int32_t PixelSize = SpriteBoundary_X * NewSprite->Height;
+		std::vector<uint8_t>& NewInkData = NewSprite->ZXColorView->InkData;
 		NewInkData.resize(PixelSize);
-		std::vector<uint8_t>& NewMaskData = NewSprite.ZXColorView->MaskData;
+		std::vector<uint8_t>& NewMaskData = NewSprite->ZXColorView->MaskData;
 		NewMaskData.resize(PixelSize);
 
 		const int32_t AttributeSize = SpriteBoundary_X * SpriteBoundary_Y;
-		std::vector<uint8_t>& NewAttributeData = NewSprite.ZXColorView->AttributeData;
+		std::vector<uint8_t>& NewAttributeData = NewSprite->ZXColorView->AttributeData;
 		NewAttributeData.resize(AttributeSize);
 
 		uint32_t Index = 0;
@@ -511,20 +475,17 @@ void SSpriteList::AddSprite(
 		}
 
 		FImageBase& Images = FImageBase::Get();
-		NewSprite.ZXColorView->Image = Images.CreateTexture(RGBA.data(), NewSprite.Width, NewSprite.Height, D3D11_CPU_ACCESS_READ, D3D11_USAGE_DEFAULT);
+		NewSprite->ZXColorView->Image = Images.CreateTexture(RGBA.data(), NewSprite->Width, NewSprite->Height, D3D11_CPU_ACCESS_READ, D3D11_USAGE_DEFAULT);
 	}
-
-
-	//UI::ZXIndexColorToImage(NewSprite.ZXColorView->Image, NewSprite.ZXColorView->IndexedData, NewSprite.Width, NewSprite.Height, true);
 	
-	NewSprite.ZXColorView->Device = Data.Device;
-	NewSprite.ZXColorView->DeviceContext = Data.DeviceContext;
-	Draw_ZXColorView_Initialize(NewSprite.ZXColorView, UI::ERenderType::Sprite);
+	NewSprite->ZXColorView->Device = Data.Device;
+	NewSprite->ZXColorView->DeviceContext = Data.DeviceContext;
+	Draw_ZXColorView_Initialize(NewSprite->ZXColorView, UI::ERenderType::Sprite);
 
 	Sprites.push_back(NewSprite);
 }
 
-void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, const std::filesystem::path& ExportPath, std::vector<FSprite> SelectedSprites)
+void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, const std::filesystem::path& ExportPath, const std::vector<std::shared_ptr<FSprite>>& SelectedSprites)
 {
 	std::error_code ec;
 	nlohmann::ordered_json Json;
@@ -533,7 +494,7 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 	{
 		try
 		{
-			std::filesystem::copy_file(ScriptFilePath, ExportPath / ScriptFilePath.filename(), std::filesystem::copy_options::overwrite_existing);
+			std::filesystem::copy_file(ScriptFilePath, IO::NormalizePath(ExportPath / ScriptFilePath.filename()), std::filesystem::copy_options::overwrite_existing);
 		}
 		catch (const std::filesystem::filesystem_error& e)
 		{
@@ -549,12 +510,12 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 			return conv.to_bytes(wstr);
 		};
 
-	for (const FSprite& Sprite : SelectedSprites)
+	for (const std::shared_ptr<FSprite>& Sprite : SelectedSprites)
 	{
 		std::filesystem::path IndexedDataFilePath;
-		if (Sprite.ZXColorView->IndexedData.size() > 0)
+		if (Sprite->ZXColorView->IndexedData.size() > 0)
 		{
-			IndexedDataFilePath = ExportPath / std::format("IndexedData_{}.png", Sprite.Name);
+			IndexedDataFilePath = IO::NormalizePath(ExportPath / std::format("IndexedData_{}.png", Sprite->Name));
 			const std::filesystem::path UniqueIndexedDataFilePath = IO::GetUniquePath(IndexedDataFilePath, ec);
 			if (ec)
 			{
@@ -562,14 +523,14 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 			}
 
 			constexpr int32_t Channels = 4;
-			std::vector<uint32_t> RGBA(Sprite.Width * Sprite.Height);
+			std::vector<uint32_t> RGBA(Sprite->Width * Sprite->Height);
 			{
-				for (uint32_t y = 0; y < Sprite.Height; ++y)
+				for (uint32_t y = 0; y < Sprite->Height; ++y)
 				{
-					for (uint32_t x = 0; x < Sprite.Width; ++x)
+					for (uint32_t x = 0; x < Sprite->Width; ++x)
 					{
-						const uint32_t Offset = y * Sprite.Width + x;
-						const uint8_t ColorIndex = Sprite.ZXColorView->IndexedData[Offset];
+						const uint32_t Offset = y * Sprite->Width + x;
+						const uint8_t ColorIndex = Sprite->ZXColorView->IndexedData[Offset];
 						const ImU32 ColorRGBA = UI::ToU32(UI::ZXSpectrumColorRGBA[ColorIndex]);
 						RGBA[Offset] = ColorRGBA;
 					}
@@ -578,11 +539,11 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 
 			if (!stbi_write_png(
 				UniqueIndexedDataFilePath.string().c_str(),
-				Sprite.Width,
-				Sprite.Height,
+				Sprite->Width,
+				Sprite->Height,
 				Channels,
 				RGBA.data(),
-				Sprite.Width * Channels
+				Sprite->Width * Channels
 			))
 			{
 				std::cerr << "Failed to write PNG!" << std::endl;
@@ -590,31 +551,34 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 		}
 
 		std::filesystem::path InkDataFilePath;
-		if (Sprite.ZXColorView->InkData.size() > 0)
+		if (Sprite->ZXColorView->InkData.size() > 0)
 		{
-			InkDataFilePath = ExportPath / std::format("InkData_{}.bin", Sprite.Name);
-			IO::SaveBinaryData(Sprite.ZXColorView->InkData, InkDataFilePath);
+			InkDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("InkData_{}.bin", Sprite->Name)));
+			IO::SaveBinaryData(Sprite->ZXColorView->InkData, InkDataFilePath);
 		}
 
 		std::filesystem::path AttributeDataFilePath;
-		if (Sprite.ZXColorView->AttributeData.size() > 0)
+		if (Sprite->ZXColorView->AttributeData.size() > 0)
 		{
-			AttributeDataFilePath = ExportPath / std::format("AttributeData_{}.bin", Sprite.Name);
-			IO::SaveBinaryData(Sprite.ZXColorView->AttributeData, AttributeDataFilePath);
+			AttributeDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("AttributeData_{}.bin", Sprite->Name)));
+			IO::SaveBinaryData(Sprite->ZXColorView->AttributeData, AttributeDataFilePath);
 		}
 
 		std::filesystem::path MaskDataFilePath;
-		if (Sprite.ZXColorView->MaskData.size() > 0)
+		if (Sprite->ZXColorView->MaskData.size() > 0)
 		{
-			MaskDataFilePath = ExportPath / std::format("MaskData_{}.bin", Sprite.Name);
-			IO::SaveBinaryData(Sprite.ZXColorView->MaskData, MaskDataFilePath);
+			MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("MaskData_{}.bin", Sprite->Name)));
+			IO::SaveBinaryData(Sprite->ZXColorView->MaskData, MaskDataFilePath);
 		}
 
 		Json.push_back(
 			{
-				{"Name", Sprite.Name},
-				{"Width", Sprite.Width},
-				{"Height", Sprite.Height},
+				{"SprName", Sprite->Name},
+				{"SprWidth", Sprite->Width},
+				{"SprHeight", Sprite->Height},
+				{"PoxImgX", Sprite->SpritePositionToImageX},
+				{"PoxImgY", Sprite->SpritePositionToImageY},
+				{"FileImg", ToUtf8(IO::NormalizePath(Sprite->SourcePathFile).wstring())},
 
 				{"InkData", ToUtf8(InkDataFilePath.wstring())},
 				{"AttributeData", ToUtf8(AttributeDataFilePath.wstring())},
@@ -622,7 +586,7 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 			});
 	}
 
-	std::filesystem::path JsonFilePath = ExportPath / "Export.json";
+	std::filesystem::path JsonFilePath = IO::NormalizePath(ExportPath / "Export.json");
 	const std::filesystem::path UniqueJsonFilePath = IO::GetUniquePath(JsonFilePath, ec);
 	if (ec)
 	{
@@ -633,5 +597,27 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 	{
 		JsonFile << Json.dump(4);
 		JsonFile.close();
+	}
+}
+
+void SSpriteList::SendSelectedSprite() const 
+{
+	if (IndexSelectedSprite != INDEX_NONE && Sprites.size() > IndexSelectedSprite)
+	{
+		// forced open window 'Edit metadata'
+		{
+			std::shared_ptr<SViewerBase> Viewer = GetParent();
+			if (Viewer && !Viewer->IsWindowVisibility(NAME_SpriteMetadata))
+			{
+				Viewer->SetWindowVisibility(NAME_SpriteMetadata);
+			}
+		}
+
+		FEvent_SelectedSprite Event;
+		{
+			Event.Tag = FEventTag::SelectedSpritesChangedTag;
+			Event.Sprites.push_back(Sprites[IndexSelectedSprite]);
+		}
+		SendEvent(Event);
 	}
 }

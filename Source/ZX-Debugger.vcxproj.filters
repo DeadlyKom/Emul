@@ -146,6 +146,9 @@
     <ClCompile Include="Utils\IO.cpp">
       <Filter>Source\Utils</Filter>
     </ClCompile>
+    <ClCompile Include="Window\Sprite\SpriteMetadata.cpp">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source">
@@ -393,9 +396,6 @@
     <ClInclude Include="Window\Sprite\StatusBar.h">
       <Filter>Source\Window\Sprite</Filter>
     </ClInclude>
-    <ClInclude Include="Window\Sprite\SpriteList.h">
-      <Filter>Source\Window\Sprite</Filter>
-    </ClInclude>
     <ClInclude Include="Utils\UI\Draw_ZXColorVideo.h">
       <Filter>Source\Utils\UI</Filter>
     </ClInclude>
@@ -413,6 +413,15 @@
     </ClInclude>
     <ClInclude Include="Utils\IO.h">
       <Filter>Source\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\Array.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Sprite\SpriteMetadata.h">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Sprite\SpriteList.h">
+      <Filter>Source\Window\Sprite</Filter>
     </ClInclude>
   </ItemGroup>
   <ItemGroup>

@@ -52,3 +52,10 @@ std::error_code IO::SaveBinaryData(const std::vector<uint8_t>& Data, const std::
     }
     return std::error_code{};
 }
+
+std::filesystem::path IO::NormalizePath(const std::filesystem::path& InOut)
+{
+    std::string PathString = InOut.string();
+    std::replace(PathString.begin(), PathString.end(), '\\', '/');
+    return std::filesystem::path(PathString);
+}

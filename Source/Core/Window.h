@@ -24,6 +24,11 @@ struct FWindowInitializer
 	uint32_t Width = -1;
 	uint32_t Height = -1;
 
+	FWindowInitializer& SetOpen(bool _bOpen)
+	{
+		bOpen = _bOpen;
+		return *this;
+	}
 	FWindowInitializer& SetName(const std::wstring& _Name)
 	{
 		Name = _Name;
@@ -125,13 +130,15 @@ public:
 		TickCounter = 0;
 	}
 	std::string GetDockSlot() const { return DockSlot; }
+	bool NeedDock() const { return bNeedDock; }
+	void ResetDock() { bNeedDock = false; }
 
-	bool bNeedDock;
 protected:
 	FNativeDataInitialize Data;
 	FWindowInitializer WindowInitializer;
 
 	bool bOpen;
+	bool bNeedDock;
 	bool bPendingKill;
 	bool bIncludeInWindows;
 

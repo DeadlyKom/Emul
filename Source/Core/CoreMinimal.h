@@ -14,6 +14,7 @@
 #include <thread>
 #include <ranges>
 #include <chrono>
+#include <variant>
 #include <fstream>
 #include <iostream>
 #include <typeindex>

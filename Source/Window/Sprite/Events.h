@@ -6,6 +6,8 @@
 #include "Palette.h"
 #include "ToolBar.h"
 
+struct FSprite;
+
 namespace FEventTag
 {
 	static const FName ChangeToolModeTag = TEXT("ChangeToolMode");
@@ -14,6 +16,7 @@ namespace FEventTag
 	static const FName CanvasSizeTag = TEXT("CanvasSize");;
 	static const FName MousePositionTag = TEXT("MouseState");
 	static const FName AddSpriteTag = TEXT("AddSprite");
+	static const FName SelectedSpritesChangedTag = TEXT("SelectedSpritesChanged");
 }
 
 struct FChangeToolMode
@@ -52,6 +55,7 @@ struct FEvent_Sprite : public IEvent
 	int32_t Height;
 	ImRect SpriteRect;
 	std::string SpriteName;
+	std::filesystem::path SourcePathFile;
 
 	// ZX Spectrum viewing data
 	std::vector<uint8_t> IndexedData;	// indexed image data after QuantizeToZX
@@ -62,4 +66,14 @@ struct FEvent_Sprite : public IEvent
 	// p - 3-bit color paper
 	// i - 3-bit color pixel
 	std::vector<uint8_t> MaskData;		// auto mask from alpha channel
+};
+
+struct FEvent_SelectedSprite : public IEvent
+{
+	std::vector<std::shared_ptr<FSprite>> Sprites;
+};
+
+struct FEvent_OpenPopupMenu : public IEvent
+{
+
 };
