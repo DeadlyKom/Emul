@@ -1,7 +1,7 @@
 #pragma once
 
 #include <CoreMinimal.h>
-#include "Core/Fonts.h"
+#include <Core/Fonts.h>
 
 namespace UI
 {

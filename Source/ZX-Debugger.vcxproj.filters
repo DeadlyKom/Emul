@@ -8,9 +8,6 @@
     <ClCompile Include="Utils\Delegate.cpp">
       <Filter>Source\Utils</Filter>
     </ClCompile>
-    <ClCompile Include="AppDebugger.cpp">
-      <Filter>Source</Filter>
-    </ClCompile>
     <ClCompile Include="Fonts\Dos2000_ru_en.cpp">
       <Filter>Source\Fonts</Filter>
     </ClCompile>
@@ -148,6 +145,9 @@
     </ClCompile>
     <ClCompile Include="Window\Sprite\SpriteMetadata.cpp">
       <Filter>Source\Window\Sprite</Filter>
+    </ClCompile>
+    <ClCompile Include="AppDebugger.cpp">
+      <Filter>Source</Filter>
     </ClCompile>
   </ItemGroup>
   <ItemGroup>

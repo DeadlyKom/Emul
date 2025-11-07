@@ -39,20 +39,24 @@
 #include "Utils/Delegates.h"
 #include "Utils/ScopeExit.h"
 
-
 constexpr double operator""_MHz(long double Frequency)
 {
 	return Frequency * 1'000'000.0;
 }
 
-extern struct FFrameworkFlags
+extern struct FFrameworkConfig
 {
 	bool bLog = false;
 	bool bVsync = false;
 	bool bFullscreen = false;
 
+	uint32_t WindowWidth = INDEX_NONE;
+	uint32_t WindowHeight = INDEX_NONE;
+
 	int32_t SampleRateCapacity = 512;	// Oscillogram Manager
-} FrameworkFlags;
+
+	std::string Application;
+} FrameworkConfig;
 
 namespace EApplication
 {

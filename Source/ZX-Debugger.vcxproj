@@ -207,10 +207,10 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClCompile Include="AppDebugger.cpp" />
     <ClCompile Include="AppMain.cpp" />
     <ClCompile Include="AppSprite.cpp" />
     <ClCompile Include="Core\AppFramework.cpp" />
-    <ClCompile Include="AppDebugger.cpp" />
     <ClCompile Include="Core\Fonts.cpp" />
     <ClCompile Include="Core\Image.cpp" />
     <ClCompile Include="Core\Settings.cpp" />

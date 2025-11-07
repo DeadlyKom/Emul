@@ -13,7 +13,7 @@
     <LocalDebuggerWorkingDirectory>$(SolutionDir)Bin\Emulator\$(Configuration)\</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>-log -resolution 1024x768 -sprite</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>-log -resolution 1024x768</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerCommand>$(TargetPath)</LocalDebuggerCommand>
     <LocalDebuggerWorkingDirectory>$(SolutionDir)Bin\Emulator\$(Configuration)\</LocalDebuggerWorkingDirectory>

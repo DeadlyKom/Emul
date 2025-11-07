@@ -67,10 +67,10 @@ namespace Utils
 }
 
 #ifndef IMGUI_DISABLE_LOG
-#define LOG(...)						{ if (FrameworkFlags.bLog) { Utils::Log(LogVerbosity::Log, __VA_ARGS__); } }
-#define LOG_DISPLAY(...)				{ if (FrameworkFlags.bLog) { Utils::Log(LogVerbosity::Display, __VA_ARGS__); } }
-#define LOG_WARNING(...)				{ if (FrameworkFlags.bLog) { Utils::Log(LogVerbosity::Warning, __VA_ARGS__); } }
-#define LOG_ERROR(...)					{ if (FrameworkFlags.bLog) { Utils::Log(LogVerbosity::Error, __VA_ARGS__);} }
+#define LOG(...)						{ if (FrameworkConfig.bLog) { Utils::Log(LogVerbosity::Log, __VA_ARGS__); } }
+#define LOG_DISPLAY(...)				{ if (FrameworkConfig.bLog) { Utils::Log(LogVerbosity::Display, __VA_ARGS__); } }
+#define LOG_WARNING(...)				{ if (FrameworkConfig.bLog) { Utils::Log(LogVerbosity::Warning, __VA_ARGS__); } }
+#define LOG_ERROR(...)					{ if (FrameworkConfig.bLog) { Utils::Log(LogVerbosity::Error, __VA_ARGS__);} }
 #else
 #define LOG(...)
 #define LOG_DISPLAY(...)

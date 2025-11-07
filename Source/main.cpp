@@ -42,7 +42,7 @@ int main(int argc, char** argv)
 
 		if (Application == EApplication::None)
 		{
-			Application = (EApplication::Type)FAppFramework::Get<FAppMain>().Launch(Args);
+			Application = (EApplication::Type)FAppFramework::Get<FAppMain>().Launch();
 		}
 	}
 
@@ -53,9 +53,9 @@ int main(int argc, char** argv)
 		return 0;
 
 	case EApplication::Debugger:
-		return FAppFramework::Get<FAppDebugger>().Launch(Args);
+		return FAppFramework::Get<FAppDebugger>().Launch();
 
 	case EApplication::Sprite:
-		return FAppFramework::Get<FAppSprite>().Launch(Args);
+		return FAppFramework::Get<FAppSprite>().Launch();
 	}
 }

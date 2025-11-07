@@ -1,5 +1,6 @@
 #include "SpriteSettings.h"
 
+
 const char* FSpriteSettings::ScriptFilesTag = TEXT("ScriptFiles");
 
 FSpriteSettings& FSpriteSettings::Get()

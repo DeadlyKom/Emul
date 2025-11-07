@@ -17,13 +17,22 @@ struct FSettingKeyHash
 {
 	std::size_t operator()(const FSettingKey& Key) const
 	{
-		return std::hash<std::string>()(Key.Name) ^ Key.Type.hash_code();
+		//return std::hash<std::string>()(Key.Name) ^ Key.Type.hash_code();
+		std::size_t h1 = std::hash<std::string>{}(Key.Name);
+		std::size_t h2 = Key.Type.hash_code();
+		return h1 ^ (h2 << 1);
 	}
 };
 
 class FSettings
 {
 public:
+	static FSettings& Get()
+	{
+		static std::shared_ptr<FSettings> Instance(new FSettings());
+		return *Instance.get();
+	}
+
 	bool Load(const std::filesystem::path& FilePath);
 	bool Save(const std::filesystem::path& FilePath);
 
@@ -42,7 +51,7 @@ public:
 		}
 		catch (const std::bad_any_cast& e)
 		{
-			std::cout << "Error: " << e.what() << std::endl;
+			LOG("Error: get value - ", e.what());
 			return std::nullopt;
 		}
 	}
@@ -76,5 +85,6 @@ protected:
 	FSettings& operator=(const FSettings&) = delete;
 
 private:
+	std::vector<FSettingKey> KeyOrder;
 	std::unordered_map<FSettingKey, std::any, FSettingKeyHash> Container;
 };

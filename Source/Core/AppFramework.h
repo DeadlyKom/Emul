@@ -11,6 +11,13 @@ enum class EPathType
 	Config,
 	Export,
 };
+enum class EFilenameType
+{
+	Ini,
+	Log,
+	Config,
+	Export,
+};
 
 class FAppFramework
 {
@@ -25,11 +32,12 @@ public:
 		return *InstanceAppFramework.get();
 	}
 	static std::filesystem::path GetPath(EPathType PathType);
+	static std::string_view GetFilename(EFilenameType Filename);
 
-	int32_t Launch(const std::map<std::string, std::string>& Args);
+	int32_t Launch();
 
 	// virtual methods
-	virtual bool Startup(const std::map<std::string, std::string>& Args);
+	virtual bool Startup();
 	virtual void Initialize();
 	virtual void Shutdown();
 	virtual void Tick(float DeltaTime);
@@ -38,21 +46,28 @@ public:
 	virtual void SetRectWindow(uint16_t Width, uint16_t Height);
 	virtual std::vector<std::wstring> DragAndDropExtensions() const { return {}; }
 	virtual void DragAndDropFile(const std::filesystem::path& FilePath) {}
-	virtual void SaveDefaultImGuiIni() {}
+	virtual void LoadSettings() {}
+	virtual std::string_view GetDefaultImGuiIni();
+	virtual std::string_view GetDefaultConfig();
+
+	static const char* ConfigTag_Resolution;
+	static const char* ConfigTag_Log;
+	static const char* ConfigTag_Fullscreen;
+	static const char* ConfigTag_Application;
 
 protected:
 	// internal variables
 	uint32_t ScreenWidth;
 	uint32_t ScreenHeight;
-	uint32_t WindowWidth;
-	uint32_t WindowHeight;
 
 	FFonts Fonts;
 	FSystemTime Time;
 
 	std::string ClassName;
 	std::string WindowName;
-	std::string IniFilePath;
+	std::string IniFilePathString;
+	std::filesystem::path IniFilePath;
+	std::filesystem::path ConfigFilePath;
 	std::string LogFilePath;
 
 	bool bEnabledResize;

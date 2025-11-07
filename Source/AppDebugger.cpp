@@ -11,7 +11,7 @@
 #include "Devices/Memory/DRAM.h"
 #include "Motherboard/Motherboard.h"
 #include "Motherboard/Motherboard_Board.h"
-#include "Core/Fonts.h"
+#include <Core/Fonts.h>
 #include <Core/Image.h>
 
 namespace
@@ -120,7 +120,7 @@ void FAppDebugger::Initialize()
 		Motherboard->Reset();
 	}
 
-	Viewer = std::make_shared<SViewer>(NAME_DOS_12, WindowWidth, WindowHeight);
+	Viewer = std::make_shared<SViewer>(NAME_DOS_12, FrameworkConfig.WindowWidth, FrameworkConfig.WindowHeight);
 	if (Viewer)
 	{
 		FNativeDataInitialize Data;

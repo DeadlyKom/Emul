@@ -20,8 +20,6 @@ namespace
 
 	const char* ExportToName = "##ExportTo";
 	static const char* AddMetaToRegionName = "##AddMetaToRegion";
-
-	static const char* SettingsFilename = "Settings.cfg";
 }
 
 FAppSprite::FAppSprite()
@@ -36,12 +34,10 @@ void FAppSprite::Initialize()
 	FAppFramework::Initialize();
 	LOG("Initialize 'Sprite' application.");
 
-	LoadSettings();
-
 	FImageBase& Images = FImageBase::Get();
 	Images.Initialize(Device, DeviceContext);
 
-	Viewer = std::make_shared<SViewerBase>(NAME_DOS_12, WindowWidth, WindowHeight);
+	Viewer = std::make_shared<SViewerBase>(NAME_DOS_12, FrameworkConfig.WindowWidth, FrameworkConfig.WindowHeight);
 	if (Viewer)
 	{
 		FNativeDataInitialize Data
@@ -91,6 +87,20 @@ void FAppSprite::Initialize()
 
 	FFonts& Fonts = FFonts::Get();
 	Fonts.LoadFont(NAME_DOS_12, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 12.0f, 0);
+}
+
+void FAppSprite::LoadSettings()
+{
+	FSpriteSettings::Get().Load(IO::NormalizePath((FAppFramework::GetPath(EPathType::Config) / GetFilename(EFilenameType::Config)).string()));
+
+	FSpriteSettings& SpriteSettings = FSpriteSettings::Get();
+	auto ScriptFilesOptional = SpriteSettings.GetValue<std::map<std::string, std::string>>(
+		{ FSpriteSettings::ScriptFilesTag, typeid(std::map<std::string, std::string>) });
+
+	if (ScriptFilesOptional.has_value())
+	{
+		ScriptFiles = ScriptFilesOptional.value();
+	}
 }
 
 void FAppSprite::Shutdown()
@@ -151,11 +161,6 @@ void FAppSprite::DragAndDropFile(const std::filesystem::path& FilePath)
 	std::wstring Filename = FilePath.filename().wstring();
 	std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, FilePath);
 	Viewer->AddWindow(EName::Canvas, NewCanvas, Data, FilePath);
-}
-
-void FAppSprite::LoadSettings()
-{
-	FSpriteSettings::Get().Load(IO::NormalizePath((FAppFramework::GetPath(EPathType::Config) / SettingsFilename).string()));
 }
 
 void FAppSprite::Show_MenuBar()

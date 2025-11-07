@@ -5,7 +5,7 @@ FSignalsBus::FSignalsBus()
 {
 	memset(&Signals, ESignalState::HiZ, ESignalBus::MaxHardcodedIndex * sizeof(ESignalState::Type) * 2);
 
-	OscillogramManager.Initialize(ESignalBus::MaxHardcodedIndex, FrameworkFlags.SampleRateCapacity);
+	OscillogramManager.Initialize(ESignalBus::MaxHardcodedIndex, FrameworkConfig.SampleRateCapacity);
 }
 
 uint16_t FSignalsBus::GetDataOnAddressBus() const

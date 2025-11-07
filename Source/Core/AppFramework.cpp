@@ -2,6 +2,7 @@
 
 #include <iostream>
 #include <shellapi.h>
+#include <Utils/IO.h>
 #include "resource.h"
 #include "backends\imgui_impl_win32.h"
 #include "backends\imgui_impl_dx11.h"
@@ -13,11 +14,21 @@ namespace Path
 	static const char* Log = "Saved/Logs";
 	static const char* Config = "Saved/Config";
 	static const char* Export = "Saved/Export";
-
-	static const char* IniFilename = "imgui.ini";
 }
 
-FFrameworkFlags FrameworkFlags;
+namespace Filename
+{
+	static const char* Ini = "imgui.ini";
+	static const char* Settings = "Settings.cfg";
+}
+
+const char* FAppFramework::ConfigTag_Resolution = TEXT("Resolution");
+const char* FAppFramework::ConfigTag_Log = TEXT("bLog");
+const char* FAppFramework::ConfigTag_Fullscreen = TEXT("bFullscreen");
+const char* FAppFramework::ConfigTag_Application = TEXT("Application");
+
+
+FFrameworkConfig FrameworkConfig;
 FFrameworkCallback FrameworkCallback;
 
 // Forward declare message handler from imgui_impl_win32.cpp
@@ -112,9 +123,7 @@ static LONG_PTR CALLBACK AppFrameworkProc(HWND hWnd, UINT msg, WPARAM wParam, LP
 }
 
 FAppFramework::FAppFramework()
-	: WindowWidth(1024)
-	, WindowHeight(768)
-	, AtomClass(0)
+	: AtomClass(0)
 	, Device(nullptr)
 	, DeviceContext(nullptr)
 	, SwapChain(nullptr)
@@ -126,6 +135,15 @@ FAppFramework::FAppFramework()
 {
 	ScreenWidth = GetSystemMetrics(SM_CXSCREEN);
 	ScreenHeight = GetSystemMetrics(SM_CYSCREEN);
+
+	if (FrameworkConfig.WindowWidth == INDEX_NONE)
+	{
+		FrameworkConfig.WindowWidth = ScreenWidth >> 1;
+	}
+	if (FrameworkConfig.WindowHeight == INDEX_NONE)
+	{
+		FrameworkConfig.WindowHeight = ScreenHeight >> 1;
+	}
 }
 
 FAppFramework::~FAppFramework()
@@ -145,22 +163,22 @@ std::filesystem::path FAppFramework::GetPath(EPathType PathType)
 	return std::filesystem::current_path();
 }
 
-int32_t FAppFramework::Launch(const std::map<std::string, std::string>& Args)
+std::string_view FAppFramework::GetFilename(EFilenameType Filename)
 {
-	if (Args.contains("help"))
+	switch (Filename)
 	{
-		LOG("help:\n");
-		LOG("   -log \t\t\t\t enable logging.\n");
-		LOG("   -resolution <width>x<height> \t set the required resolution.\n");
-		LOG("   -fullscreen \t\t\t set resolution to fullscreen.\n");
-
-		LOG("ToDo: add command list.");
-
-		return 0;
+	case EFilenameType::Ini:
+		return Filename::Ini;
+	case EFilenameType::Config:
+		return Filename::Settings;
 	}
+	return "";
+}
 
+int32_t FAppFramework::Launch()
+{
 	// startup
-	if (!Startup(Args))
+	if (!Startup())
 	{
 		Shutdown();
 		return 1;
@@ -170,7 +188,7 @@ int32_t FAppFramework::Launch(const std::map<std::string, std::string>& Args)
 
 	Register();
 
-	if (!Create(WindowWidth, WindowHeight))
+	if (!Create(FrameworkConfig.WindowWidth, FrameworkConfig.WindowHeight))
 	{
 		Shutdown();
 		return 1;
@@ -189,47 +207,15 @@ int32_t FAppFramework::Launch(const std::map<std::string, std::string>& Args)
 	return Result;
 }
 
-bool FAppFramework::Startup(const std::map<std::string, std::string>& Args)
+bool FAppFramework::Startup()
 {
-	for (const auto& [Key, Value] : Args)
-	{
-		if (!Key.compare("log"))
-		{
-			FrameworkFlags.bLog = true;
-
-			LOG("[*] enable logging.");
-		}
-		else if (!Key.compare("resolution"))
-		{
-			const std::string Delimiter = "x";
-			const size_t Pos = Value.find(Delimiter);
-			if (Pos != std::string::npos)
-			{
-				const std::string NewWindowWidth = Value.substr(0, Pos);
-				const std::string NewWindowHeight = Value.substr(Pos + 1);
-
-				WindowWidth = atoi(NewWindowWidth.data());
-				WindowHeight = atoi(NewWindowHeight.data());
-			}
-
-			LOG("[*] set the resolution {}x{}", WindowWidth, WindowHeight);
-		}
-		else if (!Key.compare("fullscreen"))
-		{
-			FrameworkFlags.bFullscreen = true;
-
-			WindowWidth = ScreenWidth;
-			WindowHeight = ScreenHeight;
-
-			LOG("[*] set resolution to fullscreen.");
-		}
-	}
-
 	if (!InitField())
 	{
 		LOG("Startup fail.");
 		return false;
 	}
+
+	LoadSettings();
 
 	// setup Dear ImGui context
 	if (!IMGUI_CHECKVERSION())
@@ -239,28 +225,31 @@ bool FAppFramework::Startup(const std::map<std::string, std::string>& Args)
 	}
 
 	ImGuiContext* Context = ImGui::CreateContext();
-	//ImGuiIO& IO = ImGui::GetIO();
+	ImGuiIO& IO = ImGui::GetIO();
+
+	IniFilePathString = IniFilePath.string();
+	IO.IniFilename = IniFilePathString.c_str();
 
 	//if (Flags.bLog)
 	//{
-
+	//
 	//	char Buffer[80];
 	//	std::time_t Time = std::time(nullptr);
 	//	std::tm* Now = std::localtime(&Time);
-
+	//
 	//	if (true)
 	//	{
 	//		strftime(Buffer, sizeof(Buffer), "%d.%m.%Y-%H.%M.%S", Now);
 	//		LogFilePath = std::format("{}/{}.log", Path::Log, Buffer);
 	//		IO.LogFilename = LogFilePath.c_str();
 	//	}
-
+	//
 	//	ImGui::LogToFile();
 	//	strftime(Buffer, sizeof(Buffer), "Log file open, %Y/%m/%d %X", Now);
 	//	ImGui::LogText(IM_NEWLINE);
 	//	LOG(Buffer);
 	//}
-
+	//
 	////Context->LogEnabled = Flags.bLog; 
 	//LOG("Framework: Startup fail");
 
@@ -303,6 +292,18 @@ void FAppFramework::SetRectWindow(uint16_t Width, uint16_t Height)
 		SwapChain->ResizeBuffers(0, (UINT)Width, (UINT)Height, DXGI_FORMAT_UNKNOWN, 0);
 		CreateRenderTarget();
 	}
+}
+
+std::string_view FAppFramework::GetDefaultImGuiIni()
+{
+	static std::string DefaultImGuiIni = "";
+	return DefaultImGuiIni;
+}
+
+std::string_view FAppFramework::GetDefaultConfig()
+{
+	static std::string DefaultConfig = "";
+	return DefaultConfig;
 }
 
 void FAppFramework::Release()
@@ -442,7 +443,7 @@ void FAppFramework::Idle()
 			ImGui::UpdatePlatformWindows();
 			ImGui::RenderPlatformWindowsDefault();
 		}
-		SwapChain->Present(!!FrameworkFlags.bVsync, 0);
+		SwapChain->Present(!!FrameworkConfig.bVsync, 0);
 	}
 }
 
@@ -521,22 +522,69 @@ void FAppFramework::CleanupRenderTarget()
 
 bool FAppFramework::InitField()
 {
-	IniFilePath = std::format(TEXT("{}/{}"), Path::Config, Path::IniFilename);
-
 	std::error_code ec;
-	if (!std::filesystem::exists(Path::Log, ec))
+
+	// ini
 	{
-		if (!std::filesystem::create_directories(Path::Log))
+		IniFilePath = IO::NormalizePath(std::filesystem::path(Path::Config) / Filename::Ini);;
+		if (!std::filesystem::exists(IniFilePath.parent_path(), ec))
 		{
-			return false;
+			if (!std::filesystem::create_directories(IniFilePath.parent_path()))
+			{
+				return false;
+			}
+		}
+
+		if (!std::filesystem::exists(ConfigFilePath, ec))
+		{
+			std::string_view DefaulImGuiIni = GetDefaultImGuiIni();
+			if (!DefaulImGuiIni.empty())
+			{
+				std::ofstream File(IniFilePath, std::ios::out | std::ios::trunc | std::ios::binary);
+				if (!File.is_open())
+				{
+					LOG("Could not create the file: {}", IniFilePath.string().c_str());
+					return false;
+				}
+
+				File << DefaulImGuiIni;
+				File.close();
+
+				LOG("Template file created: {}", IniFilePath.string().c_str());
+			}
 		}
 	}
 
-	if (!std::filesystem::exists(Path::Config, ec))
+
+	// config
 	{
-		if (!std::filesystem::create_directories(Path::Config))
+		ConfigFilePath = IO::NormalizePath(std::filesystem::path(Path::Config) / Filename::Settings);
+		if (!std::filesystem::exists(ConfigFilePath.parent_path(), ec))
 		{
-			return false;
+			if (!std::filesystem::create_directories(ConfigFilePath.parent_path()))
+			{
+				return false;
+			}
+
+		}
+
+		if (!std::filesystem::exists(ConfigFilePath, ec))
+		{
+			std::string_view DefaulConfig = GetDefaultConfig();
+			if (!DefaulConfig.empty())
+			{
+				std::ofstream File(ConfigFilePath, std::ios::out | std::ios::trunc | std::ios::binary);
+				if (!File.is_open())
+				{
+					LOG("Could not create the file: {}", ConfigFilePath.string().c_str());
+					return false;
+				}
+
+				File << DefaulConfig;
+				File.close();
+
+				LOG("Template file created: {}", ConfigFilePath.string().c_str());
+			}
 		}
 	}
 
@@ -546,11 +594,6 @@ bool FAppFramework::InitField()
 		{
 			return false;
 		}
-	}
-
-	if (!std::filesystem::exists(IniFilePath.c_str(), ec))
-	{
-		SaveDefaultImGuiIni();
 	}
 
 	return true;

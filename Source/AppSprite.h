@@ -18,10 +18,11 @@ public:
 	virtual bool IsOver() override;
 	virtual std::vector<std::wstring> DragAndDropExtensions() const override { return { L".png" }; }
 	virtual void DragAndDropFile(const std::filesystem::path& FilePath) override;
+	virtual void LoadSettings() override;
 
 private:
-	void LoadSettings();
 	void Show_MenuBar();
 
 	std::shared_ptr<SViewerBase> Viewer;
+	std::map<std::string, std::string> ScriptFiles;
 };
