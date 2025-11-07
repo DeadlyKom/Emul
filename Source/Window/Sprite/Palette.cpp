@@ -46,10 +46,28 @@ void SPalette::NativeInitialize(const FNativeDataInitialize& Data)
 
 			if (Event.Tag == FEventTag::ChangeColorTag)
 			{
-				ButtonColor[Event.ButtonIndex & 0x01] = Event.SelectedColorIndex;
-				if (Event.SelectedSubcolorIndex < ESubcolor::MAX)
+				if (Event.SelectedSubcolorIndex == ESubcolor::All)
 				{
-					Subcolor[Event.SelectedSubcolorIndex] = Event.SelectedColorIndex;
+					uint8_t Attribute = Event.SelectedColorIndex;
+					const bool bAttributeBright = (Attribute >> 6) & 0x01;
+					const uint8_t AttributeInkColor = (Attribute & 0x07);
+					const uint8_t AttributePaperColor = ((Attribute >> 3) & 0x07);
+
+					Subcolor[ESubcolor::Ink] = (UI::EZXSpectrumColor::Type)AttributeInkColor;
+					Subcolor[ESubcolor::Paper] = (UI::EZXSpectrumColor::Type)AttributePaperColor;
+					Subcolor[ESubcolor::Bright] = bAttributeBright ? UI::EZXSpectrumColor::True : UI::EZXSpectrumColor::False;
+
+
+					ButtonColor[0] = AttributeInkColor;
+					ButtonColor[1] = AttributePaperColor;
+				}
+				else
+				{
+					ButtonColor[Event.ButtonIndex & 0x01] = Event.SelectedColorIndex;
+					if (Event.SelectedSubcolorIndex < ESubcolor::MAX)
+					{
+						Subcolor[Event.SelectedSubcolorIndex] = Event.SelectedColorIndex;
+					}
 				}
 			}
 		});

@@ -1,6 +1,7 @@
 #pragma once
 
 #define INDEX_NONE (-1)
+#define BUFFER_SIZE_INPUT 32
 
 #define WIN32_LEAN_AND_MEAN
 #define IMGUI_DEFINE_MATH_OPERATORS
@@ -49,6 +50,7 @@ extern struct FFrameworkConfig
 	bool bLog = false;
 	bool bVsync = false;
 	bool bFullscreen = false;
+	bool bDontAskMeNextTime_Quit = false;
 
 	uint32_t WindowWidth = INDEX_NONE;
 	uint32_t WindowHeight = INDEX_NONE;

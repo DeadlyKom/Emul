@@ -14,7 +14,7 @@ namespace
 
 FAppMain::FAppMain()
 	: bOpen(false)
-	, bRememberChoice(false)
+	, bDontAskMeNextTime(false)
 	, ItemSelectedIndex(INDEX_NONE)
 {
 	WindowName = AppMainName;
@@ -90,7 +90,7 @@ void FAppMain::LoadSettings()
 			FrameworkConfig.WindowWidth = width;
 			FrameworkConfig.WindowHeight = height;
 		}
-		LOG("[*] set the resolution {}x{}", FrameworkConfig.WindowWidth, FrameworkConfig.WindowHeight);
+		LOG("[*] set the resolution {}x{}.", FrameworkConfig.WindowWidth, FrameworkConfig.WindowHeight);
 	}
 	auto FullscreenOptional = Settings.GetValue<bool>({ ConfigTag_Fullscreen, typeid(bool) });
 	if (FullscreenOptional.has_value())
@@ -107,7 +107,16 @@ void FAppMain::LoadSettings()
 	if (ApplicationOptional.has_value())
 	{
 		FrameworkConfig.Application = ApplicationOptional.value();
-		LOG("[*] set application: {}", FrameworkConfig.Application);
+		LOG("[*] set application: {}.", FrameworkConfig.Application);
+	}
+	auto DontAskMeNextTime_Quit_Optional = Settings.GetValue<bool>({ ConfigTag_DontAskMeNextTime_Quit, typeid(bool) });
+	if (DontAskMeNextTime_Quit_Optional.has_value())
+	{
+		FrameworkConfig.bDontAskMeNextTime_Quit = DontAskMeNextTime_Quit_Optional.value();
+		if (FrameworkConfig.bDontAskMeNextTime_Quit)
+		{
+			LOG("[*] don't ask me next time - 'Quit'.");
+		}
 	}
 }
 
@@ -116,6 +125,8 @@ std::string_view FAppMain::GetDefaultConfig()
 	static std::string DefaultConfig = R"(
 {
     "Resolution": "1024x768",
+    "bLog": true,
+    "bDontAskMeNextTime_Quit": false,
     "bFullscreen": false,
     "Application": "None",
     "ScriptFiles": {
@@ -145,9 +156,12 @@ std::string_view FAppMain::GetDefaultConfig()
 
 void FAppMain::ShowSelectionWindow()
 {
-	// Always center this window when appearing
+	// always center this window when appearing
 	if (ImGui::IsWindowAppearing())
+	{
 		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+	}
+
 	{
 		ImGui::Begin("Helper", nullptr, ImGuiWindowFlags_NoDecoration | ImGuiWindowFlags_NoMove | ImGuiWindowFlags_AlwaysAutoResize);
 		ImGui::Text(TEXT("Application"));
@@ -167,7 +181,7 @@ void FAppMain::ShowSelectionWindow()
 			}
 			ImGui::EndListBox();
 		}
-		ImGui::Checkbox("Remember this choice", &bRememberChoice);
+		ImGui::Checkbox("Don't ask me next time", &bDontAskMeNextTime);
 		ImGui::EndGroup();
 
 		if (ImGui::Button("Ok", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
@@ -176,7 +190,7 @@ void FAppMain::ShowSelectionWindow()
 			FrameworkConfig.Application = ApplicationNames[ItemSelectedIndex];
 			bOpen = true;
 
-			if (bRememberChoice)
+			if (bDontAskMeNextTime)
 			{
 				FSettings& Settings = FSettings::Get();
 				FSettingKey Key{ ConfigTag_Application, typeid(std::string) };

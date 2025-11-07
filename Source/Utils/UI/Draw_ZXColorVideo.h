@@ -213,8 +213,7 @@ namespace UI
 	ImVec2 ConverZXViewPositionToPixel(UI::FZXColorView& ZXColorView, const ImVec2& Position);
 	void ConvertZXIndexColorToDisplayRGB(FImage& InOutputImage, const std::vector<uint8_t> Data);
 
-	void GetInkPaper(const std::vector<uint8_t>& IndicesBoundary, uint8_t& OutputPaperColor, uint8_t& OutputInkColor,
-		int32_t TransparentIndex = UI::EZXSpectrumColor::Transparent, int32_t ReplaceTransparent = UI::EZXSpectrumColor::White);
+	void GetInkPaper(const std::vector<uint8_t>& IndicesBoundary, uint8_t& OutputPaperColor, uint8_t& OutputInkColor, const UI::FConversationSettings& Settings);
 	int32_t FindClosestColor(ImU32 Color);
 	void QuantizeToZX(uint8_t* RawImage, int32_t Width, int32_t Height, int32_t Channels, std::vector<uint8_t>& OutputIndexedData);
 

@@ -66,6 +66,13 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 
 	ToolMode[0] = EToolMode::None;
 	ToolMode[1] = EToolMode::None;
+
+	ConversationSettings = 
+	{
+		.InkAlways = EZXColor::Black_,
+		.TransparentIndex = EZXColor::Transparent,
+		.ReplaceTransparent = EZXColor::Black,
+	};
 }
 
 void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
@@ -110,38 +117,66 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 
 void SCanvas::Initialize(const std::any& Arg)
 {
-	if (Arg.type() != typeid(std::filesystem::path))
+	if (Arg.type() == typeid(std::filesystem::path))
 	{
-		return;
+		const std::filesystem::path FilePath = std::any_cast<std::filesystem::path>(Arg);
+
+		ZXColorView = std::make_shared<UI::FZXColorView>();
+
+		ZXColorView->Scale = ImVec2(2.5f, 2.5f);
+		ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
+
+		uint8_t* ImageData = FImageBase::LoadToMemory(FilePath, Width, Height);
+		UI::QuantizeToZX(ImageData, Width, Height, 4, ZXColorView->IndexedData);
+		UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
+		ConversionToZX(ConversationSettings);
+		FImageBase::ReleaseLoadedIntoMemory(ImageData);
+
+		ZXColorView->Device = Data.Device;
+		ZXColorView->DeviceContext = Data.DeviceContext;
+		Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Canvas);
+		
+		{
+			FEvent_StatusBar Event;
+			Event.Tag = FEventTag::CanvasSizeTag;
+			Event.CanvasSize = ImVec2((float)Width, (float)Height);
+			SendEvent(Event);
+		}
 	}
-
-	std::filesystem::path FilePath = std::any_cast<std::filesystem::path>(Arg);
-
-	ZXColorView = std::make_shared<UI::FZXColorView>();
-
-	ZXColorView->Scale = ImVec2(2.5f, 2.5f);
-	ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
-
-	//uint8_t* ImageData = FImageBase::LoadToMemory("D:\\Work\\[Sprite]\\Геройчики\\Fake\\111.png", Width, Height);
-	//uint8_t* ImageData = FImageBase::LoadToMemory("D:\\Work\\[Sprite]\\Геройчики\\Tile\\Hex\\Hex1.png", Width, Height);
-	uint8_t* ImageData = FImageBase::LoadToMemory(FilePath, Width, Height);
-	UI::QuantizeToZX(ImageData, Width, Height, 4, ZXColorView->IndexedData);
-	UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
-
+	else if (Arg.type() == typeid(ImVec2))
 	{
-		FEvent_StatusBar Event;
-		Event.Tag = FEventTag::CanvasSizeTag;
-		Event.CanvasSize = ImVec2((float)Width, (float)Height);
-		SendEvent(Event);
+		const ImVec2 CanvasSize = std::any_cast<ImVec2>(Arg);
+
+		ZXColorView = std::make_shared<UI::FZXColorView>();
+		ZXColorView->Scale = ImVec2(2.5f, 2.5f);
+		ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
+
+		Width = (int32_t)CanvasSize.x;
+		Height = (int32_t)CanvasSize.y;
+		const int32_t Size = Width * Height;
+		ZXColorView->IndexedData.resize(Size, 0);
+
+		UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
+
+		UI::FConversationSettings Settings
+		{
+			.InkAlways = EZXColor::Black_,
+			.TransparentIndex = EZXColor::Transparent,
+			.ReplaceTransparent = EZXColor::White,
+		};
+		ConversionToZX(Settings);
+
+		ZXColorView->Device = Data.Device;
+		ZXColorView->DeviceContext = Data.DeviceContext;
+		Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Canvas);
+
+		{
+			FEvent_StatusBar Event;
+			Event.Tag = FEventTag::CanvasSizeTag;
+			Event.CanvasSize = ImVec2((float)Width, (float)Height);
+			SendEvent(Event);
+		}
 	}
-
-	ConversionToZX(ConversationSettings);
-
-	FImageBase::ReleaseLoadedIntoMemory(ImageData);
-
-	ZXColorView->Device = Data.Device;
-	ZXColorView->DeviceContext = Data.DeviceContext;
-	Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Canvas);
 }
 
 void SCanvas::Tick(float DeltaTime)
@@ -455,6 +490,12 @@ void SCanvas::Draw_PopupMenu()
 
 void SCanvas::Draw_PopupMenu_CreateSprite()
 {
+	// always center this window when appearing
+	if (ImGui::IsWindowAppearing())
+	{
+		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+	}
+
 	bool bUpdateSize = false;
 	if (ImGui::BeginPopupModal(CreateSpriteName, NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
@@ -869,20 +910,35 @@ void SCanvas::Handler_Eyedropper()
 		switch (Flags)
 		{
 		case FCanvasOptionsFlags::Ink:																// 0010
+			Subcolor[ESubcolor::Ink] = (UI::EZXSpectrumColor::Type)AttributeInkColor;
 			break;
 		case FCanvasOptionsFlags::Attribute:														// 0100
-			break;
 		case FCanvasOptionsFlags::Ink | FCanvasOptionsFlags::Attribute:								// 0110
+			Subcolor[ESubcolor::Ink] = (UI::EZXSpectrumColor::Type)AttributeInkColor;
+			Subcolor[ESubcolor::Paper] = (UI::EZXSpectrumColor::Type)AttributePaperColor;
+			Subcolor[ESubcolor::Bright] = bAttributeBright ? UI::EZXSpectrumColor::True : UI::EZXSpectrumColor::False;
 			break;
 		case FCanvasOptionsFlags::Mask:																// 1000
-			break;
 		case FCanvasOptionsFlags::Mask | FCanvasOptionsFlags::Ink:									// 1010
+			Subcolor[ESubcolor::Ink] = (UI::EZXSpectrumColor::Type)AttributeInkColor;
 			break;
 		case FCanvasOptionsFlags::Mask | FCanvasOptionsFlags::Attribute:							// 1100
-			break;
 		case FCanvasOptionsFlags::Mask | FCanvasOptionsFlags::Attribute | FCanvasOptionsFlags::Ink:	// 1110
+			Subcolor[ESubcolor::Ink] = (UI::EZXSpectrumColor::Type)AttributeInkColor;
+			Subcolor[ESubcolor::Paper] = (UI::EZXSpectrumColor::Type)AttributePaperColor;
+			Subcolor[ESubcolor::Bright] = bAttributeBright ? UI::EZXSpectrumColor::True : UI::EZXSpectrumColor::False;
 			break;
 		}
+		FEvent_Color Event;
+		{
+			Event.Tag = FEventTag::ChangeColorTag;
+			Event.ButtonIndex = INDEX_NONE;										// pressed mouse button
+			Event.SelectedColorIndex = UI::EZXSpectrumColor::Type(Attribute);	// zx color
+			Event.SelectedSubcolorIndex = ESubcolor::All;						// ink (LKM), paper (RKM)
+		}
+		SendEvent(Event); 
+		
+		UpdateCursorColor();
 	}
 }
 
@@ -966,7 +1022,7 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 				{
 					return;
 				}
-				const bool bOperation = (ColorIndex & 0x07) == UI::EZXSpectrumColor::Black ;
+				const bool bOperation = (ColorIndex & 0x07) != UI::EZXSpectrumColor::White;
 				if (bOperation)
 				{
 					Pixels |= PixelBit;									// set bit
@@ -991,7 +1047,7 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 			};
 		auto ApplyMask = [&]()
 			{
-				const bool bOperation = ColorIndex != UI::EZXSpectrumColor::Transparent;
+				const bool bOperation = ColorIndex == UI::EZXSpectrumColor::Transparent;
 				if (bOperation)
 				{
 					Mask |= PixelBit;									// set bit

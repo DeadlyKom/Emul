@@ -13,6 +13,8 @@ namespace ESubcolor
 		Flash,
 
 		MAX,
+
+		All,
 		None = (uint8_t)INDEX_NONE,
 	};
 }

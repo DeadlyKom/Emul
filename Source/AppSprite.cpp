@@ -14,15 +14,42 @@
 
 namespace
 {
-	static const std::string SpriteName = std::format(TEXT("ZX-Sprite ver. {}.{}"), SPRITE_BUILD_MAJOR, SPRITE_BUILD_MINOR);
-	static const char* MenuEditName = TEXT("Edit");
-	static const char* MenuMetadataName = TEXT("Metadata");
+	static const std::string SpriteName = std::format("ZX-Sprite ver. {}.{}", SPRITE_BUILD_MAJOR, SPRITE_BUILD_MINOR);
+	static const char* MenuFileName = "File";
+	static const char* NewCanvasName = "New canvas";
+	static const char* MenuEditName = "Edit";
+	static const char* MenuQuitName = "Quit";
+	static const char* MenuMetadataName = "Metadata";
 
 	const char* ExportToName = "##ExportTo";
 	static const char* AddMetaToRegionName = "##AddMetaToRegion";
+
+	int32_t TextEditNumberCallback(ImGuiInputTextCallbackData* Data)
+	{
+		switch (Data->EventFlag)
+		{
+		case ImGuiInputTextFlags_CallbackCharFilter:
+			if (Data->EventChar < '0' || Data->EventChar > '9')
+			{
+				return 1;
+			}
+			break;
+		case ImGuiInputTextFlags_CallbackEdit:
+			float Value = 0;
+			if (strlen(Data->Buf) > 1)
+			{
+				Value = float(std::stoi(Data->Buf));
+			}
+			*(float*)Data->UserData = Value;
+			break;
+		}
+		return 0;
+	}
 }
 
 FAppSprite::FAppSprite()
+	: bOpen(true)
+	, CanvasCounter(0)
 {
 	WindowName = SpriteName.c_str();
 }
@@ -147,7 +174,7 @@ void FAppSprite::Render()
 
 bool FAppSprite::IsOver()
 {
-	return Viewer ? !Viewer->IsOpen() : true;
+	return bOpen && Viewer ? !Viewer->IsOpen() : true;
 }
 
 void FAppSprite::DragAndDropFile(const std::filesystem::path& FilePath)
@@ -165,12 +192,65 @@ void FAppSprite::DragAndDropFile(const std::filesystem::path& FilePath)
 
 void FAppSprite::Show_MenuBar()
 {
-	const ImGuiID ConvertID = ImGui::GetCurrentWindow()->GetID(ExportToName);
-	if (ImGui::BeginMenu(MenuEditName))
+	const ImGuiID NewCanvaseID = ImGui::GetCurrentWindow()->GetID(NewCanvasName);
+	const ImGuiID QuitID = ImGui::GetCurrentWindow()->GetID(MenuQuitName);
+	if (ImGui::BeginMenu(MenuFileName))
 	{
-		if (ImGui::MenuItem("Export"))
+		if (ImGui::BeginMenu("New"))
 		{
-			ImGui::OpenPopup(ConvertID);	
+			if (ImGui::MenuItem("Canvas", "Ctrl+N"))
+			{
+				ImGui::OpenPopup(NewCanvaseID);
+			}
+			ImGui::EndMenu();
+		}
+		if (ImGui::MenuItem("Open", "Ctrl+O"))
+		{
+			std::vector<std::filesystem::directory_entry> Files;
+			const std::string OldPath = Files.empty() ? "" : Files.back().path().parent_path().string();
+			SFileDialog::OpenWindow(Viewer, "Select File", EDialogMode::Select,
+				[this](std::filesystem::path FilePath, EDialogStage Selected) -> void
+				{
+					Callback_OpenFile(FilePath);
+					SFileDialog::CloseWindow();
+				}, OldPath, "*.*, *.png, *.scr");
+		}
+
+		if (!RecentFiles.empty())
+		{
+			if (ImGui::BeginMenu("Open Recent"))
+			{
+				for (const FRecentFiles& RecentFile : RecentFiles)
+				{
+					ImGui::MenuItem(RecentFile.VisibleName.c_str());
+				}
+
+				ImGui::Separator();
+				if (ImGui::MenuItem("Clear Recent Files"))
+				{
+					RecentFiles.clear();
+				}
+
+				ImGui::EndMenu();
+			}
+		}
+
+		ImGui::Separator();
+
+		if (ImGui::MenuItem("Save", "Ctrl+S")) {}
+		if (ImGui::MenuItem("Save As..")) {}
+		ImGui::Separator();
+
+		if (ImGui::MenuItem(MenuQuitName, "Alt+F4"))
+		{
+			if (FrameworkConfig.bDontAskMeNextTime_Quit)
+			{
+				Quit();
+			}
+			else
+			{
+				ImGui::OpenPopup(QuitID);
+			}
 		}
 	
 		ImGui::EndMenu();
@@ -183,28 +263,218 @@ void FAppSprite::Show_MenuBar()
 			Viewer->SetWindowVisibility(NAME_SpriteMetadata);
 		}
 
-		if (ImGui::MenuItem("ToDo"))
-		{
-		}
-
 		ImGui::EndMenu();
 	}
 
-	if (ImGui::BeginPopupModal(ExportToName, 0))
-	{
-		if (ImGui::Button("Cancel", ImVec2(0.0f, 0.0f)))
-		{
-			std::vector<std::filesystem::directory_entry> Files;
-			const std::string OldPath = Files.empty() ? "" : Files.back().path().parent_path().string();
-			SFileDialog::OpenWindow(Viewer, "Select File", EDialogMode::Select,
-				[this](std::filesystem::path FilePath, EDialogStage Selected) -> void
-				{
-					//OpenFile_Callback(FilePath);
-					SFileDialog::CloseWindow();
-				}, OldPath, "*.*, *.png, *.scr");
+	if (ShowModal_WindowQuit()) {}
+	else if (ShowModal_WindowNewCanvas()) {}
+}
 
+bool FAppSprite::ShowModal_WindowQuit()
+{
+	// always center this window when appearing
+	if (ImGui::IsWindowAppearing())
+	{
+		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+	}
+
+	const bool bVisible = ImGui::BeginPopupModal(MenuQuitName, NULL, ImGuiWindowFlags_AlwaysAutoResize);
+	if (bVisible)
+	{
+		ImGui::Text("All those beautiful files will be deleted.\nThis operation cannot be undone!\n\n");
+		ImGui::Separator();
+
+		ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(0.0f, 0.0f));
+		ImGui::Checkbox("Don't ask me next time", &FrameworkConfig.bDontAskMeNextTime_Quit);
+		ImGui::PopStyleVar();
+
+		if (ImGui::Button("OK", ImVec2(120.0f, 0.0f)))
+		{
+			if (FrameworkConfig.bDontAskMeNextTime_Quit)
+			{
+				FSettings& Settings = FSettings::Get();
+				FSettingKey Key{ ConfigTag_DontAskMeNextTime_Quit, typeid(bool) };
+				Settings.SetValue(Key, FrameworkConfig.bDontAskMeNextTime_Quit);
+				Settings.Save(IO::NormalizePath((FAppFramework::GetPath(EPathType::Config) / GetFilename(EFilenameType::Config)).string()));
+			}
+
+			ImGui::CloseCurrentPopup();
+			Quit();
+		}
+		ImGui::SetItemDefaultFocus();
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(120.0f, 0.0f)))
+		{
 			ImGui::CloseCurrentPopup();
 		}
 		ImGui::EndPopup();
 	}
+	return bVisible;
+}
+
+bool FAppSprite::ShowModal_WindowNewCanvas()
+{
+	// always center this window when appearing
+	if (ImGui::IsWindowAppearing())
+	{
+		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+	}
+
+	const bool bVisible = ImGui::BeginPopupModal(NewCanvasName, NULL, ImGuiWindowFlags_AlwaysAutoResize);
+	if (bVisible)
+	{
+		if (ImGui::IsWindowAppearing())
+		{
+			NewCanvasSize = OriginalCanvasSize = { 256, 192 };
+			sprintf(NewCanvasNameBuffer, std::format("Canvas #{}", ++CanvasCounter).c_str());
+			sprintf(NewCanvasWidthBuffer, "%i\n", int32_t(NewCanvasSize.x));
+			sprintf(NewCanvasHeightBuffer, "%i\n", int32_t(NewCanvasSize.y));
+
+			bRectangularCanvas = false;
+			bRoundingToMultipleEight = true;
+
+			Log2CanvasSize = { powf(2.0f, ceilf(log2f(NewCanvasSize.x))), powf(2.0f, ceilf(log2f(NewCanvasSize.y))) };
+		}
+
+		bool bUpdateSize = false;
+		const float TextWidth = ImGui::CalcTextSize("A").x;
+		const float TextHeight = ImGui::GetTextLineHeightWithSpacing();
+		const ImGuiInputTextFlags InputNumberTextFlags = ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CallbackCharFilter | ImGuiInputTextFlags_CallbackEdit;
+
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
+		ImGui::SeparatorText("Name : ");
+		ImGui::InputTextEx("##Name", NULL, NewCanvasNameBuffer, IM_ARRAYSIZE(NewCanvasNameBuffer), ImVec2(TextWidth * 20.0f, TextHeight), ImGuiInputTextFlags_None);
+
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
+		ImGui::SeparatorText("Size : ");
+		if (ImGui::Checkbox("Multiple of 8", &bRoundingToMultipleEight))
+		{
+			if (!bRoundingToMultipleEight)
+			{
+				Log2CanvasSize = { powf(2.0f, ceilf(log2f(OriginalCanvasSize.x))), powf(2.0f, ceilf(log2f(OriginalCanvasSize.y))) };
+				//NewCanvasSize = ZXColorView->RectangleMarqueeRect.GetSize();
+			}
+			bUpdateSize = true;
+		}
+		if (ImGui::Checkbox("Rectangular canvas", &bRectangularCanvas))
+		{
+			if (!bRectangularCanvas)
+			{
+				Log2CanvasSize = { powf(2.0f, ceilf(log2f(OriginalCanvasSize.x))), powf(2.0f, ceilf(log2f(OriginalCanvasSize.y))) };
+				//NewCanvasSize = ZXColorView->RectangleMarqueeRect.GetSize();
+			}
+
+			bUpdateSize = true;
+		}
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));
+
+		ImGui::Text("Width :");
+		ImGui::SameLine(50.0f);
+		if (ImGui::InputTextEx("##Width", NULL, NewCanvasWidthBuffer, IM_ARRAYSIZE(NewCanvasWidthBuffer),
+			ImVec2(TextWidth * 10.0f, TextHeight),
+			InputNumberTextFlags,
+			&TextEditNumberCallback,
+			(void*)&OriginalCanvasSize.x))
+		{
+			Log2CanvasSize = { powf(2.0f, ceilf(log2f(OriginalCanvasSize.x))), powf(2.0f, ceilf(log2f(OriginalCanvasSize.y))) };
+			bUpdateSize = true;
+		}
+
+		ImGui::SameLine(150.0f);
+
+		if (ImGui::SliderFloat("##FineTuningX", &NewCanvasSize.x, 8.0f, Log2CanvasSize.x, "%.0f"))
+		{
+			if (bRectangularCanvas)
+			{
+				NewCanvasSize.y = NewCanvasSize.x;
+				Log2CanvasSize.y = Log2CanvasSize.x;
+			}
+			bUpdateSize = true;
+		}
+
+		ImGui::Text("Height :");
+		ImGui::SameLine(50.0f);
+		if(ImGui::InputTextEx("##Height", NULL, NewCanvasHeightBuffer, IM_ARRAYSIZE(NewCanvasHeightBuffer),
+			ImVec2(TextWidth * 10.0f, TextHeight), 
+			InputNumberTextFlags,
+			&TextEditNumberCallback,
+			(void*)&OriginalCanvasSize.y))
+		{
+			Log2CanvasSize = { powf(2.0f, ceilf(log2f(OriginalCanvasSize.x))), powf(2.0f, ceilf(log2f(OriginalCanvasSize.y))) };
+			bUpdateSize = true;
+		}
+
+		ImGui::SameLine(150.0f);
+		if (ImGui::SliderFloat("##FineTuningY", &NewCanvasSize.y, bRoundingToMultipleEight ? 8.0f : 1.0f, Log2CanvasSize.y, "%.0f"))
+		{
+			if (bRectangularCanvas)
+			{
+				NewCanvasSize.x = NewCanvasSize.y;
+				Log2CanvasSize.x = Log2CanvasSize.y;
+			}
+
+			bUpdateSize = true;
+		}
+
+		if (bUpdateSize)
+		{
+			if (bRectangularCanvas)
+			{
+				const float MinSize = ImMin(NewCanvasSize.x, NewCanvasSize.y);
+				NewCanvasSize = { MinSize, MinSize };
+			}
+			if (bRoundingToMultipleEight)
+			{
+				NewCanvasSize.x = ceilf(NewCanvasSize.x / 8.0f) * 8.0f;
+				NewCanvasSize.y = ceilf(NewCanvasSize.y / 8.0f) * 8.0f;
+			}
+			sprintf(NewCanvasWidthBuffer, "%i\n", int32_t(NewCanvasSize.x));
+			sprintf(NewCanvasHeightBuffer, "%i\n", int32_t(NewCanvasSize.y));
+		}
+
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));
+
+		if (ImGui::ButtonEx("OK", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
+		{
+			//FEvent_Sprite Event;
+			//Event.Tag = FEventTag::AddSpriteTag;
+			//Event.Width = Width;
+			//Event.Height = Height;
+			//Event.SpriteRect = ImRect(ZXColorView->RectangleMarqueeRect.Min, ZXColorView->RectangleMarqueeRect.Min + NewCanvasSize);
+			//Event.SpriteName = CreateSpriteNameBuffer;
+			//Event.SourcePathFile = SourcePathFile;
+
+			//Event.IndexedData = ZXColorView->IndexedData;
+			//Event.InkData = ZXColorView->InkData;
+			//Event.AttributeData = ZXColorView->AttributeData;
+			//Event.MaskData = ZXColorView->MaskData;
+
+			//SendEvent(Event);
+
+			FNativeDataInitialize Data
+			{
+				.Device = Device,
+				.DeviceContext = DeviceContext
+			};
+
+			std::wstring Filename = std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>>{}.from_bytes(NewCanvasNameBuffer);
+			std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename);
+			Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { NewCanvasSize });
+
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SetItemDefaultFocus();
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
+		{
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
+	return bVisible;
+
+}
+
+void FAppSprite::Callback_OpenFile(std::filesystem::path FilePath)
+{
 }

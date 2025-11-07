@@ -19,6 +19,6 @@ private:
 	void ShowSelectionWindow();
 
 	bool bOpen;
-	bool bRememberChoice;
+	bool bDontAskMeNextTime;
 	int32_t ItemSelectedIndex;
 };

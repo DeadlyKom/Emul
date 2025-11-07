@@ -22,10 +22,11 @@ namespace Filename
 	static const char* Settings = "Settings.cfg";
 }
 
-const char* FAppFramework::ConfigTag_Resolution = TEXT("Resolution");
-const char* FAppFramework::ConfigTag_Log = TEXT("bLog");
-const char* FAppFramework::ConfigTag_Fullscreen = TEXT("bFullscreen");
-const char* FAppFramework::ConfigTag_Application = TEXT("Application");
+const char* FAppFramework::ConfigTag_Resolution = "Resolution";
+const char* FAppFramework::ConfigTag_Log = "bLog";
+const char* FAppFramework::ConfigTag_Fullscreen = "bFullscreen";
+const char* FAppFramework::ConfigTag_Application = "Application";
+const char* FAppFramework::ConfigTag_DontAskMeNextTime_Quit = "bDontAskMeNextTime_Quit";
 
 
 FFrameworkConfig FrameworkConfig;

@@ -7,8 +7,6 @@
 #include "Palette.h"
 #include "ToolBar.h"
 
-#define BUFFER_SIZE_INPUT 32
-
 namespace FCanvasOptionsFlags
 {
 	enum Type

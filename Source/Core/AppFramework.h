@@ -54,6 +54,7 @@ public:
 	static const char* ConfigTag_Log;
 	static const char* ConfigTag_Fullscreen;
 	static const char* ConfigTag_Application;
+	static const char* ConfigTag_DontAskMeNextTime_Quit;
 
 protected:
 	// internal variables

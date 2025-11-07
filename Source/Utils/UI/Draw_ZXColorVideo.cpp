@@ -606,7 +606,7 @@ void UI::ConvertZXIndexColorToDisplayRGB(FImage& InOutputImage, const std::vecto
 	Images.UpdateTexture(InOutputImage.Handle, RGBA.data());
 }
 
-void UI::GetInkPaper(const std::vector<uint8_t>& IndicesBoundary, uint8_t& OutputPaperColor, uint8_t& OutputInkColor, int32_t TransparentIndex, int32_t ReplaceTransparent)
+void UI::GetInkPaper(const std::vector<uint8_t>& IndicesBoundary, uint8_t& OutputPaperColor, uint8_t& OutputInkColor, const UI::FConversationSettings& Settings)
 {
 	std::map<uint8_t, int32_t> Freq;
 	for (uint8_t i : IndicesBoundary)
@@ -626,12 +626,12 @@ void UI::GetInkPaper(const std::vector<uint8_t>& IndicesBoundary, uint8_t& Outpu
 
 	if (Sorted.size() >= 3)
 	{
-		if (OftenEncountered == TransparentIndex)
+		if (OftenEncountered == Settings.TransparentIndex)
 		{
 			OftenEncountered = SometimesEncountered;
 			SometimesEncountered = Sorted[2].first;
 		}
-		else if (SometimesEncountered == TransparentIndex)
+		else if (SometimesEncountered == Settings.TransparentIndex)
 		{
 			SometimesEncountered = Sorted[2].first;
 		}
@@ -645,13 +645,25 @@ void UI::GetInkPaper(const std::vector<uint8_t>& IndicesBoundary, uint8_t& Outpu
 
 	if (Sorted.size() > 2)
 	{
-		if (OftenEncountered == TransparentIndex)
+		if (OftenEncountered == Settings.TransparentIndex)
 		{
-			OftenEncountered = ReplaceTransparent;
+			OftenEncountered = Settings.ReplaceTransparent;
 		}
-		if (SometimesEncountered == TransparentIndex)
+		if (SometimesEncountered == Settings.TransparentIndex)
 		{
-			SometimesEncountered = ReplaceTransparent;
+			SometimesEncountered = Settings.ReplaceTransparent;
+		}
+	}
+
+	if (Sorted.size() == 1)
+	{
+		if (OftenEncountered == Settings.TransparentIndex)
+		{
+			OftenEncountered = Settings.InkAlways;
+		}
+		if (SometimesEncountered == Settings.TransparentIndex)
+		{
+			SometimesEncountered = Settings.ReplaceTransparent;
 		}
 	}
 	
@@ -748,7 +760,7 @@ void UI::ZXIndexColorToZXAttributeColor(
 			}
 
 			uint8_t PaperColor, InkColor;
-			GetInkPaper(Boundary, PaperColor, InkColor, Settings.TransparentIndex, Settings.ReplaceTransparent);
+			GetInkPaper(Boundary, PaperColor, InkColor, Settings);
 			if (Settings.InkAlways == PaperColor)
 			{
 				std::swap(PaperColor, InkColor);
@@ -764,7 +776,8 @@ void UI::ZXIndexColorToZXAttributeColor(
 					PixelsInk <<= 1;
 
 					const int32_t BoundaryOffset = dy * 8 + dx;
-					if ((Boundary[BoundaryOffset] & 0x07) == (InkColor & 0x07))
+					const uint8_t Index = Boundary[BoundaryOffset] & 0x07;
+					if (Index == UI::EZXSpectrumColor::Transparent ? Settings.ReplaceTransparent == (InkColor & 0x07) : Index == (InkColor & 0x07))
 					{
 						PixelsInk |= 1;
 					}
