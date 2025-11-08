@@ -252,7 +252,6 @@ void SViewerBase::ReleaseUnnecessaryWindows()
 					if (bDestroy)
 					{
 						Window->Destroy();
-						//Window->ResetWindow();
 					}
 					return bDestroy;
 				}),

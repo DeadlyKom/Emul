@@ -31,6 +31,7 @@ struct FImage
 		: Width((float)_Width)
 		, Height((float)_Height)
 		, Handle(_Handle)
+		, SamplerState(nullptr)
 		, ShaderResourceView(nullptr)
 	{}
 
@@ -38,6 +39,7 @@ struct FImage
 	{
 		Size = Other.Size;
 		Handle = Other.Handle;
+		SamplerState = Other.SamplerState;
 		ShaderResourceView = Other.ShaderResourceView;
 		return *this;
 	}
@@ -46,6 +48,11 @@ struct FImage
 	uint32_t GetFormatSize() const { return sizeof(uint32_t); }
 	void Release()
 	{
+		if (SamplerState != nullptr)
+		{
+			SamplerState->Release();
+			SamplerState = nullptr;
+		}
 		if (ShaderResourceView != nullptr)
 		{
 			ShaderResourceView->Release();
@@ -68,6 +75,7 @@ struct FImage
 	};
 
 	FImageHandle Handle;
+	ID3D11SamplerState* SamplerState;
 	ID3D11ShaderResourceView* ShaderResourceView;
 };
 

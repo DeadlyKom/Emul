@@ -217,7 +217,6 @@ void SCanvas::Render()
 	if (!IsOpen())
 	{
 		Close();
-		DestroyWindow();
 		return;
 	}
 
@@ -407,6 +406,11 @@ void SCanvas::Render()
 		ImGui::EndChild();
 
 		ImGui::End();
+	}
+
+	if (!IsOpen())
+	{
+		DestroyWindow();
 	}
 }
 
@@ -790,7 +794,7 @@ void SCanvas::Imput_Paste()
 		if (ClipboardImage.Width == Width && ClipboardImage.Height == Height)
 		{
 			UI::QuantizeToZX(ClipboardImage.Data.data(), Width, Height, 4, ZXColorView->IndexedData);
-			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
+			//UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
 			ConversionToZX(ConversationSettings);
 			{
 				FEvent_StatusBar Event;

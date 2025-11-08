@@ -114,7 +114,7 @@ ImVec2 CalculatePanelSize(UI::FZXColorView& ZXColorView)
 void UI::OnDrawCallback_ZXVideo(const ImDrawList* ParentList, const ImDrawCmd* CMD)
 {
 	const UI::FZXColorView* ZXColorView = CMD ? reinterpret_cast<const UI::FZXColorView*>(CMD->UserCallbackData) : nullptr;
-	if (!ZXColorView || ZXColorView->PS_Grid == nullptr || ZXColorView->PCB_Grid == nullptr)
+	if (!ZXColorView || ZXColorView->PS_Grid == nullptr || ZXColorView->PCB_Grid == nullptr || ZXColorView->Image.SamplerState == nullptr)
 	{
 		return;
 	}
@@ -137,8 +137,7 @@ void UI::OnDrawCallback_ZXVideo(const ImDrawList* ParentList, const ImDrawCmd* C
 		std::memcpy(ConstantBuffer->TextureSize, &ZXColorView->Image.Size, sizeof(ZXColorView->Image.Size));
 			
 		{
-			//const ImVec2 a = (ZXColorView->UV.Min) * ZXColorView->Image.Size;
-			const ImVec2 CursorPosition = (ZXColorView->CursorPosition / ZXColorView->Image.Size)/* - ZXColorView.UV.Min*/;
+			const ImVec2 CursorPosition = (ZXColorView->CursorPosition / ZXColorView->Image.Size);
 			std::memcpy(ConstantBuffer->CursorPosition, &CursorPosition, sizeof(CursorPosition));
 		}
 
@@ -200,6 +199,7 @@ void UI::OnDrawCallback_ZXVideo(const ImDrawList* ParentList, const ImDrawCmd* C
 	// activate shader and buffer
 	ZXColorView->DeviceContext->PSSetShader(ZXColorView->PS_Grid, NULL, 0);
 	ZXColorView->DeviceContext->PSSetConstantBuffers(0, 1, &ZXColorView->PCB_Grid);
+	ZXColorView->DeviceContext->PSSetSamplers(0, 1, &ZXColorView->Image.SamplerState);
 }
 
 void OnDrawCallback_LineMarchingAnts(const ImDrawList* ParentList, const ImDrawCmd* CMD)

@@ -38,7 +38,6 @@ void SSpriteMetadata::Render()
 	if (!IsOpen())
 	{
 		Close();
-		DestroyWindow();
 		return;
 	}
 

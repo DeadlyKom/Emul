@@ -86,20 +86,40 @@ FImage& FImageBase::LoadFromFile(const std::filesystem::path& FilePath)
 	// create texture
 	D3D11_TEXTURE2D_DESC Texture2D;
 	ZeroMemory(&Texture2D, sizeof(Texture2D));
-	Texture2D.Width = Width;
-	Texture2D.Height = Height;
+	Texture2D.Width = (UINT)Width;
+	Texture2D.Height = (UINT)Height;
 	Texture2D.MipLevels = 1;
 	Texture2D.ArraySize = 1;
 	Texture2D.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Texture2D.SampleDesc.Count = 1;
+	Texture2D.SampleDesc.Quality = 0;
 	Texture2D.Usage = D3D11_USAGE_DEFAULT;
 	Texture2D.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 	Texture2D.CPUAccessFlags = 0;
+	Texture2D.MiscFlags = 0;
+
+	std::vector<uint8_t> AlignedImageData;
+	UINT AlignedPitch;
+	{
+		const UINT PixelSize = 4; // DXGI_FORMAT_R8G8B8A8_UNORM
+		const UINT UnalignedPitch = (UINT)Width * PixelSize;
+		const UINT Alignment = 256; // Driver alignment requirement
+		AlignedPitch = (UnalignedPitch + Alignment - 1) & ~(Alignment - 1);
+		AlignedImageData.resize(AlignedPitch * Height);
+
+		// Copy source data to a new buffer, taking into account the padding
+		for (int y = 0; y < Height; ++y)
+		{
+			const uint8_t* SourcRow = (const uint8_t*)ImageData + y * UnalignedPitch;
+			uint8_t* DestinationRow = AlignedImageData.data() + y * AlignedPitch;
+			std::memcpy(DestinationRow, SourcRow, UnalignedPitch);
+		}
+	}
 
 	ID3D11Texture2D* Texture = nullptr;
 	D3D11_SUBRESOURCE_DATA SubResource;
-	SubResource.pSysMem = ImageData;
-	SubResource.SysMemPitch = Width * 4;
+	SubResource.pSysMem = AlignedImageData.data();
+	SubResource.SysMemPitch = AlignedPitch;
 	SubResource.SysMemSlicePitch = 0;
 	Device->CreateTexture2D(&Texture2D, &SubResource, &Texture);
 
@@ -116,6 +136,21 @@ FImage& FImageBase::LoadFromFile(const std::filesystem::path& FilePath)
 		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
 	}
 	Texture->Release();
+
+	D3D11_SAMPLER_DESC SamplerDesc;
+	ZeroMemory(&SamplerDesc, sizeof(SamplerDesc));
+	SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+	SamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+	SamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+	SamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	SamplerDesc.MinLOD = 0;
+	SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	hr = Device->CreateSamplerState(&SamplerDesc, &Image.SamplerState);
+	if (FAILED(hr))
+	{
+		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+	}
 
 	stbi_image_free(ImageData);
 	Images.emplace(Counter++, Image);
@@ -140,20 +175,40 @@ FImage& FImageBase::FromMemory(std::vector<uint8_t> Memory)
 	// create texture
 	D3D11_TEXTURE2D_DESC Texture2D;
 	ZeroMemory(&Texture2D, sizeof(Texture2D));
-	Texture2D.Width = Width;
-	Texture2D.Height = Height;
+	Texture2D.Width = (UINT)Width;
+	Texture2D.Height = (UINT)Height;
 	Texture2D.MipLevels = 1;
 	Texture2D.ArraySize = 1;
 	Texture2D.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Texture2D.SampleDesc.Count = 1;
+	Texture2D.SampleDesc.Quality = 0;
 	Texture2D.Usage = D3D11_USAGE_DEFAULT;
 	Texture2D.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 	Texture2D.CPUAccessFlags = 0;
+	Texture2D.MiscFlags = 0;
+
+	std::vector<uint8_t> AlignedImageData;
+	UINT AlignedPitch;
+	{
+		const UINT PixelSize = 4; // DXGI_FORMAT_R8G8B8A8_UNORM
+		const UINT UnalignedPitch = (UINT)Width * PixelSize;
+		const UINT Alignment = 256; // Driver alignment requirement
+		AlignedPitch = (UnalignedPitch + Alignment - 1) & ~(Alignment - 1);
+		AlignedImageData.resize(AlignedPitch * Height);
+
+		// Copy source data to a new buffer, taking into account the padding
+		for (int y = 0; y < Height; ++y)
+		{
+			const uint8_t* SourcRow = (const uint8_t*)ImageData + y * UnalignedPitch;
+			uint8_t* DestinationRow = AlignedImageData.data() + y * AlignedPitch;
+			std::memcpy(DestinationRow, SourcRow, UnalignedPitch);
+		}
+	}
 
 	ID3D11Texture2D* Texture = nullptr;
 	D3D11_SUBRESOURCE_DATA SubResource;
-	SubResource.pSysMem = ImageData;
-	SubResource.SysMemPitch = Width * 4;
+	SubResource.pSysMem = AlignedImageData.data();
+	SubResource.SysMemPitch = AlignedPitch;
 	SubResource.SysMemSlicePitch = 0;
 	Device->CreateTexture2D(&Texture2D, &SubResource, &Texture);
 
@@ -170,6 +225,21 @@ FImage& FImageBase::FromMemory(std::vector<uint8_t> Memory)
 		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
 	}
 	Texture->Release();
+
+	D3D11_SAMPLER_DESC SamplerDesc;
+	ZeroMemory(&SamplerDesc, sizeof(SamplerDesc));
+	SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+	SamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+	SamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+	SamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	SamplerDesc.MinLOD = 0;
+	SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	hr = Device->CreateSamplerState(&SamplerDesc, &Image.SamplerState);
+	if (FAILED(hr))
+	{
+		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+	}
 
 	stbi_image_free(ImageData);
 	Images.emplace(Counter++, Image);
@@ -192,16 +262,40 @@ FImage& FImageBase::CreateTexture(void* ImageData, int32_t Width, int32_t Height
 	Texture2D.ArraySize = 1;
 	Texture2D.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	Texture2D.SampleDesc.Count = 1;
+	Texture2D.SampleDesc.Quality = 0;
 	Texture2D.Usage = Usage;
 	Texture2D.BindFlags = D3D11_BIND_SHADER_RESOURCE;
 	Texture2D.CPUAccessFlags = (UINT)CPUAccessFlags;
+	Texture2D.MiscFlags = 0;
+
+	std::vector<uint8_t> AlignedImageData;
+	UINT AlignedPitch;
+	{
+		const UINT PixelSize = 4; // DXGI_FORMAT_R8G8B8A8_UNORM
+		const UINT UnalignedPitch = (UINT)Width * PixelSize;
+		const UINT Alignment = 256; // Driver alignment requirement
+		AlignedPitch = (UnalignedPitch + Alignment - 1) & ~(Alignment - 1);
+		AlignedImageData.resize(AlignedPitch * Height);
+
+		// Copy source data to a new buffer, taking into account the padding
+		for (int y = 0; y < Height; ++y)
+		{
+			const uint8_t* SourcRow = (const uint8_t*)ImageData + y * UnalignedPitch;
+			uint8_t* DestinationRow = AlignedImageData.data() + y * AlignedPitch;
+			std::memcpy(DestinationRow, SourcRow, UnalignedPitch);
+		}
+	}
 
 	ID3D11Texture2D* Texture = nullptr;
 	D3D11_SUBRESOURCE_DATA SubResource;
-	SubResource.pSysMem = ImageData;
-	SubResource.SysMemPitch = (UINT)Width * 4;
+	SubResource.pSysMem = AlignedImageData.data();
+	SubResource.SysMemPitch = AlignedPitch;
 	SubResource.SysMemSlicePitch = 0;
-	Device->CreateTexture2D(&Texture2D, &SubResource, &Texture);
+	HRESULT hr = Device->CreateTexture2D(&Texture2D, &SubResource, &Texture);
+	if (FAILED(hr))
+	{
+		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+	}
 
 	// create texture view
 	D3D11_SHADER_RESOURCE_VIEW_DESC SRVD;
@@ -210,12 +304,27 @@ FImage& FImageBase::CreateTexture(void* ImageData, int32_t Width, int32_t Height
 	SRVD.ViewDimension = D3D11_SRV_DIMENSION_TEXTURE2D;
 	SRVD.Texture2D.MipLevels = Texture2D.MipLevels;
 	SRVD.Texture2D.MostDetailedMip = 0;
-	HRESULT hr = Device->CreateShaderResourceView(Texture, &SRVD, &Image.ShaderResourceView);
+	hr = Device->CreateShaderResourceView(Texture, &SRVD, &Image.ShaderResourceView);
 	if (FAILED(hr))
 	{
 		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
 	}
 	Texture->Release();
+
+	D3D11_SAMPLER_DESC SamplerDesc;
+	ZeroMemory(&SamplerDesc, sizeof(SamplerDesc));
+	SamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+	SamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
+	SamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
+	SamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+	SamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+	SamplerDesc.MinLOD = 0;
+	SamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+	hr = Device->CreateSamplerState(&SamplerDesc, &Image.SamplerState);
+	if (FAILED(hr))
+	{
+		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+	}
 
 	Images.emplace(Counter++, Image);
 	ImageMutex.unlock();
@@ -232,7 +341,23 @@ bool FImageBase::UpdateTexture(FImageHandle _Handle, void* ImageData)
 	D3D11_MAPPED_SUBRESOURCE MappedResource;
 	if (Lock(Image.ShaderResourceView, TextureResource, Texture, MappedResource))
 	{
-		std::memcpy(MappedResource.pData, ImageData, Image.GetLength() * Image.GetFormatSize());
+		// Calculate the original pitch of the source data line (UnalignedPitch)
+		const UINT SourcePitch = UINT(Image.Width * Image.GetFormatSize());
+
+		// Get the row pitch of the target GPU memory (MappedResource.RowPitch)
+		// This parameter is returned by Map() and is already aligned (likely 256 bytes).
+		const UINT DestinationPitch = MappedResource.RowPitch;
+
+		uint8_t* dstData = static_cast<uint8_t*>(MappedResource.pData);
+		const uint8_t* SourceData = static_cast<const uint8_t*>(ImageData);
+
+		// Copying data line by line
+		for (UINT y = 0; y < Image.Height; ++y)
+		{
+			// Copy only the useful data of the string (SourcePitch bytes), skipping the padding in GPU memory (DestinationPitch)
+			std::memcpy(dstData + y * DestinationPitch, SourceData + y * SourcePitch, SourcePitch);
+		}
+
 		Unlock(TextureResource, Texture);
 		return true;
 	}
