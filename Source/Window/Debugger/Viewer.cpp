@@ -60,6 +60,17 @@ void SViewer::Initialize(const std::any& Arg)
 	}
 }
 
+void SViewer::SetupHotKeys()
+{
+	auto Self = std::dynamic_pointer_cast<SViewer>(shared_from_this());
+	Hotkeys =
+	{
+		{ ImGuiKey_GraveAccent,			ImGuiInputFlags_None,	std::bind(&ThisClass::Inut_Debugger, Self)					},		// debugger
+		{ ImGuiKey_F11,					ImGuiInputFlags_None,	[Self]() { Self->GetMotherboard().NonmaskableInterrupt();	}},		// NMI
+		{ ImGuiMod_Ctrl | ImGuiKey_F12, ImGuiInputFlags_None,	[Self]() { Self->GetMotherboard().Reset();					}},		// Reset
+	};
+}
+
 void SViewer::Render()
 {
 	ImGui::DockSpaceOverViewport();
@@ -94,13 +105,6 @@ void SViewer::Destroy()
 
 void SViewer::Input_HotKeys()
 {
-	static std::vector<FHotKey> Hotkeys =
-	{
-		{ ImGuiKey_GraveAccent,			ImGuiInputFlags_None,	std::bind(&ThisClass::Inut_Debugger, this)			 },		// debugger
-		{ ImGuiKey_F11,					ImGuiInputFlags_None,	[this]() { GetMotherboard().NonmaskableInterrupt(); }},		// NMI
-		{ ImGuiMod_Ctrl | ImGuiKey_F12, ImGuiInputFlags_None,	[this]() { GetMotherboard().Reset();				}},		// Reset
-	};
-
 	HotKey::Handler(Hotkeys);
 }
 

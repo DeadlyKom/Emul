@@ -149,6 +149,9 @@
     <ClCompile Include="AppDebugger.cpp">
       <Filter>Source</Filter>
     </ClCompile>
+    <ClCompile Include="Window\Sprite\Definition.cpp">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source">

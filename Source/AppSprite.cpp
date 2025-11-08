@@ -11,6 +11,7 @@
 #include <Window/Sprite/SpriteList.h>
 #include <Window/Common/FileDialog.h>
 #include <Window/Sprite/SpriteMetadata.h>
+#include <Window/Sprite/Events.h>
 
 namespace
 {
@@ -100,6 +101,7 @@ void FAppSprite::Initialize()
 
 		Viewer->NativeInitialize(Data);
 		Viewer->Initialize(Layout);
+		Viewer->SetupHotKeys();
 
 		Viewer->SetMenuBar(std::bind(&ThisClass::Show_MenuBar, this));
 		Viewer->AppendWindows({
@@ -107,7 +109,7 @@ void FAppSprite::Initialize()
 			{ NAME_ToolBar,			std::make_shared<SToolBar>(NAME_DOS_12, "##Layout_ToolBar")},
 			{ NAME_StatusBar,		std::make_shared<SStatusBar>(NAME_DOS_12, "##Layout_StatusBar")},
 			{ NAME_SpriteList,		std::make_shared<SSpriteList>(NAME_DOS_12, "##Layout_SpriteList")},
-			{ NAME_SpriteMetadata,	std::make_shared<SSpriteMetadata>(NAME_DOS_12)},
+			//{ NAME_SpriteMetadata,	std::make_shared<SSpriteMetadata>(NAME_DOS_12)},
 			}, Data, {});
 		
 	}
@@ -260,7 +262,19 @@ void FAppSprite::Show_MenuBar()
 	{
 		if (ImGui::MenuItem("Show window", nullptr, false, !Viewer->IsWindowVisibility(NAME_SpriteMetadata)))
 		{
-			Viewer->SetWindowVisibility(NAME_SpriteMetadata);
+			if (Viewer->GetWindows(NAME_SpriteMetadata).empty())
+			{
+				FNativeDataInitialize Data
+				{
+					.Device = Device,
+					.DeviceContext = DeviceContext
+				};
+				Viewer->AddWindow(NAME_SpriteMetadata, std::make_shared<SSpriteMetadata>(NAME_DOS_12), Data, {});
+			}
+			else
+			{
+				Viewer->SetWindowVisibility(NAME_SpriteMetadata);
+			}
 		}
 
 		ImGui::EndMenu();
@@ -325,13 +339,16 @@ bool FAppSprite::ShowModal_WindowNewCanvas()
 	{
 		if (ImGui::IsWindowAppearing())
 		{
-			NewCanvasSize = OriginalCanvasSize = { 256, 192 };
+			FRGBAImage ClipboardImage = FRGBAImage(256, 192);
+			Window::ClipboardData(ClipboardImage);
+
+			NewCanvasSize = OriginalCanvasSize = { (float)ClipboardImage.Width, (float)ClipboardImage.Height };
 			sprintf(NewCanvasNameBuffer, std::format("Canvas #{}", ++CanvasCounter).c_str());
 			sprintf(NewCanvasWidthBuffer, "%i\n", int32_t(NewCanvasSize.x));
 			sprintf(NewCanvasHeightBuffer, "%i\n", int32_t(NewCanvasSize.y));
 
 			bRectangularCanvas = false;
-			bRoundingToMultipleEight = true;
+			bRoundingToMultipleEight = !ClipboardImage.IsValid();
 
 			Log2CanvasSize = { powf(2.0f, ceilf(log2f(NewCanvasSize.x))), powf(2.0f, ceilf(log2f(NewCanvasSize.y))) };
 		}
@@ -436,21 +453,6 @@ bool FAppSprite::ShowModal_WindowNewCanvas()
 
 		if (ImGui::ButtonEx("OK", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
-			//FEvent_Sprite Event;
-			//Event.Tag = FEventTag::AddSpriteTag;
-			//Event.Width = Width;
-			//Event.Height = Height;
-			//Event.SpriteRect = ImRect(ZXColorView->RectangleMarqueeRect.Min, ZXColorView->RectangleMarqueeRect.Min + NewCanvasSize);
-			//Event.SpriteName = CreateSpriteNameBuffer;
-			//Event.SourcePathFile = SourcePathFile;
-
-			//Event.IndexedData = ZXColorView->IndexedData;
-			//Event.InkData = ZXColorView->InkData;
-			//Event.AttributeData = ZXColorView->AttributeData;
-			//Event.MaskData = ZXColorView->MaskData;
-
-			//SendEvent(Event);
-
 			FNativeDataInitialize Data
 			{
 				.Device = Device,

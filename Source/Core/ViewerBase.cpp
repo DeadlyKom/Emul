@@ -131,18 +131,31 @@ void SViewerBase::Destroy()
 	}
 }
 
-void SViewerBase::SetWindowVisibility(EName::Type WindowType, bool bVisibility)
+bool SViewerBase::SetWindowVisibility(EName::Type WindowType, bool bVisibility)
 {
 	const auto It = Windows.find(WindowType);
 	if (It == Windows.end())
 	{
-		return;
+		return false;
 	}
 
 	for (std::shared_ptr<SWindow>& Window : It->second)
 	{
 		Window->SetOpen(bVisibility);
 	}
+
+	return true;
+}
+
+std::vector<std::shared_ptr<SWindow>> SViewerBase::GetWindows(EName::Type WindowType) const
+{
+	const auto It = Windows.find(WindowType);
+	if (It == Windows.end())
+	{
+		return {};
+	}
+
+	return It->second;
 }
 
 bool SViewerBase::IsWindowVisibility(EName::Type WindowType) const
@@ -176,6 +189,7 @@ void SViewerBase::AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Wi
 
 	_Window->NativeInitialize(Data);
 	_Window->Initialize(Arg);
+	_Window->SetupHotKeys();
 
 	Windows[WindowType].push_back(_Window);
 }
@@ -195,6 +209,7 @@ void SViewerBase::AppendWindows(const std::map<EName::Type, std::shared_ptr<SWin
 
 		Value->NativeInitialize(Data);
 		Value->Initialize(Arg);
+		Value->SetupHotKeys();
 	}
 }
 
@@ -237,7 +252,7 @@ void SViewerBase::ReleaseUnnecessaryWindows()
 					if (bDestroy)
 					{
 						Window->Destroy();
-						Window->ResetWindow();
+						//Window->ResetWindow();
 					}
 					return bDestroy;
 				}),

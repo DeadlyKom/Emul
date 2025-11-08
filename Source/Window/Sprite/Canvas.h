@@ -6,6 +6,7 @@
 #include <Utils/UI/Draw_ZXColorVideo.h>
 #include "Palette.h"
 #include "ToolBar.h"
+#include "Definition.h"
 
 namespace FCanvasOptionsFlags
 {
@@ -32,6 +33,7 @@ public:
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
 	virtual void Initialize(const std::any& Arg) override;
+	virtual void SetupHotKeys() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void Render() override;
 	virtual void Destroy() override;
@@ -54,6 +56,14 @@ private:
 	void Imput_SetToolMode_Eyedropper()			{ SetToolMode(EToolMode::Eyedropper, true);			}
 	void Imput_SetToolMode_PaintBucket()		{ SetToolMode(EToolMode::PaintBucket, true);		}
 	void ApplyToolMode();
+
+	void Imput_SelectAll() {}
+	void Imput_Copy() {}
+	void Imput_Paste();
+	void Imput_Cut() {}
+	void Imput_Delete() {}
+	void Imput_Undo() {}
+	void Imput_Redo() {}
 
 	void Reset_RectangleMarquee();
 	void Handler_RectangleMarquee();
@@ -102,6 +112,9 @@ private:
 	char CreateSpriteNameBuffer[BUFFER_SIZE_INPUT] = "";
 	char CreateSpriteWidthBuffer[BUFFER_SIZE_INPUT] = "";
 	char CreateSpriteHeightBuffer[BUFFER_SIZE_INPUT] = "";
+
+	// clipboard
+	FRGBAImage ClipboardImage;
 
 	std::shared_ptr<UI::FZXColorView> ZXColorView;
 	UI::FConversationSettings ConversationSettings;

@@ -2,9 +2,14 @@
 
 #include <CoreMinimal.h>
 
+namespace FEventTag
+{
+	static const FName AnyTag = TEXT("Any");
+}
+
 struct IEvent
 {
-	FName Tag;
+	FName Tag = FEventTag::AnyTag;
 	virtual ~IEvent() = default;
 };
 

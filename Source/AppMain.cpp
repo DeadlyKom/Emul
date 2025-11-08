@@ -150,7 +150,6 @@ std::string_view FAppMain::GetDefaultConfig()
     }
 }
 )";
-
 	return DefaultConfig;
 }
 
@@ -184,6 +183,7 @@ void FAppMain::ShowSelectionWindow()
 		ImGui::Checkbox("Don't ask me next time", &bDontAskMeNextTime);
 		ImGui::EndGroup();
 
+		ImGui::BeginDisabled(ItemSelectedIndex == INDEX_NONE);
 		if (ImGui::Button("Ok", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
 			FrameworkCallback.Secection = ItemSelectedIndex;
@@ -198,6 +198,7 @@ void FAppMain::ShowSelectionWindow()
 				Settings.Save(IO::NormalizePath((FAppFramework::GetPath(EPathType::Config) / GetFilename(EFilenameType::Config)).string()));
 			}
 		}
+		ImGui::EndDisabled();
 		ImGui::End();
 	}
 }

@@ -251,6 +251,7 @@
     <ClCompile Include="Window\Debugger\Screen.cpp" />
     <ClCompile Include="Window\Debugger\Viewer.cpp" />
     <ClCompile Include="Window\Sprite\Canvas.cpp" />
+    <ClCompile Include="Window\Sprite\Definition.cpp" />
     <ClCompile Include="Window\Sprite\Events.cpp" />
     <ClCompile Include="Window\Sprite\Palette.cpp" />
     <ClCompile Include="Window\Sprite\SpriteList.cpp" />

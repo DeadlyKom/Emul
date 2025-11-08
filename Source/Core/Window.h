@@ -4,6 +4,7 @@
 #include <codecvt>
 #include <CoreMinimal.h>
 #include "Fonts.h"
+#include "Utils/Hotkey.h"
 
 class SWindow;
 
@@ -85,6 +86,7 @@ public:
 		Data = _Data;
 	}
 	virtual void Initialize(const std::any& Arg) {}
+	virtual void SetupHotKeys() {}
 	virtual void Render() {}
 	virtual void Tick(float DeltaTime) {}
 	virtual void Update() {}
@@ -118,17 +120,6 @@ public:
 	void DestroyWindow() { bPendingKill = true; }
 	bool IsDestroyWindow() const { return bPendingKill; }
 	const FNativeDataInitialize& GetNativeDataInitialize() const { return Data; }
-	void ResetWindow()
-	{
-		bOpen = WindowInitializer.bOpen;
-		bIncludeInWindows = WindowInitializer.bIncludeInWindows;
-		DefaultWidth = WindowInitializer.Width;
-		DefaultHeight = WindowInitializer.Height;
-		Name = WindowInitializer.Name;
-		FontName = WindowInitializer.FontName;
-		bPendingKill = false;
-		TickCounter = 0;
-	}
 	std::string GetDockSlot() const { return DockSlot; }
 	bool NeedDock() const { return bNeedDock; }
 	void ResetDock() { bNeedDock = false; }
@@ -149,4 +140,5 @@ protected:
 	std::wstring Name;
 	std::string DockSlot;
 	EFont::Type FontName;
+	std::vector<FHotKey> Hotkeys;
 };

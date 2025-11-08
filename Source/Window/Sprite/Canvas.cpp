@@ -1,6 +1,5 @@
 #include "Canvas.h"
 #include "Events.h"
-#include "Utils/Hotkey.h"
 #include "SpriteList.h"
 #include <Utils/UI/Draw.h>
 
@@ -179,6 +178,28 @@ void SCanvas::Initialize(const std::any& Arg)
 	}
 }
 
+void SCanvas::SetupHotKeys()
+{
+	auto Self = std::dynamic_pointer_cast<SCanvas>(shared_from_this());
+	Hotkeys =
+	{
+		{ ImGuiKey_Escape,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_None,				Self)	},	// 
+		{ ImGuiKey_M,									ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_RectangleMarquee,	Self)	},	// 
+		{ ImGuiKey_B,									ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_Pencil,				Self)	},	// 
+		{ ImGuiKey_E,									ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_Eraser,				Self)	},	// 
+		{ ImGuiKey_G,									ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_PaintBucket,		Self)	},	// 
+		{ ImGuiKey_I,									ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_Eyedropper,			Self)	},	//
+
+		{ ImGuiMod_Ctrl | ImGuiKey_A,					ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SelectAll,						Self)	},	// (ctrl + A)
+		{ ImGuiMod_Ctrl | ImGuiKey_C,					ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Copy,							Self)	},	// (ctrl + C)
+		{ ImGuiMod_Ctrl | ImGuiKey_V,					ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Paste,							Self)	},	// (ctrl + V)
+		{ ImGuiMod_Ctrl | ImGuiKey_X,					ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Cut,							Self)	},	// (ctrl + X)
+		{ ImGuiKey_Delete,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Delete,							Self)	},	// (delete)
+		{ ImGuiMod_Ctrl | ImGuiKey_Z,					ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Undo,							Self)	},	// (ctrl + Z)
+		{ ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Redo,							Self)	},	// (ctrl + shift + Z)
+	};
+}
+
 void SCanvas::Tick(float DeltaTime)
 {
 	ZXColorView->TimeCounter += DeltaTime;
@@ -196,6 +217,7 @@ void SCanvas::Render()
 	if (!IsOpen())
 	{
 		Close();
+		DestroyWindow();
 		return;
 	}
 
@@ -629,17 +651,6 @@ void SCanvas::Draw_PopupMenu_CreateSprite()
 
 void SCanvas::Input_HotKeys()
 {
-	static std::vector<FHotKey> Hotkeys =
-	{
-		{ ImGuiKey_Escape,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_None,				this)	},	// 
-		{ ImGuiKey_M,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_RectangleMarquee,	this)	},	// 
-		{ ImGuiKey_B,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_Pencil,				this)	},	// 
-		{ ImGuiKey_E,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_Eraser,				this)	},	// 
-		{ ImGuiKey_G,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_PaintBucket,		this)	},	// 
-		{ ImGuiKey_I,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetToolMode_Eyedropper,			this)	},	//
-		//{ ImGuiMod_Alt | ImGuiKey_MouseLeft,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SetMode_Eyedropper, this)			},	// (alt + left mouse button)
-	};
-
 	Shortcut::Handler(Hotkeys);
 
 	ImGuiContext& Context = *ImGui::GetCurrentContext();
@@ -768,6 +779,30 @@ void SCanvas::ApplyToolMode()
 		break;
 	case EToolMode::PaintBucket:
 		break;
+	}
+}
+
+void SCanvas::Imput_Paste()
+{
+	FRGBAImage ClipboardImage;
+	if (Window::ClipboardData(ClipboardImage))
+	{
+		if (ClipboardImage.Width == Width && ClipboardImage.Height == Height)
+		{
+			UI::QuantizeToZX(ClipboardImage.Data.data(), Width, Height, 4, ZXColorView->IndexedData);
+			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
+			ConversionToZX(ConversationSettings);
+			{
+				FEvent_StatusBar Event;
+				Event.Tag = FEventTag::CanvasSizeTag;
+				Event.CanvasSize = ImVec2((float)Width, (float)Height);
+				SendEvent(Event);
+			}
+		}
+		else
+		{
+			// ToDo: ...
+		}
 	}
 }
 
@@ -1047,7 +1082,7 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 			};
 		auto ApplyMask = [&]()
 			{
-				const bool bOperation = ColorIndex == UI::EZXSpectrumColor::Transparent;
+				const bool bOperation = ColorIndex != UI::EZXSpectrumColor::Transparent;
 				if (bOperation)
 				{
 					Mask |= PixelBit;									// set bit

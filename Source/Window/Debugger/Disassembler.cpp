@@ -1146,6 +1146,31 @@ void SDisassembler::Initialize(const std::any& Arg)
 	ImageProgramCounter = FImageBase::LoadImageFromResource(IDB_ARROW_RIGHT, TEXT("PNG")).Handle;
 }
 
+void SDisassembler::SetupHotKeys()
+{
+	auto Self = std::dynamic_pointer_cast<SDisassembler>(shared_from_this());
+	Hotkeys =
+	{
+		{ ImGuiKey_Enter,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Enter,				Self)			},	// debugger: enter
+		{ ImGuiMod_Alt | ImGuiKey_KeypadMultiply,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_ShowNextStatement,	Self)			},	// debugger: show next statement	(alt + Num*)
+		{ ImGuiKey_UpArrow,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_UpArrow,			Self)			},	// debugger: up arrow
+		{ ImGuiKey_DownArrow,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_DownArrow,			Self)			},	// debugger: down arrow
+		{ ImGuiMod_Ctrl | ImGuiKey_UpArrow,			ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlUpArrow,		Self)			},	// debugger: edit up				(ctrl + up arrow)
+		{ ImGuiMod_Ctrl | ImGuiKey_DownArrow,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlDownArrow,		Self)			},	// debugger: edit down				(ctrl + down arrow)
+		{ ImGuiMod_Ctrl | ImGuiKey_LeftArrow,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlLeftArrow,		Self)			},	// debugger: edit left				(ctrl + left arrow)
+		{ ImGuiMod_Ctrl | ImGuiKey_RightArrow,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlRightArrow,		Self)			},	// debugger: edit right				(ctrl + right arrow)
+		{ ImGuiKey_PageUp,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageUp,				Self)			},	// debugger: page up
+		{ ImGuiKey_PageDown,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageDown,			Self)			},	// debugger: page down
+
+		{ ImGuiMod_Ctrl | ImGuiKey_G,				ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_GoToAddress,		Self)			},	// debugger: go to address
+
+		{ ImGuiKey_F5,								ImGuiInputFlags_Repeat, std::bind(&ThisClass::Input_Step, Self, FCPU_StepType::StepTo)	},	// debugger: step into				(f4)
+		{ ImGuiKey_F7,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, Self, FCPU_StepType::StepInto)},	// debugger: step into				(f7)
+		{ ImGuiKey_F8,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, Self, FCPU_StepType::StepOver)},	// debugger: step over				(f8)
+		{ ImGuiKey_F11,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, Self, FCPU_StepType::StepOut)	},	// debugger: step out				(f11)
+	};
+}
+
 void SDisassembler::Tick(float DeltaTime)
 {
 	Status = GetMotherboard().GetState<EThreadStatus>(NAME_MainBoard, NAME_None);
@@ -2062,27 +2087,6 @@ void SDisassembler::Next_EditColumn()
 
 void SDisassembler::Input_HotKeys()
 {
-	static std::vector<FHotKey> Hotkeys =
-	{
-		{ ImGuiKey_Enter,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Enter, this)						},	// debugger: enter
-		{ ImGuiMod_Alt | ImGuiKey_KeypadMultiply,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_ShowNextStatement, this)			},	// debugger: show next statement	(alt + Num*)
-		{ ImGuiKey_UpArrow,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_UpArrow, this)						},	// debugger: up arrow
-		{ ImGuiKey_DownArrow,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_DownArrow, this)					},	// debugger: down arrow
-		{ ImGuiMod_Ctrl | ImGuiKey_UpArrow,			ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlUpArrow, this)					},	// debugger: edit up				(ctrl + up arrow)
-		{ ImGuiMod_Ctrl | ImGuiKey_DownArrow,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlDownArrow, this)				},	// debugger: edit down				(ctrl + down arrow)
-		{ ImGuiMod_Ctrl | ImGuiKey_LeftArrow,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlLeftArrow, this)				},	// debugger: edit left				(ctrl + left arrow)
-		{ ImGuiMod_Ctrl | ImGuiKey_RightArrow,		ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_CtrlRightArrow, this)				},	// debugger: edit right				(ctrl + right arrow)
-		{ ImGuiKey_PageUp,							ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageUp, this)						},	// debugger: page up
-		{ ImGuiKey_PageDown,						ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_PageDown, this)						},	// debugger: page down
-
-		{ ImGuiMod_Ctrl | ImGuiKey_G,				ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_GoToAddress, this)					},	// debugger: go to address
-
-		{ ImGuiKey_F5,								ImGuiInputFlags_Repeat, std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepTo)	},	// debugger: step into				(f4)
-		{ ImGuiKey_F7,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepInto)},	// debugger: step into				(f7)
-		{ ImGuiKey_F8,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepOver)},	// debugger: step over				(f8)
-		{ ImGuiKey_F11,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Input_Step, this, FCPU_StepType::StepOut)	},	// debugger: step out				(f11)
-	};
-
 	Shortcut::Handler(Hotkeys);
 }
 
