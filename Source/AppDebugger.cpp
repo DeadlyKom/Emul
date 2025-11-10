@@ -190,34 +190,34 @@ void FAppDebugger::LoadIniSettings()
 {
 	const char* DefaultIni = R"(
 [Window][Screen]
-Pos=397,221
-Size=611,419
+Pos=396,220
+Size=612,420
 Collapsed=0
-DockId=0x00000005,0
+DockId=0x00000009,0
 
 [Window][CPU State]
 Pos=0,18
-Size=395,112
-Collapsed=0
-DockId=0x00000007,0
-
-[Window][Call stack]
-Pos=397,642
-Size=611,87
+Size=394,108
 Collapsed=0
 DockId=0x00000006,0
 
-[Window][Memory dump]
-Pos=397,18
-Size=611,201
+[Window][Call stack]
+Pos=396,642
+Size=612,87
 Collapsed=0
-DockId=0x00000003,1
+DockId=0x00000005,0
 
-[Window][Disassembler]
-Pos=0,132
-Size=395,597
+[Window][Memory dump]
+Pos=396,18
+Size=612,200
 Collapsed=0
 DockId=0x00000008,0
+
+[Window][Disassembler]
+Pos=0,128
+Size=394,601
+Collapsed=0
+DockId=0x00000007,0
 
 [Window][Signal]
 ViewportPos=153,176
@@ -226,10 +226,10 @@ Size=1631,522
 Collapsed=0
 
 [Window][Oscillograph]
-Pos=397,18
-Size=611,201
+Pos=396,18
+Size=612,200
 Collapsed=0
-DockId=0x00000003,0
+DockId=0x00000008,1
 
 [Window][WindowOverViewport_11111111]
 Pos=0,18
@@ -241,17 +241,20 @@ Pos=60,60
 Size=400,400
 Collapsed=0
 
-[Docking][Data]
-DockSpace       ID=0x7C6B3D9B Window=0xA87D555D Pos=456,205 Size=1008,711 Split=X
-  DockNode      ID=0x00000001 Parent=0x7C6B3D9B SizeRef=395,711 Split=Y Selected=0x64548C85
-    DockNode    ID=0x00000007 Parent=0x00000001 SizeRef=501,112 HiddenTabBar=1 Selected=0x521B597B
-    DockNode    ID=0x00000008 Parent=0x00000001 SizeRef=501,597 HiddenTabBar=1 Selected=0x64548C85
-  DockNode      ID=0x00000002 Parent=0x7C6B3D9B SizeRef=611,711 Split=Y
-    DockNode    ID=0x00000003 Parent=0x00000002 SizeRef=505,201 Selected=0x84FABE57
-    DockNode    ID=0x00000004 Parent=0x00000002 SizeRef=505,508 Split=Y
-      DockNode  ID=0x00000005 Parent=0x00000004 SizeRef=505,419 CentralNode=1 HiddenTabBar=1 Selected=0x60967B14
-      DockNode  ID=0x00000006 Parent=0x00000004 SizeRef=505,87 HiddenTabBar=1 Selected=0x03384A57
+[Table][0x80BE1A22,4]
+RefScale=16
 
+[Docking][Data]
+DockSpace       ID=0x08BD597D Window=0x1BBC0F80 Pos=456,205 Size=1008,711 Split=X Selected=0x908599C5
+  DockNode      ID=0x00000002 Parent=0x08BD597D SizeRef=394,711 Split=Y Selected=0x01F08017
+    DockNode    ID=0x00000006 Parent=0x00000002 SizeRef=394,108 HiddenTabBar=1 Selected=0x908599C5
+    DockNode    ID=0x00000007 Parent=0x00000002 SizeRef=394,601 HiddenTabBar=1 Selected=0x01F08017
+  DockNode      ID=0x00000003 Parent=0x08BD597D SizeRef=612,711 Split=Y Selected=0xDD2D1825
+    DockNode    ID=0x00000004 Parent=0x00000003 SizeRef=612,622 Split=Y Selected=0xDD2D1825
+      DockNode  ID=0x00000008 Parent=0x00000004 SizeRef=612,200 Selected=0x44A101D0
+      DockNode  ID=0x00000009 Parent=0x00000004 SizeRef=612,420 CentralNode=1 HiddenTabBar=1 Selected=0xDD2D1825
+    DockNode    ID=0x00000005 Parent=0x00000003 SizeRef=612,87 HiddenTabBar=1 Selected=0xC80A1695
+DockSpace       ID=0x7C6B3D9B Pos=456,205 Size=1008,711 CentralNode=1 HiddenTabBar=1
 )";
 	ImGui::LoadIniSettingsFromMemory(DefaultIni);
 }

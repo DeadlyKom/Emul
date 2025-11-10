@@ -664,11 +664,11 @@ void SCanvas::Input_HotKeys()
 		return;
 	}
 
-	if (ImGui::IsKeyPressed(ImGuiKey_ModAlt) && !IsEqualToolMode(EToolMode::Eyedropper))
+	if (ImGui::IsKeyPressed(ImGuiMod_Alt) && !IsEqualToolMode(EToolMode::Eyedropper))
 	{
 		SetToolMode(EToolMode::Eyedropper, false);
 	}
-	else if (ImGui::IsKeyReleased(ImGuiKey_ModAlt)/* && !IsEqualToolMode(EToolMode::None, 1)*/)
+	else if (ImGui::IsKeyReleased(ImGuiMod_Alt)/* && !IsEqualToolMode(EToolMode::None, 1)*/)
 	{
 		SetToolMode(ToolMode[1], false);
 	}

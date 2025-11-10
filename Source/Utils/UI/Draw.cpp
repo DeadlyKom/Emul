@@ -60,12 +60,12 @@ void UI::DrawProperty(const char* PropertyName, const char* Value, const char* T
 int32_t UI::GetVisibleLines(EFont::Type FontName, float CutHeight /*= 0.0f*/)
 {
 	ImFont* FoundFont = FFonts::Get().GetFont(FontName);
-	if (FoundFont == nullptr)
+	if (FoundFont == nullptr || FoundFont->Sources.empty())
 	{
 		return INDEX_NONE;
 	}
 	const ImVec2 AvailableSpace = ImGui::GetContentRegionAvail();
-	const float Number = ((AvailableSpace.y - CutHeight) / FoundFont->ConfigData->SizePixels) * (1.0f / FoundFont->Scale);
+	const float Number = ((AvailableSpace.y - CutHeight) / FoundFont->Sources.front()->SizePixels) * (1.0f / FoundFont->Scale);
 	return int32_t(Number) + (std::fmod(Number, 1.0f) == 0.0f ? -1 : 0);
 }
 

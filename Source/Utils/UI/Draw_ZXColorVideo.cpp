@@ -366,7 +366,7 @@ void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)
 
 	// keep track of size of area that we draw for borders later
 	ZXColorView->PanelTopLeftPixel = ImGui::GetCursorScreenPos();
-	ImGui::SetCursorPos(ImGui::GetCursorPos() + CalculatePanelSize(*ZXColorView));
+	ImGui::Dummy(CalculatePanelSize(*ZXColorView));
 	ZXColorView->ViewTopLeftPixel = ImGui::GetCursorScreenPos();
 	const ImRect Rect(Window->DC.CursorPos, Window->DC.CursorPos + ZXColorView->ViewSize);
 
