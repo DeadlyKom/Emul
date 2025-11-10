@@ -1,5 +1,5 @@
 #include "StatusBar.h"
-#include "Events.h"
+#include <Window/Sprite/Events.h>
 
 namespace
 {

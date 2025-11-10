@@ -80,8 +80,8 @@ static LONG_PTR CALLBACK AppFrameworkProc(HWND hWnd, UINT msg, WPARAM wParam, LP
 	{
 		std::vector<std::wstring> Extensions = AppFramework->DragAndDropExtensions();
 		HDROP hDrop = (HDROP)wParam;
-		UINT fileCount = DragQueryFile(hDrop, 0xFFFFFFFF, NULL, 0);
-		for (UINT i = 0; i < fileCount; ++i)
+		UINT FileCount = DragQueryFile(hDrop, 0xFFFFFFFF, NULL, 0);
+		for (UINT i = 0; i < FileCount; ++i)
 		{
 			wchar_t FilePath[MAX_PATH];
 			DragQueryFileW(hDrop, i, FilePath, MAX_PATH);

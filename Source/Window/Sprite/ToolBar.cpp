@@ -1,5 +1,5 @@
 #include "ToolBar.h"
-#include "Events.h"
+#include <Window/Sprite/Events.h>
 #include "resource.h"
 
 namespace

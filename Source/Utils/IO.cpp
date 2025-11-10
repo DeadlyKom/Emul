@@ -53,6 +53,38 @@ std::error_code IO::SaveBinaryData(const std::vector<uint8_t>& Data, const std::
     return std::error_code{};
 }
 
+std::error_code IO::LoadBinaryData(std::vector<uint8_t>& OutputData, const std::filesystem::path& FilePath)
+{
+    std::error_code ec;
+
+    if (!std::filesystem::exists(FilePath, ec))
+    {
+        return make_error_code(std::errc::no_such_file_or_directory);
+    }
+
+    std::ifstream File(FilePath, std::ios::binary | std::ios::ate);
+    if (!File.is_open())
+    {
+        return make_error_code(std::errc::io_error);
+    }
+
+    std::streamsize FileSize = File.tellg();
+    if (FileSize <= 0)
+    {
+        return make_error_code(std::errc::invalid_argument);
+    }
+
+    File.seekg(0, std::ios::beg);
+
+    OutputData.resize(static_cast<size_t>(FileSize));
+    if (!File.read(reinterpret_cast<char*>(OutputData.data()), FileSize))
+    {
+        return make_error_code(std::errc::io_error);
+    }
+
+    return std::error_code{};
+}
+
 std::filesystem::path IO::NormalizePath(const std::filesystem::path& InOut)
 {
     std::string PathString = InOut.string();

@@ -1,5 +1,5 @@
 #include "SpriteMetadata.h"
-#include "Events.h"
+#include <Window/Sprite/Events.h>
 #include "SpriteList.h"
 
 #include <Utils/Array.h>

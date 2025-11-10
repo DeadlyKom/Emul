@@ -72,3 +72,8 @@ struct FEvent_SelectedSprite : public IEvent
 {
 	std::vector<std::shared_ptr<FSprite>> Sprites;
 };
+
+struct FEvent_ImportJSON : public IEvent
+{
+	std::filesystem::path FilePath;
+};

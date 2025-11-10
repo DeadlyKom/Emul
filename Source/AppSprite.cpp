@@ -180,15 +180,14 @@ bool FAppSprite::IsOver()
 
 void FAppSprite::DragAndDropFile(const std::filesystem::path& FilePath)
 {
-	FNativeDataInitialize Data
+	if (FilePath.extension() == L".json")
 	{
-		.Device = Device,
-		.DeviceContext = DeviceContext
-	};
-
-	std::wstring Filename = FilePath.filename().wstring();
-	std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, FilePath);
-	Viewer->AddWindow(EName::Canvas, NewCanvas, Data, FilePath);
+		Import_JSON(FilePath);
+	}
+	else if (FilePath.extension() == L".png")
+	{
+		Import_PNG(FilePath);
+	}
 }
 
 void FAppSprite::Show_MenuBar()
@@ -474,6 +473,53 @@ bool FAppSprite::ShowModal_WindowNewCanvas()
 	}
 	return bVisible;
 
+}
+
+void FAppSprite::Import_PNG(const std::filesystem::path& FilePath)
+{
+	if (Viewer->GetWindows(NAME_Canvas).empty())
+	{
+		FNativeDataInitialize Data
+		{
+			.Device = Device,
+			.DeviceContext = DeviceContext
+		};
+
+		std::wstring Filename = FilePath.filename().wstring();
+		std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, FilePath);
+		Viewer->AddWindow(EName::Canvas, NewCanvas, Data, FilePath);
+	}
+	else
+	{
+		Viewer->SetWindowVisibility(NAME_Canvas);
+	}
+}
+
+void FAppSprite::Import_JSON(const std::filesystem::path& FilePath)
+{
+	if (Viewer->GetWindows(NAME_SpriteList).empty())
+	{
+		FNativeDataInitialize Data
+		{
+			.Device = Device,
+			.DeviceContext = DeviceContext
+		};
+		Viewer->AddWindow(NAME_SpriteList, std::make_shared<SSpriteMetadata>(NAME_DOS_12, "##Layout_SpriteList"), Data, {});
+	}
+	else
+	{
+		Viewer->SetWindowVisibility(NAME_SpriteList);
+	}
+
+	std::vector<std::shared_ptr<SWindow>> SpriteListWindows = Viewer->GetWindows(NAME_SpriteList);
+	if (!SpriteListWindows.empty())
+	{
+		FEvent_ImportJSON Event;
+		{
+			Event.FilePath = FilePath;
+		}
+		Viewer->GetEventSystem().Publish(Event);
+	}
 }
 
 void FAppSprite::Callback_OpenFile(std::filesystem::path FilePath)

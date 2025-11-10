@@ -1,7 +1,7 @@
 #include "Canvas.h"
-#include "Events.h"
 #include "SpriteList.h"
 #include <Utils/UI/Draw.h>
+#include <Window/Sprite/Events.h>
 
 namespace
 {

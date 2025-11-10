@@ -89,6 +89,38 @@ inline void to_json(nlohmann::ordered_json& j, const FSpriteProperty& p)
 		}, p.Variant);
 }
 
+inline void from_json(const nlohmann::ordered_json& j, FSpriteProperty& p)
+{
+	if (!j.contains("Type") || !j.contains("Value"))
+	{
+		throw std::runtime_error("FSpriteProperty JSON missing 'Type' or 'Value'");
+	}
+
+	p.Name = j["Type"].get<std::string>();
+
+	const auto& Value = j["Value"];
+	if (Value.is_boolean())
+	{
+		p.Variant = Value.get<bool>();
+	}
+	else if (Value.is_number_integer())
+	{
+		p.Variant = Value.get<int>();
+	}
+	else if (Value.is_number_float())
+	{
+		p.Variant = Value.get<float>();
+	}
+	else if (Value.is_string())
+	{
+		p.Variant = Value.get<std::string>();
+	}
+	else
+	{
+		throw std::runtime_error("FSpriteProperty::Variant JSON has unsupported type");
+	}
+}
+
 struct FSpriteMetaRegion
 {
 	ImRect Rect;
@@ -110,6 +142,22 @@ inline void to_json(nlohmann::ordered_json& j, const FSpriteMetaRegion& region)
 		}},
 		{"Metadata", region.Properties}
 	};
+}
+
+inline void from_json(const nlohmann::ordered_json& j, FSpriteMetaRegion& region)
+{
+	if (j.contains("RegionRect") && j["RegionRect"].is_array() && j["RegionRect"].size() == 4)
+	{
+		region.Rect.Min.x = j["RegionRect"][0].get<float>();
+		region.Rect.Min.y = j["RegionRect"][1].get<float>();
+		region.Rect.Max.x = j["RegionRect"][2].get<float>();
+		region.Rect.Max.y = j["RegionRect"][3].get<float>();
+	}
+
+	if (j.contains("Metadata"))
+	{
+		region.Properties = j["Metadata"].get<decltype(region.Properties)>();
+	}
 }
 
 struct FSprite
@@ -163,9 +211,11 @@ private:
 		const std::vector<uint8_t>& AttributeData,
 		const std::vector<uint8_t>& MaskData);
 
+	bool ImportSprites(const std::filesystem::path& FilePath, std::vector<std::shared_ptr<FSprite>>& OutputSprites);
 	void ExportSprites(const std::filesystem::path& ScriptFilePath, const std::filesystem::path& ExportPath, const std::vector<std::shared_ptr<FSprite>>& SelectedSprites);
 
 	void SendSelectedSprite() const;
+	void ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>& ReadSprites);
 
 	bool bNeedKeptOpened_ExportPopup;
 	uint32_t ScaleVisible;

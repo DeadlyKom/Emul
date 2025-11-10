@@ -1,7 +1,7 @@
 #include "Palette.h"
 #include <Utils/UI/Draw.h>
 #include <Utils/UI/Draw_ZXColorVideo.h>
-#include "Events.h"
+#include <Window/Sprite/Events.h>
 #include "Canvas.h"
 
 namespace

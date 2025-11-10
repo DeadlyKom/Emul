@@ -39,7 +39,8 @@ public:
 
 	void Publish(const IEvent& Event)
 	{
-		for (FSubscriber& S : Subscribers)
+		const std::vector<FSubscriber> _Subscribers = Subscribers;
+		for (const FSubscriber& S : _Subscribers)
 		{
 			if (Event.Tag || S.Tag == Event.Tag)
 			{

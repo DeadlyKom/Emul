@@ -835,6 +835,11 @@ void UI::ZXAttributeColorToImage(
 	const int32_t Size = Width * Height;
 	std::vector<uint32_t> RGBA(Size);
 
+	if (OutputIndexedData != nullptr)
+	{
+		OutputIndexedData->resize(Size);
+	}
+
 	const int32_t Boundary_X = Width >> 3;
 	const int32_t Boundary_Y = Height >> 3;
 

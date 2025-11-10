@@ -21,7 +21,7 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void Render() override;
 	virtual bool IsOver() override;
-	virtual std::vector<std::wstring> DragAndDropExtensions() const override { return { L".png" }; }
+	virtual std::vector<std::wstring> DragAndDropExtensions() const override { return { L".png", L".json" }; }
 	virtual void DragAndDropFile(const std::filesystem::path& FilePath) override;
 	virtual void LoadSettings() override;
 
@@ -32,6 +32,8 @@ private:
 	bool ShowModal_WindowNewCanvas();
 
 	void Quit() { bOpen = false; }
+	void Import_PNG(const std::filesystem::path& FilePath);
+	void Import_JSON(const std::filesystem::path& FilePath);
 	void Callback_OpenFile(std::filesystem::path FilePath);
 
 	bool bOpen;

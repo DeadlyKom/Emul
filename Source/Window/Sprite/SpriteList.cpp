@@ -11,7 +11,7 @@
 #include "stb/stb_image_write.h"
 
 #include "resource.h"
-#include "Events.h"
+#include <Window/Sprite/Events.h>
 #include "Canvas.h"
 
 namespace
@@ -65,6 +65,15 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 					Event.InkData,
 					Event.AttributeData,
 					Event.MaskData);
+			}
+		});
+	SubscribeEvent<FEvent_ImportJSON>(
+		[this](const FEvent_ImportJSON& Event)
+		{
+			std::vector<std::shared_ptr<FSprite>> ReadSprites;
+			if (ImportSprites(Event.FilePath, ReadSprites))
+			{
+				ApplyImportSprites(ReadSprites);
 			}
 		});
 }
@@ -484,6 +493,96 @@ void SSpriteList::AddSprite(
 	Sprites.push_back(NewSprite);
 }
 
+bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vector<std::shared_ptr<FSprite>>& OutputSprites)
+{
+	nlohmann::ordered_json Json;
+	std::ifstream JsonFile(FilePath, std::ios::binary);
+	if (!JsonFile.is_open())
+	{
+		return false;
+	}
+
+	try
+	{
+		JsonFile >> Json;
+		JsonFile.close();
+	}
+	catch (const nlohmann::json::parse_error& e)
+	{
+		LOG("JSON parsing error: {}", e.what());
+		return false;
+	}
+	
+	auto FromUtf8 = [](const std::string& str) -> std::wstring
+		{
+			std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> conv;
+			return conv.from_bytes(str);
+		};
+
+	OutputSprites.clear();
+	for (const auto& SpriteJson : Json)
+	{
+		std::shared_ptr<FSprite> NewSprite = std::make_shared<FSprite>();
+		NewSprite->bSelected = false;
+		NewSprite->HoverStartTime = -1.0;;
+
+		NewSprite->ZXColorView = std::make_shared<UI::FZXColorView>();
+		NewSprite->ZXColorView->Scale = ImVec2(1.0f, 1.0f);
+		NewSprite->ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
+		NewSprite->ZXColorView->Device = Data.Device;
+		NewSprite->ZXColorView->DeviceContext = Data.DeviceContext;
+		Draw_ZXColorView_Initialize(NewSprite->ZXColorView, UI::ERenderType::Sprite);
+
+		// main parameters
+		NewSprite->Name = SpriteJson.value("SprName", "");
+		NewSprite->Width = SpriteJson.value("SprWidth", 0);
+		NewSprite->Height = SpriteJson.value("SprHeight", 0);
+		NewSprite->SpritePositionToImageX = SpriteJson.value("PoxImgX", 0);
+		NewSprite->SpritePositionToImageY = SpriteJson.value("PoxImgY", 0);
+		NewSprite->SourcePathFile = FromUtf8(SpriteJson.value("FileImg", ""));
+
+		// data files
+		std::filesystem::path InkDataFile = FromUtf8(SpriteJson.value("InkData", ""));
+		std::filesystem::path AttributeDataFile = FromUtf8(SpriteJson.value("AttributeData", ""));
+		std::filesystem::path MaskDataFile = FromUtf8(SpriteJson.value("MaskData", ""));
+
+		// reading binary data
+		if (std::filesystem::exists(InkDataFile))
+		{
+			IO::LoadBinaryData(NewSprite->ZXColorView->InkData, InkDataFile);
+		}
+		if (std::filesystem::exists(AttributeDataFile))
+		{
+			IO::LoadBinaryData(NewSprite->ZXColorView->AttributeData, AttributeDataFile);
+		}
+		if (std::filesystem::exists(MaskDataFile))
+		{
+			IO::LoadBinaryData(NewSprite->ZXColorView->MaskData, MaskDataFile);
+			for (uint8_t& Mask : NewSprite->ZXColorView->MaskData)
+			{
+				Mask = ~Mask;
+			}
+		}
+
+		// additional data
+		if (SpriteJson.contains("Regions"))
+		{
+			NewSprite->Regions = SpriteJson["Regions"];
+		}
+		UI::ZXAttributeColorToImage(
+			NewSprite->ZXColorView->Image,
+			NewSprite->Width, NewSprite->Height,
+			NewSprite->ZXColorView->InkData.data(),
+			NewSprite->ZXColorView->AttributeData.data(),
+			NewSprite->ZXColorView->MaskData.data(),
+			true,
+			&NewSprite->ZXColorView->IndexedData);
+		OutputSprites.push_back(NewSprite);
+	}
+
+	return true;
+}
+
 void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, const std::filesystem::path& ExportPath, const std::vector<std::shared_ptr<FSprite>>& SelectedSprites)
 {
 	std::error_code ec;
@@ -621,5 +720,30 @@ void SSpriteList::SendSelectedSprite() const
 			Event.Sprites.push_back(Sprites[IndexSelectedSprite]);
 		}
 		SendEvent(Event);
+	}
+}
+
+void SSpriteList::ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>& ReadSprites)
+{
+	Sprites = ReadSprites;
+	for (std::shared_ptr<FSprite> Sprite : Sprites)
+	{
+		std::shared_ptr<SViewerBase> Viewer = GetParent();
+		if (Viewer->GetWindows(NAME_Canvas).empty())
+		{
+			FNativeDataInitialize _Data
+			{
+				.Device = Data.Device,
+				.DeviceContext = Data.DeviceContext
+			};
+
+			std::wstring Filename = Sprite->SourcePathFile.filename().wstring();
+			std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, Sprite->SourcePathFile);
+			Viewer->AddWindow(EName::Canvas, NewCanvas, _Data, Sprite->SourcePathFile);
+		}
+		else
+		{
+			Viewer->SetWindowVisibility(NAME_Canvas);
+		}
 	}
 }
