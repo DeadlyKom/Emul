@@ -22,7 +22,7 @@ std::filesystem::path IO::GetUniquePath(const std::filesystem::path& Path, std::
     return NewPath;
 }
 
-std::error_code IO::SaveBinaryData(const std::vector<uint8_t>& Data, const std::filesystem::path& FilePath)
+std::error_code IO::SaveBinaryData(const std::vector<uint8_t>& Data, const std::filesystem::path& FilePath, bool bUniqueFilename /*= true*/)
 {
     std::error_code ec;
     if (!std::filesystem::exists(FilePath.parent_path(), ec))
@@ -33,7 +33,7 @@ std::error_code IO::SaveBinaryData(const std::vector<uint8_t>& Data, const std::
         }
     }
 
-    const std::filesystem::path UniqueFilePath = GetUniquePath(FilePath, ec);
+    const std::filesystem::path UniqueFilePath = bUniqueFilename ? GetUniquePath(FilePath, ec) : FilePath;
     if (ec)
     {
         return ec;

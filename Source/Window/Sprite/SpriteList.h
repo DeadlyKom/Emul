@@ -225,6 +225,7 @@ private:
 	std::vector<std::shared_ptr<FSprite>> Sprites;
 
 	// popup menu 'Export'
+	bool bUniqueExportFilename;
 	int32_t IndexSelectedScript;
 	std::vector<std::string> ScriptFileNames;
 	std::map<std::string, std::string> ScriptFiles;

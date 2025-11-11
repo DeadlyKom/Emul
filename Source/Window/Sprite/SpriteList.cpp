@@ -42,6 +42,7 @@ SSpriteList::SSpriteList(EFont::Type _FontName, std::string _DockSlot /*= ""*/)
 		.SetIncludeInWindows(true))
 	, bNeedKeptOpened_ExportPopup(false)
 	, ScaleVisible(2)
+	, bUniqueExportFilename(false)
 	, IndexSelectedSprite(INDEX_NONE)
 	, IndexSelectedScript(INDEX_NONE)
 {}
@@ -311,6 +312,7 @@ void SSpriteList::Draw_ExportSprites()
 		ImGui::EndCombo();
 	}
 	ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));
+	ImGui::Checkbox("use a unique file name ##UniqueFilename", &bUniqueExportFilename);
 	ImGui::BeginDisabled(IndexSelectedScript == INDEX_NONE);
 	if (ImGui::ButtonEx("OK", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 	{
@@ -614,7 +616,7 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 		if (Sprite->ZXColorView->IndexedData.size() > 0)
 		{
 			IndexedDataFilePath = IO::NormalizePath(ExportPath / std::format("IndexedData_{}.png", Sprite->Name));
-			const std::filesystem::path UniqueIndexedDataFilePath = IO::GetUniquePath(IndexedDataFilePath, ec);
+			const std::filesystem::path UniqueIndexedDataFilePath = bUniqueExportFilename ? IO::GetUniquePath(IndexedDataFilePath, ec) : IndexedDataFilePath;
 			if (ec)
 			{
 				return;
@@ -652,21 +654,21 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 		if (Sprite->ZXColorView->InkData.size() > 0)
 		{
 			InkDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("InkData_{}.bin", Sprite->Name)));
-			IO::SaveBinaryData(Sprite->ZXColorView->InkData, InkDataFilePath);
+			IO::SaveBinaryData(Sprite->ZXColorView->InkData, InkDataFilePath, bUniqueExportFilename);
 		}
 
 		std::filesystem::path AttributeDataFilePath;
 		if (Sprite->ZXColorView->AttributeData.size() > 0)
 		{
 			AttributeDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("AttributeData_{}.bin", Sprite->Name)));
-			IO::SaveBinaryData(Sprite->ZXColorView->AttributeData, AttributeDataFilePath);
+			IO::SaveBinaryData(Sprite->ZXColorView->AttributeData, AttributeDataFilePath, bUniqueExportFilename);
 		}
 
 		std::filesystem::path MaskDataFilePath;
 		if (Sprite->ZXColorView->MaskData.size() > 0)
 		{
 			MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("MaskData_{}.bin", Sprite->Name)));
-			IO::SaveBinaryData(Sprite->ZXColorView->MaskData, MaskDataFilePath);
+			IO::SaveBinaryData(Sprite->ZXColorView->MaskData, MaskDataFilePath, bUniqueExportFilename);
 		}
 
 		nlohmann::ordered_json SpriteJson =
@@ -688,7 +690,7 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 	}
 
 	std::filesystem::path JsonFilePath = IO::NormalizePath(ExportPath / "Export.json");
-	const std::filesystem::path UniqueJsonFilePath = IO::GetUniquePath(JsonFilePath, ec);
+	const std::filesystem::path UniqueJsonFilePath = bUniqueExportFilename ? IO::GetUniquePath(JsonFilePath, ec) : JsonFilePath;
 	if (ec)
 	{
 		return;
