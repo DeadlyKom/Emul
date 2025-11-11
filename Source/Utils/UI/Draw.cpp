@@ -152,15 +152,17 @@ bool UI::Button(const char* Label, bool bIsPressed, const ImVec2& SizeArg, bool 
 
 bool UI::ColorButton(const char* LabelID, uint8_t& OutputPressedButton, const ImVec4& Color, ImGuiColorEditFlags ColorFlags, ImGuiButtonFlags ButtonFlags, const ImVec2& SizeArg)
 {
-	ImGuiWindow* window = ImGui::GetCurrentWindow();
-	if (window->SkipItems)
+	ImGuiWindow* Window = ImGui::GetCurrentWindow();
+	if (Window->SkipItems)
+	{
 		return false;
+	}
 
 	ImGuiContext& g = *GImGui;
-	const ImGuiID id = window->GetID(LabelID);
+	const ImGuiID id = Window->GetID(LabelID);
 	const float default_size = ImGui::GetFrameHeight();
 	const ImVec2 size(SizeArg.x == 0.0f ? default_size : SizeArg.x, SizeArg.y == 0.0f ? default_size : SizeArg.y);
-	const ImRect bb(window->DC.CursorPos, window->DC.CursorPos + size);
+	const ImRect bb(Window->DC.CursorPos, Window->DC.CursorPos + size);
 	ImGui::ItemSize(bb, (size.y >= default_size) ? g.Style.FramePadding.y : 0.0f);
 	if (!ImGui::ItemAdd(bb, id))
 	{
@@ -191,17 +193,24 @@ bool UI::ColorButton(const char* LabelID, uint8_t& OutputPressedButton, const Im
 	if ((ColorFlags & ImGuiColorEditFlags_AlphaPreviewHalf) && col_rgb.w < 1.0f)
 	{
 		float mid_x = IM_ROUND((bb_inner.Min.x + bb_inner.Max.x) * 0.5f);
-		ImGui::RenderColorRectWithAlphaCheckerboard(window->DrawList, ImVec2(bb_inner.Min.x + grid_step, bb_inner.Min.y), bb_inner.Max, ImGui::GetColorU32(col_rgb), grid_step, ImVec2(-grid_step + off, off), rounding, ImDrawFlags_RoundCornersRight);
-		window->DrawList->AddRectFilled(bb_inner.Min, ImVec2(mid_x, bb_inner.Max.y), ImGui::GetColorU32(col_rgb_without_alpha), rounding, ImDrawFlags_RoundCornersLeft);
+		if ((ColorFlags & ImGuiColorEditFlags_AlphaNoBg) == 0)
+		{
+			ImGui::RenderColorRectWithAlphaCheckerboard(Window->DrawList, ImVec2(bb_inner.Min.x + grid_step, bb_inner.Min.y), bb_inner.Max, ImGui::GetColorU32(col_rgb), grid_step, ImVec2(-grid_step + off, off), rounding, ImDrawFlags_RoundCornersRight);
+		}
+		else
+		{
+			Window->DrawList->AddRectFilled(ImVec2(bb_inner.Min.x + grid_step, bb_inner.Min.y), bb_inner.Max, ImGui::GetColorU32(col_rgb), rounding, ImDrawFlags_RoundCornersRight);
+		}
+		Window->DrawList->AddRectFilled(bb_inner.Min, ImVec2(mid_x, bb_inner.Max.y), ImGui::GetColorU32(col_rgb_without_alpha), rounding, ImDrawFlags_RoundCornersLeft);
 	}
 	else
 	{
 		// Because GetColorU32() multiplies by the global style Alpha and we don't want to display a checkerboard if the source code had no alpha
-		ImVec4 col_source = (ColorFlags & ImGuiColorEditFlags_AlphaPreview) ? col_rgb : col_rgb_without_alpha;
-		if (col_source.w < 1.0f)
-			ImGui::RenderColorRectWithAlphaCheckerboard(window->DrawList, bb_inner.Min, bb_inner.Max, ImGui::GetColorU32(col_source), grid_step, ImVec2(off, off), rounding);
+		ImVec4 col_source = (ColorFlags & ImGuiColorEditFlags_AlphaOpaque) ? col_rgb_without_alpha : col_rgb;
+		if (col_source.w < 1.0f && (ColorFlags & ImGuiColorEditFlags_AlphaNoBg) == 0)
+			ImGui::RenderColorRectWithAlphaCheckerboard(Window->DrawList, bb_inner.Min, bb_inner.Max, ImGui::GetColorU32(col_source), grid_step, ImVec2(off, off), rounding);
 		else
-			window->DrawList->AddRectFilled(bb_inner.Min, bb_inner.Max, ImGui::GetColorU32(col_source), rounding);
+			Window->DrawList->AddRectFilled(bb_inner.Min, bb_inner.Max, ImGui::GetColorU32(col_source), rounding);
 	}
 	ImGui::RenderNavHighlight(bb, id);
 	if ((ColorFlags & ImGuiColorEditFlags_NoBorder) == 0)
@@ -209,7 +218,7 @@ bool UI::ColorButton(const char* LabelID, uint8_t& OutputPressedButton, const Im
 		if (g.Style.FrameBorderSize > 0.0f)
 			ImGui::RenderFrameBorder(bb.Min, bb.Max, rounding);
 		else
-			window->DrawList->AddRect(bb.Min, bb.Max, ImGui::GetColorU32(ImGuiCol_FrameBg), rounding); // Color button are often in need of some sort of border
+			Window->DrawList->AddRect(bb.Min, bb.Max, ImGui::GetColorU32(ImGuiCol_FrameBg), rounding); // Color button are often in need of some sort of border
 	}
 
 	// Drag and Drop Source

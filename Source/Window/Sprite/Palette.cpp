@@ -122,10 +122,18 @@ void SPalette::Display_Colors()
 			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, bIsSelected ? 0.0f : 100.0f);
 
 			const ImGuiColorEditFlags Flags = (!bIsSelected ? ImGuiColorEditFlags_NoBorder : ImGuiColorEditFlags_None) |
-				ImGuiColorEditFlags_AlphaPreview | ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop;
+				ImGuiColorEditFlags_AlphaPreview |
+				ImGuiColorEditFlags_NoTooltip |
+				ImGuiColorEditFlags_NoDragDrop;
 			uint8_t ButtonPressed = -1;
-			if (UI::ColorButton(ButtonName.c_str(), ButtonPressed, UI::ToVec4(UI::ZXSpectrumColorRGBA[i]), Flags,
-				ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_PressedOnClick, ImVec2(16, 16)))
+			if (UI::ColorButton(ButtonName.c_str(),
+				ButtonPressed,
+				UI::ToVec4(UI::ZXSpectrumColorRGBA[i]),
+				Flags,
+				ImGuiButtonFlags_MouseButtonLeft |
+				ImGuiButtonFlags_MouseButtonRight |
+				ImGuiButtonFlags_PressedOnClick,
+				ImVec2(16, 16)))
 			{
 				Subcolor[ESubcolor::Ink] = i;
 
@@ -300,15 +308,24 @@ void SPalette::Display_Colors()
 				ImGui::PushStyleVar(ImGuiStyleVar_ItemSpacing, ImVec2(2.4f, 4.4f));
 				for (int32_t i = 0; i < Size; ++i) {
 					const bool bIsSelected = (Subcolor[SubColorIndex] == i);
-					const std::string ButtonName = std::format(TEXT("IndexButton##Color {}"), i);
+					const std::string ButtonName = std::format(TEXT("IndexButton##Color {}x{}"), (int32_t)SubColorIndex, i);
 					ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, bIsSelected ? 0.0f : 100.0f);
 
-					const ImGuiColorEditFlags Flags = (!bIsSelected ? ImGuiColorEditFlags_NoBorder : ImGuiColorEditFlags_None) |
-						ImGuiColorEditFlags_AlphaPreview | ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop;
+					const ImGuiColorEditFlags Flags = 
+						(!bIsSelected ? ImGuiColorEditFlags_NoBorder : ImGuiColorEditFlags_None) |
+						ImGuiColorEditFlags_AlphaPreview |
+						ImGuiColorEditFlags_NoTooltip |
+						ImGuiColorEditFlags_NoDragDrop;
 					uint8_t ButtonPressed = -1;
 					const EZXColor SelectValue = SelectArray != nullptr ? SelectArray[i] : ColorArray[i];
-					if (UI::ColorButton(ButtonName.c_str(), ButtonPressed, UI::ToVec4(UI::ZXSpectrumColorRGBA[ColorArray[i]]), Flags,
-						ImGuiButtonFlags_MouseButtonLeft | ImGuiButtonFlags_MouseButtonRight | ImGuiButtonFlags_PressedOnClick, ImVec2(16, 16)))
+					if (UI::ColorButton(ButtonName.c_str(), 
+						ButtonPressed, 
+						UI::ToVec4(UI::ZXSpectrumColorRGBA[ColorArray[i]]),
+						Flags,
+						ImGuiButtonFlags_MouseButtonLeft |
+						ImGuiButtonFlags_MouseButtonRight |
+						ImGuiButtonFlags_PressedOnClick,
+						ImVec2(16, 16)))
 					{
 						Subcolor[SubColorIndex] = SelectValue;
 
