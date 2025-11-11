@@ -15,6 +15,7 @@ SPalette::SPalette(EFont::Type _FontName, std::string _DockSlot /*= ""*/)
 		.SetFontName(_FontName)
 		.SetDockSlot(_DockSlot)
 		.SetIncludeInWindows(true))
+	, OptionsFlags(FCanvasOptionsFlags::Source)
 {
 	ButtonColor[0] = UI::EZXSpectrumColor::Black_;	// left button
 	ButtonColor[1] = UI::EZXSpectrumColor::White_;	// right button
