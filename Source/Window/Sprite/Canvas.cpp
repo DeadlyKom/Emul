@@ -452,7 +452,6 @@ void SCanvas::Draw_PopupMenu()
 			NewRegion.ZXColorView->Device = Data.Device;
 			NewRegion.ZXColorView->DeviceContext = Data.DeviceContext;
 			UI::Draw_ZXColorView_Initialize(NewRegion.ZXColorView, UI::ERenderType::Sprite);
-
 			{
 				const int32_t Size = Sprite->Width * Sprite->Height;
 				std::vector<uint32_t> RGBA(Size, 0);

@@ -570,6 +570,35 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 		if (SpriteJson.contains("Regions"))
 		{
 			NewSprite->Regions = SpriteJson["Regions"];
+
+			for (FSpriteMetaRegion& Region : NewSprite->Regions)
+			{
+				Region.ZXColorView = std::make_shared<UI::FZXColorView>();
+				Region.ZXColorView->bOnlyNearestSampling = true;
+				Region.ZXColorView->Device = Data.Device;
+				Region.ZXColorView->DeviceContext = Data.DeviceContext;
+				UI::Draw_ZXColorView_Initialize(Region.ZXColorView, UI::ERenderType::Sprite);
+				{
+					const int32_t Size = NewSprite->Width * NewSprite->Height;
+					std::vector<uint32_t> RGBA(Size, 0);
+
+					if (!Region.ZXColorView->Image.IsValid())
+					{
+						for (uint32_t y = (uint32_t)Region.Rect.Min.y; y < (uint32_t)Region.Rect.Max.y; ++y)
+						{
+							for (uint32_t x = (uint32_t)Region.Rect.Min.x; x < (uint32_t)Region.Rect.Max.x; ++x)
+							{
+								const int8_t Color = UI::EZXSpectrumColor::Black_;
+								const ImU32 ColorRGBA = UI::ToU32(UI::ZXSpectrumColorRGBA[Color]);
+
+								const uint32_t Index = y * NewSprite->Width + x;
+								RGBA[Index] = ColorRGBA;
+							}
+						}
+						Region.ZXColorView->Image = FImageBase::Get().CreateTexture(RGBA.data(), NewSprite->Width, NewSprite->Height, D3D11_CPU_ACCESS_READ, D3D11_USAGE_DEFAULT);
+					}
+				}
+			}
 		}
 		UI::ZXAttributeColorToImage(
 			NewSprite->ZXColorView->Image,

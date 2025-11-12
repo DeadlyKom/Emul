@@ -29,4 +29,5 @@ private:
 	int32_t IndexSelectedRegion;
 	int32_t IndexSelectedProperty;
 	std::shared_ptr<FSprite> SelectedSprite;
+	std::unordered_map<std::string, bool> EditingProperty;
 };

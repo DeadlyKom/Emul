@@ -49,6 +49,11 @@ void SSpriteMetadata::Render()
 		}
 		ImGui::End();
 	}
+
+	if (!IsOpen())
+	{
+		EditingProperty.clear();
+	}
 }
 
 void SSpriteMetadata::Tick(float DeltaTime)
@@ -58,6 +63,7 @@ void SSpriteMetadata::Tick(float DeltaTime)
 
 void SSpriteMetadata::Destroy()
 {
+	
 	UnsubscribeAll();
 }
 
@@ -127,21 +133,21 @@ void SSpriteMetadata::Draw_Regions(const ImVec2& Size)
 					ImGui::EndTooltip();
 				}
 
-				static std::unordered_map<int32_t, bool> EditingProperty;
-
 				for (int32_t PropertyIndex = 0; PropertyIndex < SpriteMetaRegion.Properties.size(); ++PropertyIndex)
 				{
+					const std::string EditingPropertName = std::format("{}_PropertyName{}", RegionIndex, PropertyIndex);
+
 					FSpriteProperty& Property = SpriteMetaRegion.Properties[PropertyIndex];
 					const bool bIsSelectedProperty = bIsSelectedRegion && PropertyIndex == IndexSelectedProperty;
 
 					// Enable editing by pressing F2
 					if (bIsSelectedProperty && ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_F2))
 					{
-						EditingProperty[PropertyIndex] = true;
+						EditingProperty[EditingPropertName] = true;
 					}
 
 					// Enable double-click editing
-					if (EditingProperty[PropertyIndex])
+					if (EditingProperty[EditingPropertName])
 					{
 						ImGui::SetKeyboardFocusHere();
 
@@ -155,31 +161,32 @@ void SSpriteMetadata::Draw_Regions(const ImVec2& Size)
 							ImGuiInputTextFlags_AlwaysOverwrite))
 						{
 							Property.Name = InputBuffer;
-							EditingProperty[PropertyIndex] = false; // save and exit editing mode
+							EditingProperty[EditingPropertName] = false; // save and exit editing mode
 						}
 
 						// If you press ESC, you cancel editing
 						if (ImGui::IsKeyPressed(ImGuiKey_Escape))
 						{
-							EditingProperty[PropertyIndex] = false;
+							EditingProperty[EditingPropertName] = false;
 						}
 						// Click outside the field - we also finish editing
 						if (!ImGui::IsItemHovered() && ImGui::IsMouseClicked(0))
 						{
-							EditingProperty[PropertyIndex] = false;
+							EditingProperty[EditingPropertName] = false;
 						}
 						ImGui::SetItemDefaultFocus(); // the cursor is immediately in InputText
 					}
 					else
 					{
-						if (ImGui::Selectable(Property.Name.c_str(), bIsSelectedProperty))
+						const std::string PropertyName = std::format("{}##{}_PropertyName{}", Property.Name.c_str(), RegionIndex, PropertyIndex);
+						if (ImGui::Selectable(PropertyName.c_str(), bIsSelectedProperty))
 						{
 							IndexSelectedProperty = PropertyIndex;
 						}
 
 						if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0))
 						{
-							EditingProperty[PropertyIndex] = true;
+							EditingProperty[EditingPropertName] = true;
 						}
 					}
 				}
