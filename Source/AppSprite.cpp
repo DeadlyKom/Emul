@@ -477,7 +477,19 @@ bool FAppSprite::ShowModal_WindowNewCanvas()
 
 void FAppSprite::Import_PNG(const std::filesystem::path& FilePath)
 {
-	if (Viewer->GetWindows(NAME_Canvas).empty())
+	std::shared_ptr<SWindow> FoundWindow;
+	for (std::shared_ptr<SWindow>& Window : Viewer->GetWindows(NAME_Canvas))
+	{
+		std::shared_ptr<SCanvas> Canvas = dynamic_pointer_cast<SCanvas>(Window);
+		if (!Canvas || Canvas->GetSourcePathFile() != FilePath)
+		{
+			continue;
+		}
+		FoundWindow = Window;
+		break;
+	}
+
+	if (!FoundWindow)
 	{
 		FNativeDataInitialize Data
 		{
@@ -491,7 +503,7 @@ void FAppSprite::Import_PNG(const std::filesystem::path& FilePath)
 	}
 	else
 	{
-		Viewer->SetWindowVisibility(NAME_Canvas);
+		FoundWindow->SetOpen(true);
 	}
 }
 

@@ -38,6 +38,8 @@ public:
 	virtual void Render() override;
 	virtual void Destroy() override;
 
+	const std::filesystem::path& GetSourcePathFile() const { return SourcePathFile; }
+
 private:
 	void Draw_PopupMenu();
 	void Draw_PopupMenu_CreateSprite();
