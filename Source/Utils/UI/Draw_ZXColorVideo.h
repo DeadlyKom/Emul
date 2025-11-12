@@ -245,7 +245,8 @@ namespace UI
 		const uint8_t* AttributeData,
 		const uint8_t* MaskData,
 		bool bCreate = false,
-		std::vector<uint8_t>* OutputIndexedData = nullptr);
+		std::vector<uint8_t>* OutputIndexedData = nullptr,
+		bool bMaskInverse = true);
 }
 
 using EZXColor = UI::EZXSpectrumColor::Type;

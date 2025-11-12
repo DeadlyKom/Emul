@@ -446,9 +446,10 @@ void SSpriteList::AddSprite(
 				// Mask
 				{
 					const int32_t MaskOffset = (by * 8 + dy) * Boundary_X + bx;
-					Mask = ~MaskData[MaskOffset];
+					Mask = MaskData[MaskOffset];
 					const int32_t NewMaskOffset = (Sprby * 8 + Sprdy) * SpriteBoundary_X + Sprbx;
 					NewMaskData[NewMaskOffset] = Mask;
+					Mask = ~Mask;
 				}
 
 				// Attribute
@@ -560,10 +561,6 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 		if (std::filesystem::exists(MaskDataFile))
 		{
 			IO::LoadBinaryData(NewSprite->ZXColorView->MaskData, MaskDataFile);
-			for (uint8_t& Mask : NewSprite->ZXColorView->MaskData)
-			{
-				Mask = ~Mask;
-			}
 		}
 
 		// additional data
@@ -607,7 +604,7 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 			NewSprite->ZXColorView->AttributeData.data(),
 			NewSprite->ZXColorView->MaskData.data(),
 			true,
-			&NewSprite->ZXColorView->IndexedData);
+			&NewSprite->ZXColorView->IndexedData, false);
 		OutputSprites.push_back(NewSprite);
 	}
 

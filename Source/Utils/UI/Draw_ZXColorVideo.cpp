@@ -830,7 +830,8 @@ void UI::ZXAttributeColorToImage(
 	const uint8_t* AttributeData,
 	const uint8_t* MaskData,
 	bool bCreate /*= false*/,
-	std::vector<uint8_t>* OutputIndexedData /*= nullptr*/)
+	std::vector<uint8_t>* OutputIndexedData /*= nullptr*/,
+	bool bMaskInverse /*= true*/)
 {
 	const int32_t Size = Width * Height;
 	std::vector<uint32_t> RGBA(Size);
@@ -894,7 +895,10 @@ void UI::ZXAttributeColorToImage(
 
 		if (bInk || bAttribute)
 		{
-			Mask = ~Mask;
+			if (bMaskInverse)
+			{
+				Mask = ~Mask;
+			}
 		}
 		else
 		{
