@@ -180,6 +180,7 @@ def main():
         # column_offsets содержит 6 смещений, каждое 2 байта (unsigned short)
         # исключаем первый элемент (всегда нулевой)
         # offset_bytes = struct.pack("<5H", *column_offsets[1:])  # "<" - little endian, "H" - 2 байта
+        offset_bytes = struct.pack("<6H", *column_offsets[0:])  # "<" - little endian, "H" - 2 байта
 
         # сохраняем смещения столбцов в отдельный файл
         offsets_name = filename_from_sprite(sprite_name + "_offsets")
