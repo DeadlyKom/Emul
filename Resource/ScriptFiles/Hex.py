@@ -1,3 +1,4 @@
+import os
 import re
 import json
 import struct
@@ -138,7 +139,10 @@ SWITCH_BEHAVIOR = {
 }
 
 def main():
-    with open("Export.json", "r", encoding="utf-8") as file:
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+    json_path = os.path.join(BASE_DIR, "Export.json")
+
+    with open(json_path, "r", encoding="utf-8") as file:
         export = json.load(file)
 
     # основной цикл спрайтов
@@ -158,10 +162,12 @@ def main():
         sprite_data = bytearray()
         column_offsets = []
 
+        offset = 12 # 12 байт длина таблицы смещения
         for bx in range(boundary_x):
             
             # сохранение стартового адреса столбца
-            column_offsets.append(len(sprite_data))
+            column_offsets.append(len(sprite_data) + offset)
+            offset += len(sprite_data) - 2  # каждое последующее смещение уменьшает общее на 2 байта
 
             for by in range(boundary_y - 1, -1, -1):
                 behavior = MATRIX_BEHAVIOR[by][bx]
@@ -173,7 +179,7 @@ def main():
                     break
 
         # сохранение спрайта в отдельный файл
-        file_name = filename_from_sprite(sprite_name)
+        file_name = os.path.join(BASE_DIR, filename_from_sprite(sprite_name))
         with open(file_name, "wb") as f:
             f.write(sprite_data)
 
@@ -183,7 +189,7 @@ def main():
         offset_bytes = struct.pack("<6H", *column_offsets[0:])  # "<" - little endian, "H" - 2 байта
 
         # сохраняем смещения столбцов в отдельный файл
-        offsets_name = filename_from_sprite(sprite_name + "_offsets")
+        offsets_name = os.path.join(BASE_DIR, filename_from_sprite(sprite_name + "_offsets"))
         with open(offsets_name, "wb") as f:
             f.write(offset_bytes)
 
