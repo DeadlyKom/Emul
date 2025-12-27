@@ -42,7 +42,7 @@ def get_height_boundary(boundary_x: int, mask_data: bytearray, bx: int, by: int)
     """
     for dy in range(7, -1, -1):
         mask = mask_data[get_index(boundary_x, bx, by, dy)]
-        if mask == 255:
+        if mask == 0:
             return 7 - dy
     return 8
 
@@ -63,11 +63,12 @@ def draw(sprite: Dict[str, Any],
     """
     height = 8
     is_early_exit = False
-    attribute_meta = 0b11111111
+    attribute_meta_high = 0b11111111
+    is_override_attribute = not mask_flag
 
     # определение высота следующего знакоместа
     if prediction_flag:
-        attribute_meta = get_height_boundary(boundary_x, mask_data, bx, by - 1)
+        attribute_meta_high = get_height_boundary(boundary_x, mask_data, bx, by - 1)
 
     # высота с маской
     if mask_flag:
@@ -75,28 +76,61 @@ def draw(sprite: Dict[str, Any],
         height = mask_height
         if mask_height < 8:
             is_early_exit = True
-            
+        
+        # метаданные перегрузки для текущего знакоместа
+        metadata_values_override_attribute = get_metadata(sprite, bx * 8, by * 8, "OverrideAttr")
+        if metadata_values_override_attribute:
+            is_override_attribute = metadata_values_override_attribute[0].get("Value")
+             
     # основной цикл по знакоместам
     for dy in range(7 - skip_line, 7 - height, -1):
         if mask_flag:
-            sprite_data.append(mask_data[get_index(boundary_x, bx, by, dy)])
-        sprite_data.append(ink_data[get_index(boundary_x, bx, by, dy)])
+            ink = ink_data[get_index(boundary_x, bx, by, dy)]
+            mask = mask_data[get_index(boundary_x, bx, by, dy)]
+            byte_or = mask
+            byte_xor = (ink ^ byte_or) & mask
+            sprite_data.append(byte_or)
+            sprite_data.append(byte_xor)
+        else:
+            sprite_data.append(ink_data[get_index(boundary_x, bx, by, dy)])
 
     # атрибут знакоместа
-    sprite_data.append(attribute_data[get_index(boundary_x, bx, by)])
+    attribute = attribute_data[get_index(boundary_x, bx, by)]
+    attribute = ((attribute >> 1) & 0xFF)           # сдвиг и сброс 7-го бита
+                                                    # т.к. ink всегда чёрный, сдвигом влево можно восстановить исходное значение
+    attribute |= int(is_override_attribute) << 7    # 7-ой бит отвечает за хранение флага, перегрузки записи в атрибут экрана
+    sprite_data.append(attribute)
 
     # метаданные высоты для текущей точки (высота знакоместа)
-    metadata_values = get_metadata(sprite, bx * 8, by * 8, "Height")
-    attribute_meta = ((attribute_meta << 1) & 0xFF)  # сдвиг и сброс 0-го бита
-    # установка флага высоты (1-ый бит если без маски)
-    if metadata_values and metadata_values[0].get("Value"):
-        attribute_meta |= 1  # установка 0-го бита
+    if not prediction_flag and not mask_flag:
+        metadata_values_height = get_metadata(sprite, bx * 8, by * 8, "Height") # булевое значение, является ли данное знакоместо высоким или нет?
+        attribute_meta_high = ((attribute_meta_high << 2) & 0xFF)  # сдвиг и сброс 0-го и 1-го бита
+    
+        # установка флага высоты (0-ой бит)
+        if metadata_values_height and metadata_values_height[0].get("Value"):
+            attribute_meta_high |= 1  # установка 0-го бита
+    
+    # переходной вариант, когда флаг prediction_flag установлен, mask_flag сброшен
+    #   0ой бит отвечает за выосоту
+    #   1ый бит за вывод с маской
+    #   2-7 биты высота вывода с маской
+    elif prediction_flag and not mask_flag:
+        metadata_values_height = get_metadata(sprite, bx * 8, by * 8, "Height") # булевое значение, является ли данное знакоместо высоким или нет?
+        attribute_meta_high = ((attribute_meta_high << 2) & 0xFF)  # сдвиг и сброс 0-го и 1-го бита
+    
+        # установка флага высоты (0-ой бит)
+        if metadata_values_height and metadata_values_height[0].get("Value"):
+            attribute_meta_high |= 1  # установка 0-го бита
+        # установка флага маски (1-ый бит) 
+        attribute_meta_high |= 1 << 1
 
-    # смещение на 1 бит, если нет маски
-    if not mask_flag:
-        attribute_meta = ((attribute_meta << 1) & 0xFF)
+    # переходной вариант, когда флаг prediction_flag установлен, mask_flag установлен
+    #   бит отвечает за выосоту не требуется, т.к. все  знакоместа с маской высокие
+    #   0-7 биты высота вывода с маской, 0 окончание
+    elif prediction_flag and mask_flag:
+        attribute_meta_high = attribute_meta_high
 
-    sprite_data.append(attribute_meta)
+    sprite_data.append(attribute_meta_high)
     return is_early_exit
 
 # обёртки для разных режимов рисования
@@ -167,7 +201,7 @@ def main():
             
             # сохранение стартового адреса столбца
             column_offsets.append(len(sprite_data) + offset)
-            offset += len(sprite_data) - 2  # каждое последующее смещение уменьшает общее на 2 байта
+            offset -= 2  # каждое последующее смещение уменьшает общее на 2 байта
 
             for by in range(boundary_y - 1, -1, -1):
                 behavior = MATRIX_BEHAVIOR[by][bx]
