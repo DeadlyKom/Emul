@@ -62,13 +62,15 @@ def draw(sprite: Dict[str, Any],
     Возвращает True, если столбец закончился или отсутствуют данные.
     """
     height = 8
+    prediction_height = 8
     is_early_exit = False
     attribute_meta_high = 0b11111111
     is_override_attribute = not mask_flag
 
     # определение высота следующего знакоместа
     if prediction_flag:
-        attribute_meta_high = get_height_boundary(boundary_x, mask_data, bx, by - 1)
+        prediction_height = get_height_boundary(boundary_x, mask_data, bx, by - 1)
+        attribute_meta_high = prediction_height
 
     # высота с маской
     if mask_flag:
@@ -131,6 +133,11 @@ def draw(sprite: Dict[str, Any],
         attribute_meta_high = attribute_meta_high
 
     sprite_data.append(attribute_meta_high)
+
+    # проверка раннего выхода, когда будущая высота равна нулю, позволяет точно определить количество пропускаемых знакомест
+    if not is_early_exit and prediction_height == 0:
+        return True
+    
     return is_early_exit
 
 # обёртки для разных режимов рисования
@@ -210,6 +217,9 @@ def main():
                     ink_data, attribute_data, mask_data,
                     sprite_data, bx, by, behavior
                 ):
+                    # сохраним количество оставшихся знакомест
+                    sprite_data.append(by)
+                    sprite_data.append(0)
                     break
 
         # сохранение спрайта в отдельный файл
