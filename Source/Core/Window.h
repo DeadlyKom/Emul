@@ -123,6 +123,11 @@ public:
 	std::string GetDockSlot() const { return DockSlot; }
 	bool NeedDock() const { return bNeedDock; }
 	void ResetDock() { bNeedDock = false; }
+	void Reinitialize()
+	{
+		bPendingKill = false;
+		TickCounter = 0;
+	}
 
 protected:
 	FNativeDataInitialize Data;

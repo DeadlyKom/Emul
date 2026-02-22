@@ -11,7 +11,7 @@ def get_metadata(sprite: Dict[str, Any], x: int, y: int, name: str) -> List[Dict
     result = []
     for region_data in sprite.get("Regions", []):
         x1, y1, x2, y2 = region_data["RegionRect"]
-        if x1 <= x <= x2 and y1 <= y <= y2:
+        if x1 <= x < x2 and y1 <= y < y2:
             for meta in region_data.get("Metadata", []):
                 if meta["Type"] == name:
                     result.append(meta)
@@ -40,6 +40,8 @@ def get_height_boundary(boundary_x: int, mask_data: bytearray, bx: int, by: int)
     """
     Определяет высоту заполнения знакоместа (поиск пустой маски).
     """
+    if by < 0:
+        return 0
     for dy in range(7, -1, -1):
         mask = mask_data[get_index(boundary_x, bx, by, dy)]
         if mask == 0:
@@ -79,10 +81,10 @@ def draw(sprite: Dict[str, Any],
         if mask_height < 8:
             is_early_exit = True
         
-        # метаданные перегрузки для текущего знакоместа
-        metadata_values_override_attribute = get_metadata(sprite, bx * 8, by * 8, "OverrideAttr")
-        if metadata_values_override_attribute:
-            is_override_attribute = metadata_values_override_attribute[0].get("Value")
+    # метаданные перегрузки для текущего знакоместа
+    metadata_values_override_attribute = get_metadata(sprite, bx * 8, by * 8, "OverrideAttr")
+    if metadata_values_override_attribute:
+        is_override_attribute = metadata_values_override_attribute[0].get("Value")
              
     # основной цикл по знакоместам
     for dy in range(7 - skip_line, 7 - height, -1):
@@ -192,6 +194,27 @@ def main():
         sprite_width = sprite["SprWidth"]
         sprite_height = sprite["SprHeight"]
 
+        # разбить результирующий файл на колонки
+        if "MonoColumns" in sprite:
+            mono_columns = sprite["MonoColumns"]
+        else:
+            mono_columns = False
+
+        if mono_columns:
+            # 12 байт длина таблицы смещения
+            if "StartOffset" in sprite:
+                start_offset = sprite["StartOffset"]
+            else:
+                start_offset = 0
+
+            # каждое последующее смещение уменьшает общее на 2 байта
+            if "StepOffset" in sprite:
+                step_offset = sprite["StepOffset"]
+            else:
+                step_offset = 0
+        else:
+            start_offset = step_offset = 0
+
         # Загрузка бинарных данных
         with open(sprite["InkData"], "rb") as f: ink_data = bytearray(f.read())
         with open(sprite["AttributeData"], "rb") as f: attribute_data = bytearray(f.read())
@@ -203,12 +226,13 @@ def main():
         sprite_data = bytearray()
         column_offsets = []
 
-        offset = 12 # 12 байт длина таблицы смещения
+        offset = start_offset
         for bx in range(boundary_x):
             
             # сохранение стартового адреса столбца
             column_offsets.append(len(sprite_data) + offset)
-            offset -= 2  # каждое последующее смещение уменьшает общее на 2 байта
+            if offset > 0:
+                offset -= step_offset
 
             for by in range(boundary_y - 1, -1, -1):
                 behavior = MATRIX_BEHAVIOR[by][bx]
@@ -222,20 +246,46 @@ def main():
                     sprite_data.append(0)
                     break
 
-        # сохранение спрайта в отдельный файл
-        file_name = os.path.join(BASE_DIR, filename_from_sprite(sprite_name))
-        with open(file_name, "wb") as f:
-            f.write(sprite_data)
+        if mono_columns:
+            # сохранение спрайта в отдельный файл
+            file_name = os.path.join(BASE_DIR, filename_from_sprite(sprite_name))
+            with open(file_name, "wb") as f:
+                f.write(sprite_data)
 
-        # column_offsets содержит 6 смещений, каждое 2 байта (unsigned short)
-        # исключаем первый элемент (всегда нулевой)
-        # offset_bytes = struct.pack("<5H", *column_offsets[1:])  # "<" - little endian, "H" - 2 байта
-        offset_bytes = struct.pack("<6H", *column_offsets[0:])  # "<" - little endian, "H" - 2 байта
+            # column_offsets содержит 6 смещений, каждое 2 байта (unsigned short)
+            # исключаем первый элемент (всегда нулевой)
+            # offset_bytes = struct.pack("<5H", *column_offsets[1:])  # "<" - little endian, "H" - 2 байта
+            offset_bytes = struct.pack("<6H", *column_offsets[0:])  # "<" - little endian, "H" - 2 байта
 
-        # сохраняем смещения столбцов в отдельный файл
-        offsets_name = os.path.join(BASE_DIR, filename_from_sprite(sprite_name + "_offsets"))
-        with open(offsets_name, "wb") as f:
-            f.write(offset_bytes)
+            # сохраняем смещения столбцов в отдельный файл
+            offsets_name = os.path.join(BASE_DIR, filename_from_sprite(sprite_name + "_offsets"))
+            with open(offsets_name, "wb") as f:
+                f.write(offset_bytes)
+        else:
+            # разбиение файла на колонки и сохранение как отдельные файлы
+
+            # декодируем смещения колонок
+            # column_offsets = list(struct.unpack("<6H", offset_bytes))
+
+            # добавляем конец массива как последний оффсет
+            column_offsets.append(len(sprite_data))
+    
+            # разбиение sprite_data на 6 колонок
+            for i in range(6):
+                start = column_offsets[i]
+                end = column_offsets[i + 1]
+
+                column_data = sprite_data[start:end]
+
+                # имя файла для колонки
+                column_filename = os.path.join(
+                    BASE_DIR,
+                    filename_from_sprite(f"{sprite_name}_col_{i}")
+                )
+
+                # сохраняем колонку
+                with open(column_filename, "wb") as f:
+                    f.write(column_data)
 
 if __name__ == "__main__":
     main()

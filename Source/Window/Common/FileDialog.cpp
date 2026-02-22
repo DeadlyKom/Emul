@@ -143,6 +143,7 @@ void SFileDialog::OpenWindow(
 	const std::string& FilterTypes)
 {
 	std::shared_ptr<SFileDialog> FileDialog = SFileDialog::Get();
+	FileDialog->Reinitialize();
 	FileDialog->FileDialogName = FileDialogName;
 	FileDialog->DialogMode = Mode;
 	FileDialog->CloseCallback = std::move(OnCallback);
