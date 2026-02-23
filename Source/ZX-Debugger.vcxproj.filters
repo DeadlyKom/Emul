@@ -152,6 +152,9 @@
     <ClCompile Include="Window\Sprite\Definition.cpp">
       <Filter>Source\Window\Sprite</Filter>
     </ClCompile>
+    <ClCompile Include="Utils\UndoQueue.cpp">
+      <Filter>Source\Utils</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source">
@@ -424,6 +427,12 @@
       <Filter>Source\Window\Sprite</Filter>
     </ClInclude>
     <ClInclude Include="Window\Sprite\SpriteList.h">
+      <Filter>Source\Window\Sprite</Filter>
+    </ClInclude>
+    <ClInclude Include="Utils\UndoQueue.h">
+      <Filter>Source\Utils</Filter>
+    </ClInclude>
+    <ClInclude Include="Window\Sprite\UndoAction.h">
       <Filter>Source\Window\Sprite</Filter>
     </ClInclude>
   </ItemGroup>

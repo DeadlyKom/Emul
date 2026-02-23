@@ -3,10 +3,12 @@
 #include <CoreMinimal.h>
 #include <Core/ViewerBase.h>
 #include <Core/Image.h>
+#include <Utils/UndoQueue.h>
 #include <Utils/UI/Draw_ZXColorVideo.h>
 #include "Palette.h"
 #include "ToolBar.h"
 #include "Definition.h"
+#include "UndoAction.h"
 
 namespace FCanvasOptionsFlags
 {
@@ -64,8 +66,8 @@ private:
 	void Imput_Paste();
 	void Imput_Cut() {}
 	void Imput_Delete() {}
-	void Imput_Undo() {}
-	void Imput_Redo() {}
+	void Imput_Undo();
+	void Imput_Redo();
 
 	void Reset_RectangleMarquee();
 	void Handler_RectangleMarquee();
@@ -77,6 +79,10 @@ private:
 	void Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex);
 
 	void UpdateCursorColor(bool bButton = false);
+
+	// undo/redo
+	void UndoHandler_Pencil(FPixelToCanvas& Param);
+	void _UndoHandler_Pencil(FPixelToCanvas& A, const FPixelToCanvas& B);
 
 	bool bDragging;
 	bool bRefreshCanvas;
@@ -122,4 +128,8 @@ private:
 	UI::FConversationSettings ConversationSettings;
 	EToolMode::Type ToolMode[2];
 	std::filesystem::path SourcePathFile;
+
+	// Undo/Redo
+	Undo::FQueue UndoQueue;
+	size_t PixelStrokeBegin;
 };

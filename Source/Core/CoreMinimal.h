@@ -9,6 +9,7 @@
 
 #include <any>
 #include <map>
+#include <stack>
 #include <vector>
 #include <memory>
 #include <string>

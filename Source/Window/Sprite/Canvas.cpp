@@ -625,11 +625,21 @@ void SCanvas::Draw_PopupMenu_CreateSprite()
 
 		if (ImGui::ButtonEx("OK", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
+			ImRect SpriteRect(ZXColorView->RectangleMarqueeRect.Min, ZXColorView->RectangleMarqueeRect.Min + CreateSpriteSize);
+			{	
+				// clamp right-down
+				SpriteRect.Min = ImClamp(SpriteRect.Min, ImVec2(0, 0), ZXColorView->Image.Size);
+				SpriteRect.Max = ImClamp(SpriteRect.Max, ImVec2(0, 0), ZXColorView->Image.Size);
+
+				// clamp left-up
+				SpriteRect.Min = ImClamp(SpriteRect.Max - CreateSpriteSize, ImVec2(0, 0), ZXColorView->Image.Size);
+			}
+
 			FEvent_Sprite Event;
 			Event.Tag = FEventTag::AddSpriteTag;
 			Event.Width = Width;
 			Event.Height = Height;
-			Event.SpriteRect = ImRect(ZXColorView->RectangleMarqueeRect.Min, ZXColorView->RectangleMarqueeRect.Min + CreateSpriteSize);
+			Event.SpriteRect = SpriteRect;
 			Event.SpriteName = CreateSpriteNameBuffer;
 			Event.SourcePathFile = SourcePathFile;
 
@@ -809,6 +819,16 @@ void SCanvas::Imput_Paste()
 	}
 }
 
+void SCanvas::Imput_Undo()
+{
+	UndoQueue.Undo();
+}
+
+void SCanvas::Imput_Redo()
+{
+	UndoQueue.Redo();
+}
+
 void SCanvas::Reset_RectangleMarquee()
 {
 	ZXColorView->RectangleMarqueeRect = ImRect(0.0f, 0.0f, 0.0f, 0.0f);
@@ -856,6 +876,9 @@ void SCanvas::Handler_RectangleMarquee()
 		// last pixel inclusion compensation
 		ZXColorView->RectangleMarqueeRect.Max.x += 1.0f;
 		ZXColorView->RectangleMarqueeRect.Max.y += 1.0f;
+
+		ZXColorView->RectangleMarqueeRect.Min = ImClamp(ZXColorView->RectangleMarqueeRect.Min, ImVec2(0, 0), ZXColorView->Image.Size);
+		ZXColorView->RectangleMarqueeRect.Max = ImClamp(ZXColorView->RectangleMarqueeRect.Max, ImVec2(0, 0), ZXColorView->Image.Size);
 	}
 	else if (ImGui::IsKeyReleased(ImGuiKey_MouseLeft))
 	{
@@ -877,6 +900,16 @@ void SCanvas::Handler_Pencil()
 	if (!Context.IO.MouseDown[ImGuiMouseButton_Left] && 
 		!Context.IO.MouseDown[ImGuiMouseButton_Right])
 	{
+		if (UndoQueue.IsContinuous())
+		{
+			UndoQueue.EndContinuous();
+			size_t PixelsStroke = UndoQueue.UndoSize() - PixelStrokeBegin;
+			if (PixelsStroke == 0)
+			{
+				return;
+			}
+			UndoQueue.Stroke(PixelsStroke);
+		}
 		return;
 	}
 
@@ -885,6 +918,11 @@ void SCanvas::Handler_Pencil()
 		return;
 	}
 
+	if (!UndoQueue.IsContinuous())
+	{
+		UndoQueue.BeginContinuous();
+		PixelStrokeBegin = UndoQueue.UndoSize();
+	}
 	const int8_t ButtonIndex = Context.IO.MouseDown[ImGuiMouseButton_Left] ? 0 : 1;
 	const float X = FMath::Clamp((float)FMath::FloorToInt32(ZXColorView->CursorPosition.x), 0.0f, (float)Width - 1);
 	const float Y = FMath::Clamp((float)FMath::FloorToInt32(ZXColorView->CursorPosition.y), 0.0f, (float)Height - 1);
@@ -1020,10 +1058,49 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 	LastSetButtonIndex = ButtonIndex;
 	LastSetPixelColorIndex = ColorIndex;
 
+	FPixelToCanvas Pixel;
+	{
+		Pixel.Position.push_back(Position);
+		Pixel.Color.push_back(ColorIndex);
+		Pixel.Canvas = OptionsFlags[0];
+	}
+	UndoQueue.SetWithUndo(
+		std::make_shared<Undo::TAction<ThisClass, FPixelToCanvas>>(
+			std::bind(&ThisClass::UndoHandler_Pencil, this, std::placeholders::_1),
+			std::bind(&ThisClass::_UndoHandler_Pencil, this, std::placeholders::_1, std::placeholders::_2),
+			Pixel
+		)
+	);
+}
+
+void SCanvas::UpdateCursorColor(bool bButton /*= false*/)
+{
+	if (bButton)
+	{
+		ZXColorView->CursorColor = UI::ToVec4(UI::ZXSpectrumColorRGBA[ButtonColor[0]]);
+	}
+	else
+	{
+		const bool bBright = Subcolor[ESubcolor::Bright] == UI::EZXSpectrumColor::True;
+		const bool bFlash = Subcolor[ESubcolor::Flash] == UI::EZXSpectrumColor::True;
+		const uint8_t InkColor = Subcolor[ESubcolor::Ink] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : Subcolor[ESubcolor::Ink] | (bBright << 3);
+		const uint8_t PaperColor = Subcolor[ESubcolor::Paper] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : Subcolor[ESubcolor::Paper] | (bBright << 3);
+
+		ZXColorView->CursorColor = UI::ToVec4(UI::ZXSpectrumColorRGBA[InkColor]);
+	}
+}
+
+void SCanvas::UndoHandler_Pencil(FPixelToCanvas& Param)
+{
 	if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
 	{
-		const uint32_t Offset = (uint32_t)Position.y * Width + (uint32_t)Position.x;
-		ZXColorView->IndexedData[Offset] = ColorIndex;
+		for (int Index = 0; Index < Param.Color.size(); ++Index)
+		{
+			const ImVec2& Position = Param.Position[Index];
+			uint8_t& Color = Param.Color[Index];
+			const uint32_t Offset = (uint32_t)Position.y * Width + (uint32_t)Position.x;
+			std::swap(ZXColorView->IndexedData[Offset], Color);
+		}
 		bNeedConvertCanvasToZX = true;
 	}
 	else
@@ -1031,8 +1108,8 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 		const int32_t Boundary_X = Width >> 3;
 		const int32_t Boundary_Y = Height >> 3;
 
-		const int32_t x = (uint32_t)Position.x;
-		const int32_t y = (uint32_t)Position.y;
+		const int32_t x = (uint32_t)Param.Position.back().x;
+		const int32_t y = (uint32_t)Param.Position.back().y;
 
 		const int32_t bx = x / 8;
 		const int32_t dx = x % 8;
@@ -1056,11 +1133,11 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 
 		auto ApplyPixel = [&]()
 			{
-				if (ColorIndex == EZXColor::Transparent)
+				if (Param.Color.back() == EZXColor::Transparent)
 				{
 					return;
 				}
-				const bool bOperation = (ColorIndex & 0x07) != UI::EZXSpectrumColor::White;
+				const bool bOperation = (Param.Color.back() & 0x07) != UI::EZXSpectrumColor::White;
 				if (bOperation)
 				{
 					Pixels |= PixelBit;									// set bit
@@ -1085,7 +1162,7 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 			};
 		auto ApplyMask = [&]()
 			{
-				const bool bOperation = ColorIndex != UI::EZXSpectrumColor::Transparent;
+				const bool bOperation = Param.Color.back() != UI::EZXSpectrumColor::Transparent;
 				if (bOperation)
 				{
 					Mask |= PixelBit;									// set bit
@@ -1096,9 +1173,9 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 				}
 			};
 
-		if (Flags & FCanvasOptionsFlags::Ink)		{ ApplyPixel(); }
+		if (Flags & FCanvasOptionsFlags::Ink) { ApplyPixel(); }
 		if (Flags & FCanvasOptionsFlags::Attribute) { ApplyAttribute(); }
-		if (Flags & FCanvasOptionsFlags::Mask)		{ ApplyMask(); }
+		if (Flags & FCanvasOptionsFlags::Mask) { ApplyMask(); }
 
 		const bool bInk = OptionsFlags[0] & FCanvasOptionsFlags::Ink;
 		const bool bMask = OptionsFlags[0] & FCanvasOptionsFlags::Mask;
@@ -1109,19 +1186,26 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 	bRefreshCanvas = true;
 }
 
-void SCanvas::UpdateCursorColor(bool bButton /*= false*/)
+void SCanvas::_UndoHandler_Pencil(FPixelToCanvas& A, const FPixelToCanvas& B)
 {
-	if (bButton)
+	for (int IndexB = 0; IndexB < B.Position.size(); ++IndexB)
 	{
-		ZXColorView->CursorColor = UI::ToVec4(UI::ZXSpectrumColorRGBA[ButtonColor[0]]);
-	}
-	else
-	{
-		const bool bBright = Subcolor[ESubcolor::Bright] == UI::EZXSpectrumColor::True;
-		const bool bFlash = Subcolor[ESubcolor::Flash] == UI::EZXSpectrumColor::True;
-		const uint8_t InkColor = Subcolor[ESubcolor::Ink] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : Subcolor[ESubcolor::Ink] | (bBright << 3);
-		const uint8_t PaperColor = Subcolor[ESubcolor::Paper] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : Subcolor[ESubcolor::Paper] | (bBright << 3);
+		const ImVec2& PosB = B.Position[IndexB];
+		bool bFound = false;
+		for (int IndexA = 0; IndexA < A.Position.size(); ++IndexA)
+		{
+			const ImVec2& PosA = A.Position[IndexA];
+			if (PosA == PosB)
+			{
+				bFound = true;
+				break;
+			}
+		}
 
-		ZXColorView->CursorColor = UI::ToVec4(UI::ZXSpectrumColorRGBA[InkColor]);
+		if (!bFound)
+		{
+			A.Position.push_back(B.Position[IndexB]);
+			A.Color.push_back(B.Color[IndexB]);
+		}
 	}
 }
