@@ -51,8 +51,8 @@ void RoundImagePosition(UI::FZXColorView& ZXColorView)
 	 * try to keep it so that the user cannot pan past the edge of the
 	 * texture at all.*/
 	ImVec2 AbsViewSizeUV = FMath::Abs(ZXColorView.ViewSizeUV);
-	ZXColorView.ImagePosition = ImMax(ZXColorView.ImagePosition - AbsViewSizeUV * 0.5f, ImVec2(0.0f, 0.0f)) + AbsViewSizeUV * 0.5f;
-	ZXColorView.ImagePosition = ImMin(ZXColorView.ImagePosition + AbsViewSizeUV * 0.5f, ImVec2(1.0f, 1.0f)) - AbsViewSizeUV * 0.5f;
+	ZXColorView.ImagePosition = ImMax(ZXColorView.ImagePosition - AbsViewSizeUV * 0.5f, ImVec2(-0.5f, -0.5f)) + AbsViewSizeUV * 0.5f;
+	ZXColorView.ImagePosition = ImMin(ZXColorView.ImagePosition + AbsViewSizeUV * 0.5f, ImVec2(1.5f, 1.5f)) - AbsViewSizeUV * 0.5f;
 
 	/* if inspector->scale is 1 then we should ensure that pixels are aligned
 	 * with texel centers to get pixel-perfect texture rendering*/
@@ -366,7 +366,13 @@ void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)
 
 	// keep track of size of area that we draw for borders later
 	ZXColorView->PanelTopLeftPixel = ImGui::GetCursorScreenPos();
-	ImGui::Dummy(CalculatePanelSize(*ZXColorView));
+	ImGui::SetCursorPos(ImGui::GetCursorPos() + CalculatePanelSize(*ZXColorView));
+	// hard fix
+	{
+		ImGuiWindow* Window = ImGui::GetCurrentWindow();
+		Window->DC.CursorMaxPos = ImMax(Window->DC.CursorMaxPos, Window->DC.CursorPos);
+		Window->DC.IsSetPos = false;
+	}
 	ZXColorView->ViewTopLeftPixel = ImGui::GetCursorScreenPos();
 	const ImRect Rect(Window->DC.CursorPos, Window->DC.CursorPos + ZXColorView->ViewSize);
 
