@@ -91,3 +91,19 @@ std::filesystem::path IO::NormalizePath(const std::filesystem::path& InOut)
     std::replace(PathString.begin(), PathString.end(), '\\', '/');
     return std::filesystem::path(PathString);
 }
+
+void IO::OpenFolder(const std::filesystem::path& Path)
+{
+    if (std::filesystem::exists(Path))
+    {
+        std::filesystem::path AbsolutePath = std::filesystem::absolute(Path);
+        ShellExecuteW(
+            NULL,
+            L"open",
+            AbsolutePath.wstring().c_str(),
+            NULL,
+            NULL,
+            SW_SHOWDEFAULT
+        );
+    }
+}

@@ -28,6 +28,7 @@
 
 #include <stdint.h>
 #include <windows.h>
+#include <shellapi.h>
 
 #include "imgui.h"
 #include "imgui_internal.h"

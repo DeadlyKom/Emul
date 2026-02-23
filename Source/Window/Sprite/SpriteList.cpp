@@ -727,6 +727,7 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 		JsonFile << Json.dump(4);
 		JsonFile.close();
 	}
+	IO::OpenFolder(ExportPath);
 }
 
 void SSpriteList::SendSelectedSprite() const 
