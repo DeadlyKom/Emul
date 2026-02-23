@@ -172,13 +172,29 @@ struct FSprite
 	std::filesystem::path SourcePathFile;
 
 	// internal variable
-	bool bSelected = false;
-	float Scale = 1.0f;
+	static uint32_t StaticUniqueID;
+
+	uint32_t UniqueID;
+	bool bSelected;
+	float Scale;
 	double HoverStartTime;
 
 	uint32_t OptionsFlags;
 	std::vector<FSpriteMetaRegion> Regions;
 	std::shared_ptr<UI::FZXColorView> ZXColorView;
+
+	FSprite()
+		: Width (INDEX_NONE)
+		, Height (INDEX_NONE)
+		, Name("")
+		, SpritePositionToImageX(INDEX_NONE)
+		, SpritePositionToImageY(INDEX_NONE)
+		, UniqueID(StaticUniqueID++)
+		, bSelected(false)
+		, Scale(1.0f)
+		, HoverStartTime(-1.0)
+		, OptionsFlags(0)
+	{}
 };
 
 class SSpriteList : public SViewerChildBase
@@ -225,9 +241,11 @@ private:
 	bool bNeedKeptOpened_ExportPopup;
 	uint32_t ScaleVisible;
 	int32_t IndexSelectedSprite;
+	int32_t IndexRenameSprite;
 	ImGuiID SpriteListID;
 	std::filesystem::path CurrentPath;
 	std::vector<std::shared_ptr<FSprite>> Sprites;
+	std::unordered_map<std::string, bool> EditingSprites;
 
 	// popup menu 'Export'
 	bool bUniqueExportFilename;

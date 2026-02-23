@@ -32,7 +32,10 @@ namespace
 		ImVec2(256.0f, 256.0f),
 		ImVec2(512.0f, 512.0f),
 	};
+
 }
+
+uint32_t FSprite::StaticUniqueID = 0;
 
 SSpriteList::SSpriteList(EFont::Type _FontName, std::string _DockSlot /*= ""*/)
 	: Super(FWindowInitializer()
@@ -44,6 +47,7 @@ SSpriteList::SSpriteList(EFont::Type _FontName, std::string _DockSlot /*= ""*/)
 	, ScaleVisible(2)
 	, bUniqueExportFilename(false)
 	, IndexSelectedSprite(INDEX_NONE)
+	, IndexRenameSprite(INDEX_NONE)
 	, IndexSelectedScript(INDEX_NONE)
 {}
 
@@ -258,6 +262,7 @@ void SSpriteList::Draw_SpriteList()
 	for (uint32_t Index = 0; Index < SpriteNum; ++Index)
 	{
 		ImGui::PushID(Index);
+		const std::string EditingSpriteName = std::format("{}_PropertyName{}", Sprites[Index]->StaticUniqueID, Index);
 
 		std::shared_ptr<FSprite>& Sprite = Sprites[Index];
 		const std::string StringID = std::format("SpriteButton##%{}", Index);
@@ -269,7 +274,64 @@ void SSpriteList::Draw_SpriteList()
 			IndexSelectedSprite = Index;
 			SendSelectedSprite();
 		}
-		ImGui::Text(Sprite->Name.c_str());
+		
+		// sprite Name
+		{
+			ImVec2 PrevSize = ImGui::GetItemRectSize();
+			ImGui::PushItemWidth(PrevSize.x);
+
+			const bool bIsSelectedSprite = IndexSelectedSprite == Index;
+			// Enable editing by pressing F2
+			if (bIsSelectedSprite && ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_F2))
+			{
+				EditingSprites[EditingSpriteName] = true;
+			}
+
+			// Enable double-click editing
+			if (EditingSprites[EditingSpriteName])
+			{
+				ImGui::SetKeyboardFocusHere();
+
+				char InputBuffer[128];
+				std::strncpy(InputBuffer, Sprite->Name.c_str(), sizeof(InputBuffer));
+				InputBuffer[sizeof(InputBuffer) - 1] = '\0';
+
+				if (ImGui::InputText(std::format("##PropertyName{}", Index).c_str(), InputBuffer, sizeof(InputBuffer),
+					ImGuiInputTextFlags_EnterReturnsTrue |
+					ImGuiInputTextFlags_AutoSelectAll |
+					ImGuiInputTextFlags_AlwaysOverwrite))
+				{
+					Sprite->Name = InputBuffer;
+					EditingSprites[EditingSpriteName] = false; // save and exit editing mode
+				}
+
+				// If you press ESC, you cancel editing
+				if (ImGui::IsKeyPressed(ImGuiKey_Escape))
+				{
+					EditingSprites[EditingSpriteName] = false;
+				}
+				// Click outside the field - we also finish editing
+				if (!ImGui::IsItemHovered() && ImGui::IsMouseClicked(0))
+				{
+					EditingSprites[EditingSpriteName] = false;
+				}
+				ImGui::SetItemDefaultFocus(); // the cursor is immediately in InputText
+			}
+			else
+			{
+				const std::string SpriteName = std::format("{}##{}_SpriteName{}", Sprite->Name.c_str(), Sprites[Index]->StaticUniqueID, SpriteNum);
+				if (ImGui::Selectable(SpriteName.c_str(), bIsSelectedSprite, 0, ImVec2(PrevSize.x, 0)))
+				{
+					IndexSelectedSprite = Index;
+				}
+
+				if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0))
+				{
+					EditingSprites[EditingSpriteName] = true;
+				}
+			}
+			ImGui::PopItemWidth();
+		}
 		ImGui::EndGroup();
 
 		const ImGuiIO& IO = ImGui::GetIO();
