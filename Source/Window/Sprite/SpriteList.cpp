@@ -313,7 +313,6 @@ void SSpriteList::Draw_ExportSprites()
 	}
 	ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));
 	ImGui::Checkbox("use a unique file name ##UniqueFilename", &bUniqueExportFilename);
-	ImGui::BeginDisabled(IndexSelectedScript == INDEX_NONE);
 	if (ImGui::ButtonEx("OK", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 	{
 		// export sprites
@@ -327,13 +326,14 @@ void SSpriteList::Draw_ExportSprites()
 				}
 				SelectedSprites.push_back(Sprite);
 			}
-			ExportSprites(ScriptFiles[ScriptFileNames[IndexSelectedScript]], CurrentPath, SelectedSprites);
+
+			const std::string ScriptFileName = IndexSelectedScript == INDEX_NONE ? "" : ScriptFileNames[IndexSelectedScript];
+			ExportSprites(ScriptFiles[ScriptFileName], CurrentPath, SelectedSprites);
 		}
 
 		bNeedKeptOpened_ExportPopup = false;
 		ImGui::CloseCurrentPopup();
 	}
-	ImGui::EndDisabled();
 	ImGui::SetItemDefaultFocus();
 	ImGui::SameLine();
 	if (ImGui::Button("Cancel", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
