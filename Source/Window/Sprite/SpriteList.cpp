@@ -93,6 +93,16 @@ void SSpriteList::Initialize(const std::any& Arg)
 	}
 }
 
+void SSpriteList::SetupHotKeys()
+{
+	auto Self = std::dynamic_pointer_cast<SSpriteList>(shared_from_this());
+	Hotkeys =
+	{
+		{ ImGuiKey_Escape,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Escape,							Self)	},	// cansel
+		{ ImGuiKey_Delete,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Delete,							Self)	},	// (delete)
+	};
+}
+
 void SSpriteList::Render()
 {
 	if (!IsOpen())
@@ -105,6 +115,7 @@ void SSpriteList::Render()
 
 	PopupMenu_EditMetadataID = ImGui::GetCurrentWindow()->GetID(PopupMenuName);
 	{
+		Input_HotKeys();
 		Input_Mouse();
 
 		float FooterHeight = ImGui::GetStyle().ItemSpacing.y + ImGui::GetFrameHeightWithSpacing();
@@ -189,6 +200,11 @@ void SSpriteList::Destroy()
 	UnsubscribeAll();
 }
 
+void SSpriteList::Input_HotKeys()
+{
+	Shortcut::Handler(Hotkeys);
+}
+
 void SSpriteList::Input_Mouse()
 {
 	ImGuiContext& Context = *ImGui::GetCurrentContext();
@@ -209,6 +225,23 @@ void SSpriteList::Input_Mouse()
 	{
 		return;
 	}
+}
+
+void SSpriteList::Imput_Escape()
+{
+	for (const std::shared_ptr<FSprite>& Sprite : Sprites)
+	{
+		Sprite->bSelected = false;
+	}
+}
+
+void SSpriteList::Imput_Delete()
+{
+	if (IndexSelectedSprite < 0 && IndexSelectedSprite >= Sprites.size())
+	{
+		return;
+	}
+	Sprites.erase(Sprites.begin() + IndexSelectedSprite);
 }
 
 void SSpriteList::Draw_SpriteList()
@@ -527,7 +560,7 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 	{
 		std::shared_ptr<FSprite> NewSprite = std::make_shared<FSprite>();
 		NewSprite->bSelected = false;
-		NewSprite->HoverStartTime = -1.0;;
+		NewSprite->HoverStartTime = -1.0;
 
 		NewSprite->ZXColorView = std::make_shared<UI::FZXColorView>();
 		NewSprite->ZXColorView->Scale = ImVec2(1.0f, 1.0f);

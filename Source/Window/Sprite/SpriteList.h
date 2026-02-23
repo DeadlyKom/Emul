@@ -192,11 +192,16 @@ public:
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
 	virtual void Initialize(const std::any& Arg) override;
+	virtual void SetupHotKeys() override;
 	virtual void Render() override;
 	virtual void Destroy() override;
 
 private:
+	void Input_HotKeys();
 	void Input_Mouse();
+
+	void Imput_Escape();
+	void Imput_Delete();
 
 	void Draw_SpriteList();
 	void Draw_ExportSprites();
