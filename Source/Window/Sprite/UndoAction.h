@@ -3,6 +3,6 @@
 struct FPixelToCanvas
 {
 	std::vector<ImVec2> Position;
-	std::vector<uint8_t> Color;
+	std::vector<uint32_t> Color;
 	uint32_t Canvas;
 };

@@ -14,11 +14,11 @@ namespace FCanvasOptionsFlags
 {
 	enum Type
 	{
-		None = 0,
-		Source = 1 << 0,
-		Ink = 1 << 1,
-		Attribute = 1 << 2,
-		Mask = 1 << 3,
+		None		= 0,
+		Source		= 1 << 0,
+		Ink			= 1 << 1,
+		Attribute	= 1 << 2,
+		Mask		= 1 << 3,
 	};
 }
 
@@ -65,7 +65,7 @@ private:
 	void Imput_Copy() {}
 	void Imput_Paste();
 	void Imput_Cut() {}
-	void Imput_Delete() {}
+	void Imput_Delete();
 	void Imput_Undo();
 	void Imput_Redo();
 
@@ -81,8 +81,8 @@ private:
 	void UpdateCursorColor(bool bButton = false);
 
 	// undo/redo
-	void UndoHandler_Pencil(FPixelToCanvas& Param);
-	void _UndoHandler_Pencil(FPixelToCanvas& A, const FPixelToCanvas& B);
+	void UndoSwapPixel(FPixelToCanvas& Param);
+	void UndoUnitePixels(FPixelToCanvas& A, const FPixelToCanvas& B);
 
 	bool bDragging;
 	bool bRefreshCanvas;

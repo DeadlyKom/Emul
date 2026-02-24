@@ -819,6 +819,35 @@ void SCanvas::Imput_Paste()
 	}
 }
 
+void SCanvas::Imput_Delete()
+{
+	if (!bRectangleMarqueeActive)
+	{
+		ImRect FullRect;
+
+		if (ZXColorView->RectangleMarqueeRect.GetSize() != ImVec2())
+		{
+			FullRect = ZXColorView->RectangleMarqueeRect;
+		}
+
+		if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
+		{
+			UI::FillRegion(FullRect, ZXColorView->IndexedData, Width, Height, EZXColor::Transparent);
+			bNeedConvertCanvasToZX = true;
+		}
+		else
+		{
+			UI::FillRegion(FullRect,
+				(int32_t)ZXColorView->Image.Width, (int32_t)ZXColorView->Image.Height,
+				ZXColorView->InkData.data(), ZXColorView->AttributeData.data(), ZXColorView->MaskData.data(),
+				EZXColor::Black, EZXColor::White, EZXColor::True);
+			bNeedConvertZXToCanvas = true;
+		}
+	}
+
+	bRefreshCanvas = true;
+}
+
 void SCanvas::Imput_Undo()
 {
 	UndoQueue.Undo();
@@ -1066,8 +1095,8 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 	}
 	UndoQueue.SetWithUndo(
 		std::make_shared<Undo::TAction<ThisClass, FPixelToCanvas>>(
-			std::bind(&ThisClass::UndoHandler_Pencil, this, std::placeholders::_1),
-			std::bind(&ThisClass::_UndoHandler_Pencil, this, std::placeholders::_1, std::placeholders::_2),
+			std::bind(&ThisClass::UndoSwapPixel, this, std::placeholders::_1),
+			std::bind(&ThisClass::UndoUnitePixels, this, std::placeholders::_1, std::placeholders::_2),
 			Pixel
 		)
 	);
@@ -1090,115 +1119,169 @@ void SCanvas::UpdateCursorColor(bool bButton /*= false*/)
 	}
 }
 
-void SCanvas::UndoHandler_Pencil(FPixelToCanvas& Param)
+void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 {
 	if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
 	{
-		for (int Index = 0; Index < Param.Color.size(); ++Index)
+		for (int32_t Index = (int32_t)Param.Color.size() - 1; Index >= 0; --Index)
 		{
 			const ImVec2& Position = Param.Position[Index];
-			uint8_t& Color = Param.Color[Index];
+			uint32_t& Color = Param.Color[Index];
 			const uint32_t Offset = (uint32_t)Position.y * Width + (uint32_t)Position.x;
-			std::swap(ZXColorView->IndexedData[Offset], Color);
+			std::swap(ZXColorView->IndexedData[Offset], (uint8_t&)Color);
 		}
 		bNeedConvertCanvasToZX = true;
 	}
 	else
 	{
-		const int32_t Boundary_X = Width >> 3;
-		const int32_t Boundary_Y = Height >> 3;
+		for (int32_t Index = (int32_t)Param.Color.size() - 1; Index >= 0 ; --Index)
+		{
+			const ImVec2& Position = Param.Position[Index];
+			uint32_t& Color = Param.Color[Index];
 
-		const int32_t x = (uint32_t)Param.Position.back().x;
-		const int32_t y = (uint32_t)Param.Position.back().y;
+			const int32_t Boundary_X = Width >> 3;
+			const int32_t Boundary_Y = Height >> 3;
 
-		const int32_t bx = x / 8;
-		const int32_t dx = x % 8;
-		const int32_t by = y / 8;
-		const int32_t dy = y % 8;
+			const int32_t x = (uint32_t)Position.x;
+			const int32_t y = (uint32_t)Position.y;
 
-		const uint8_t Flags = OptionsFlags[0] & ~FCanvasOptionsFlags::Source;
+			const int32_t bx = x / 8;
+			const int32_t dx = x % 8;
+			const int32_t by = y / 8;
+			const int32_t dy = y % 8;
 
-		const int32_t InkMaskOffset = (by * 8 + dy) * Boundary_X + bx;
-		uint8_t& Pixels = ZXColorView->InkData[InkMaskOffset];
-		uint8_t& Mask = ZXColorView->MaskData[InkMaskOffset];
+			const int32_t InkMaskOffset = (by * 8 + dy) * Boundary_X + bx;
+			uint8_t& Pixels = ZXColorView->InkData[InkMaskOffset];
+			uint8_t& Mask = ZXColorView->MaskData[InkMaskOffset];
+			uint8_t& Attribute = ZXColorView->AttributeData[by * Boundary_X + bx];
 
-		const int32_t AttributeOffset = by * Boundary_X + bx;
-		uint8_t& Attribute = ZXColorView->AttributeData[AttributeOffset];
+			// swap pixel color
+			const uint8_t PixelBit = 1 << (7 - dx);
 
-		const bool bAttributeBright = (Attribute >> 6) & 0x01;
-		const uint8_t AttributeInkColor = (Attribute & 0x07);
-		const uint8_t AttributePaperColor = ((Attribute >> 3) & 0x07);
-
-		const uint8_t PixelBit = 1 << (7 - dx);
-
-		auto ApplyPixel = [&]()
+			// swap pixel bit
 			{
-				if (Param.Color.back() == EZXColor::Transparent)
-				{
-					return;
-				}
-				const bool bOperation = (Param.Color.back() & 0x07) != UI::EZXSpectrumColor::White;
-				if (bOperation)
-				{
-					Pixels |= PixelBit;									// set bit
-				}
-				else
-				{
-					Pixels &= ~(PixelBit);								// reset bit
-				}
-			};
-		auto ApplyAttribute = [&]()
+				uint8_t& PixelsByte = reinterpret_cast<uint8_t*>(&Color)[3];
+				uint8_t Diff = (Pixels ^ PixelsByte) & PixelBit;
+				Pixels ^= Diff;
+				PixelsByte ^= Diff;
+			}
+			// swap mask bit
 			{
-				const bool bInkTransparent = Subcolor[ESubcolor::Ink] == UI::EZXSpectrumColor::Transparent;
-				const bool bPaperTransparent = Subcolor[ESubcolor::Paper] == UI::EZXSpectrumColor::Transparent;
-
-				const uint8_t InkColor = bInkTransparent ? AttributeInkColor : Subcolor[ESubcolor::Ink] & 0x07;
-				const uint8_t PaperColor = bPaperTransparent ? AttributePaperColor : Subcolor[ESubcolor::Paper] & 0x07;
-				const bool bBright = Subcolor[ESubcolor::Bright] == UI::EZXSpectrumColor::True;
-				const bool bFlash = Subcolor[ESubcolor::Flash] == UI::EZXSpectrumColor::True;
-
-				const uint8_t AttributeColor = (bFlash << 7) | (bBright << 6) | (PaperColor << 3) | InkColor;
-				Attribute = AttributeColor;
-			};
-		auto ApplyMask = [&]()
+				uint8_t& MaskByte = reinterpret_cast<uint8_t*>(&Color)[2];
+				uint8_t Diff = (Mask ^ MaskByte) & PixelBit;
+				Mask ^= Diff;
+				MaskByte ^= Diff;
+			}
+			// swap byte attribute
 			{
-				const bool bOperation = Param.Color.back() != UI::EZXSpectrumColor::Transparent;
-				if (bOperation)
+				std::swap(Attribute, reinterpret_cast<uint8_t*>(&Color)[1]);
+			}
+
+			// set pixel color
+			uint8_t& _Color = reinterpret_cast<uint8_t*>(&Color)[0];
+			if (_Color != UI::EZXSpectrumColor::None)
+			{
+				const uint8_t Flags = OptionsFlags[0] & ~FCanvasOptionsFlags::Source;
+				if (Flags & FCanvasOptionsFlags::Ink)
 				{
-					Mask |= PixelBit;									// set bit
+					if (_Color != EZXColor::Transparent)
+					{
+						const uint8_t PixelBit = 1 << (7 - dx);
+						const bool bOperation = (_Color & 0x07) != UI::EZXSpectrumColor::White;
+						if (bOperation)
+						{
+							Pixels |= PixelBit;									// set bit
+						}
+						else
+						{
+							Pixels &= ~(PixelBit);								// reset bit
+						}
+					}
 				}
-				else
+				if (Flags & FCanvasOptionsFlags::Mask)
 				{
-					Mask &= ~(PixelBit);								// reset bit
+					const uint8_t PixelBit = 1 << (7 - dx);
+					const bool bOperation = _Color != UI::EZXSpectrumColor::Transparent;
+					if (bOperation)
+					{
+						Mask |= PixelBit;									// set bit
+					}
+					else
+					{
+						Mask &= ~(PixelBit);								// reset bit
+					}
 				}
-			};
+				if (Flags & FCanvasOptionsFlags::Attribute)
+				{
+					const bool bInkTransparent = Subcolor[ESubcolor::Ink] == UI::EZXSpectrumColor::Transparent;
+					const bool bPaperTransparent = Subcolor[ESubcolor::Paper] == UI::EZXSpectrumColor::Transparent;
 
-		if (Flags & FCanvasOptionsFlags::Ink) { ApplyPixel(); }
-		if (Flags & FCanvasOptionsFlags::Attribute) { ApplyAttribute(); }
-		if (Flags & FCanvasOptionsFlags::Mask) { ApplyMask(); }
+					const uint8_t InkColor = bInkTransparent ? (Attribute & 0x07) : Subcolor[ESubcolor::Ink] & 0x07;
+					const uint8_t PaperColor = bPaperTransparent ? ((Attribute >> 3) & 0x07) : Subcolor[ESubcolor::Paper] & 0x07;
 
-		const bool bInk = OptionsFlags[0] & FCanvasOptionsFlags::Ink;
-		const bool bMask = OptionsFlags[0] & FCanvasOptionsFlags::Mask;
-		const bool bPaper = OptionsFlags[0] & FCanvasOptionsFlags::Attribute;
+					const bool bBright = Subcolor[ESubcolor::Bright] == UI::EZXSpectrumColor::True;
+					const bool bFlash = Subcolor[ESubcolor::Flash] == UI::EZXSpectrumColor::True;
 
+					Attribute = (bFlash << 7) | (bBright << 6) | (PaperColor << 3) | InkColor;
+				}
+
+				_Color = UI::EZXSpectrumColor::None;
+			}
+		}
 		bNeedConvertZXToCanvas = true;
 	}
 	bRefreshCanvas = true;
 }
 
-void SCanvas::_UndoHandler_Pencil(FPixelToCanvas& A, const FPixelToCanvas& B)
+void SCanvas::UndoUnitePixels(FPixelToCanvas& A, const FPixelToCanvas& B)
 {
 	for (int IndexB = 0; IndexB < B.Position.size(); ++IndexB)
 	{
-		const ImVec2& PosB = B.Position[IndexB];
 		bool bFound = false;
-		for (int IndexA = 0; IndexA < A.Position.size(); ++IndexA)
+		const ImVec2& PosB = B.Position[IndexB];
+
+		//const uint32_t& ColorB = B.Color[IndexB];
+		//const uint8_t& _Color = reinterpret_cast<const uint8_t*>(&ColorB)[0];
+		//uint8_t AttributeB = reinterpret_cast<const uint8_t*>(&ColorB)[1];
+		//if (_Color == UI::EZXSpectrumColor::None)
+		//{
+		//	for (int IndexA = 0; IndexA < A.Position.size(); ++IndexA)
+		//	{
+		//		const ImVec2& PosA = A.Position[IndexA];
+		//		if (PosA == PosB)
+		//		{
+		//			bFound = true;
+		//			break;
+		//		}
+		//
+		//		const int32_t PosA_x = (int32_t)PosA.x >> 3;
+		//		const int32_t PosA_y = (int32_t)PosA.y >> 3;
+		//		const int32_t PosB_x = (int32_t)PosB.x >> 3;
+		//		const int32_t PosB_y = (int32_t)PosB.y >> 3;
+		//
+		//		if (PosA_x != PosB_x || PosA_y != PosB_y)
+		//		{
+		//			continue;
+		//		}
+		//
+		//		uint32_t& ColorA = A.Color[IndexA]; 
+		//		uint8_t& AttributeA = reinterpret_cast<uint8_t*>(&ColorA)[1];
+		//		if (AttributeB != AttributeA)
+		//		{
+		//			bFound = true;
+		//		}
+		//	}
+		//}
+		//else
 		{
-			const ImVec2& PosA = A.Position[IndexA];
-			if (PosA == PosB)
+			for (int IndexA = 0; IndexA < A.Position.size(); ++IndexA)
 			{
-				bFound = true;
-				break;
+				const ImVec2& PosA = A.Position[IndexA];
+				if (PosA == PosB)
+				{
+					bFound = true;
+					break;
+				}
 			}
 		}
 

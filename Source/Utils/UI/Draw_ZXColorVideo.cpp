@@ -931,3 +931,31 @@ void UI::ZXAttributeColorToImage(
 		Images.UpdateTexture(InOutputImage.Handle, RGBA.data());
 	}
 }
+
+void UI::FillRegion(const ImRect& RectangleFill, std::vector<uint8_t>& OutputIndexedData, int32_t Width, int32_t Height, EZXSpectrumColor::Type FillColor)
+{
+	const int32_t Size = Width * Height;
+	const ImVec2 RectangleSize = RectangleFill.GetSize();
+	if (RectangleSize == ImVec2())
+	{
+		for (int32_t i = 0; i < Size; ++i)
+		{
+			OutputIndexedData[i] = FillColor;
+		}
+	}
+	else
+	{
+		for (int32_t y = 0; y < (int32_t)RectangleSize.y; ++y)
+		{
+			for (int32_t x = 0; x < (int32_t)RectangleSize.x; ++x)
+			{
+				uint32_t Offset = ((int32_t)RectangleFill.Min.y + y) * Width +  (int32_t)RectangleFill.Min.x + x;
+				OutputIndexedData[Offset] = FillColor;
+			}
+		}
+	}
+}
+
+void UI::FillRegion(const ImRect& RectangleFill, int32_t Width, int32_t Height, uint8_t* InkData, uint8_t* AttributeData, uint8_t* MaskData, EZXSpectrumColor::Type FillInk, EZXSpectrumColor::Type FillPaper, EZXSpectrumColor::Type FillMask)
+{
+}

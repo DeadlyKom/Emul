@@ -94,6 +94,7 @@ public:
 	FImage& FromMemory(std::vector<uint8_t> Memory);
 	FImage& CreateTexture(void* ImageData, int32_t Width, int32_t Height, UINT CPUAccessFlags = 0, D3D11_USAGE Usage = D3D11_USAGE::D3D11_USAGE_DEFAULT);
 	bool UpdateTexture(FImageHandle _Handle, void* ImageData);
+	bool GetTextureData(FImageHandle _Handle, std::vector<uint32_t>& OutputImageData);
 	FImage& GetImage(FImageHandle _Handle);
 
 private:
