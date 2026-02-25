@@ -46,19 +46,19 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	, bOpenPopupMenu(false)
 	, bMouseInsideMarquee(false)
 	, LastOptionsFlags(FCanvasOptionsFlags::None)
-	, LastSetPixelColorIndex(UI::EZXSpectrumColor::None)
+	, LastSetPixelColorIndex(EZXColor::None)
 	, LastSetPixelPosition(-1.0f, -1.0f)
 	, Width(0)
 	, Height(0)
 	, SourcePathFile(_SourcePathFile)
 {
-	ButtonColor[0] = UI::EZXSpectrumColor::Black_;
-	ButtonColor[1] = UI::EZXSpectrumColor::Black;
+	ButtonColor[0] = EZXColor::Black_;
+	ButtonColor[1] = EZXColor::Black;
 
-	Subcolor[ESubcolor::Ink] = UI::EZXSpectrumColor::Black_;
-	Subcolor[ESubcolor::Paper] = UI::EZXSpectrumColor::White_;
-	Subcolor[ESubcolor::Bright] = UI::EZXSpectrumColor::False;
-	Subcolor[ESubcolor::Flash] = UI::EZXSpectrumColor::False;
+	Subcolor[ESubcolor::Ink] = EZXColor::Black_;
+	Subcolor[ESubcolor::Paper] = EZXColor::White_;
+	Subcolor[ESubcolor::Bright] = EZXColor::False;
+	Subcolor[ESubcolor::Flash] = EZXColor::False;
 
 	OptionsFlags[0] = FCanvasOptionsFlags::Source;
 	OptionsFlags[1] = FCanvasOptionsFlags::None;
@@ -462,7 +462,7 @@ void SCanvas::Draw_PopupMenu()
 					{
 						for (uint32_t x = (uint32_t)NewRegion.Rect.Min.x; x < (uint32_t)NewRegion.Rect.Max.x; ++x)
 						{
-							const int8_t Color = UI::EZXSpectrumColor::Black_;
+							const int8_t Color = EZXColor::Black_;
 							const ImU32 ColorRGBA = UI::ToU32(UI::ZXSpectrumColorRGBA[Color]);
 
 							const uint32_t Index = y * Sprite->Width + x;
@@ -837,10 +837,19 @@ void SCanvas::Imput_Delete()
 		}
 		else
 		{
+			const uint8_t Flags = OptionsFlags[0] & ~FCanvasOptionsFlags::Source;
+
 			UI::FillRegion(FullRect,
 				(int32_t)ZXColorView->Image.Width, (int32_t)ZXColorView->Image.Height,
-				ZXColorView->InkData.data(), ZXColorView->AttributeData.data(), ZXColorView->MaskData.data(),
-				EZXColor::Black, EZXColor::White, EZXColor::True);
+				Flags & FCanvasOptionsFlags::Ink ? ZXColorView->InkData.data() : nullptr, 
+				Flags & FCanvasOptionsFlags::Attribute ? ZXColorView->AttributeData.data() : nullptr,
+				Flags & FCanvasOptionsFlags::Mask ? ZXColorView->MaskData.data() : nullptr,
+				EZXColor::False,
+				EZXColor::False,
+				EZXColor::Black,
+				EZXColor::White,
+				EZXColor::False,
+				EZXColor::True);
 			bNeedConvertZXToCanvas = true;
 		}
 	}
@@ -1021,7 +1030,7 @@ void SCanvas::Handler_Eyedropper()
 		case FCanvasOptionsFlags::Ink | FCanvasOptionsFlags::Attribute:								// 0110
 			Subcolor[ESubcolor::Ink] = (UI::EZXSpectrumColor::Type)AttributeInkColor;
 			Subcolor[ESubcolor::Paper] = (UI::EZXSpectrumColor::Type)AttributePaperColor;
-			Subcolor[ESubcolor::Bright] = bAttributeBright ? UI::EZXSpectrumColor::True : UI::EZXSpectrumColor::False;
+			Subcolor[ESubcolor::Bright] = bAttributeBright ? EZXColor::True : EZXColor::False;
 			break;
 		case FCanvasOptionsFlags::Mask:																// 1000
 		case FCanvasOptionsFlags::Mask | FCanvasOptionsFlags::Ink:									// 1010
@@ -1031,7 +1040,7 @@ void SCanvas::Handler_Eyedropper()
 		case FCanvasOptionsFlags::Mask | FCanvasOptionsFlags::Attribute | FCanvasOptionsFlags::Ink:	// 1110
 			Subcolor[ESubcolor::Ink] = (UI::EZXSpectrumColor::Type)AttributeInkColor;
 			Subcolor[ESubcolor::Paper] = (UI::EZXSpectrumColor::Type)AttributePaperColor;
-			Subcolor[ESubcolor::Bright] = bAttributeBright ? UI::EZXSpectrumColor::True : UI::EZXSpectrumColor::False;
+			Subcolor[ESubcolor::Bright] = bAttributeBright ? EZXColor::True : EZXColor::False;
 			break;
 		}
 		FEvent_Color Event;
@@ -1110,10 +1119,10 @@ void SCanvas::UpdateCursorColor(bool bButton /*= false*/)
 	}
 	else
 	{
-		const bool bBright = Subcolor[ESubcolor::Bright] == UI::EZXSpectrumColor::True;
-		const bool bFlash = Subcolor[ESubcolor::Flash] == UI::EZXSpectrumColor::True;
-		const uint8_t InkColor = Subcolor[ESubcolor::Ink] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : Subcolor[ESubcolor::Ink] | (bBright << 3);
-		const uint8_t PaperColor = Subcolor[ESubcolor::Paper] == UI::EZXSpectrumColor::Transparent ? UI::EZXSpectrumColor::Transparent : Subcolor[ESubcolor::Paper] | (bBright << 3);
+		const bool bBright = Subcolor[ESubcolor::Bright] == EZXColor::True;
+		const bool bFlash = Subcolor[ESubcolor::Flash] == EZXColor::True;
+		const uint8_t InkColor = Subcolor[ESubcolor::Ink] == EZXColor::Transparent ? EZXColor::Transparent : Subcolor[ESubcolor::Ink] | (bBright << 3);
+		const uint8_t PaperColor = Subcolor[ESubcolor::Paper] == EZXColor::Transparent ? EZXColor::Transparent : Subcolor[ESubcolor::Paper] | (bBright << 3);
 
 		ZXColorView->CursorColor = UI::ToVec4(UI::ZXSpectrumColorRGBA[InkColor]);
 	}
@@ -1159,6 +1168,7 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 			const uint8_t PixelBit = 1 << (7 - dx);
 
 			// swap pixel bit
+			if (Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
 			{
 				uint8_t& PixelsByte = reinterpret_cast<uint8_t*>(&Color)[3];
 				uint8_t Diff = (Pixels ^ PixelsByte) & PixelBit;
@@ -1166,6 +1176,7 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 				PixelsByte ^= Diff;
 			}
 			// swap mask bit
+			if (Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
 			{
 				uint8_t& MaskByte = reinterpret_cast<uint8_t*>(&Color)[2];
 				uint8_t Diff = (Mask ^ MaskByte) & PixelBit;
@@ -1173,13 +1184,14 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 				MaskByte ^= Diff;
 			}
 			// swap byte attribute
+			if (Subcolor[ESubcolor::Paper] != EZXColor::Transparent)
 			{
 				std::swap(Attribute, reinterpret_cast<uint8_t*>(&Color)[1]);
 			}
 
 			// set pixel color
 			uint8_t& _Color = reinterpret_cast<uint8_t*>(&Color)[0];
-			if (_Color != UI::EZXSpectrumColor::None)
+			if (_Color != EZXColor::None)
 			{
 				const uint8_t Flags = OptionsFlags[0] & ~FCanvasOptionsFlags::Source;
 				if (Flags & FCanvasOptionsFlags::Ink)
@@ -1187,7 +1199,7 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 					if (_Color != EZXColor::Transparent)
 					{
 						const uint8_t PixelBit = 1 << (7 - dx);
-						const bool bOperation = (_Color & 0x07) != UI::EZXSpectrumColor::White;
+						const bool bOperation = (_Color & 0x07) != EZXColor::White;
 						if (bOperation)
 						{
 							Pixels |= PixelBit;									// set bit
@@ -1201,7 +1213,7 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 				if (Flags & FCanvasOptionsFlags::Mask)
 				{
 					const uint8_t PixelBit = 1 << (7 - dx);
-					const bool bOperation = _Color != UI::EZXSpectrumColor::Transparent;
+					const bool bOperation = _Color != EZXColor::Transparent;
 					if (bOperation)
 					{
 						Mask |= PixelBit;									// set bit
@@ -1213,19 +1225,19 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 				}
 				if (Flags & FCanvasOptionsFlags::Attribute)
 				{
-					const bool bInkTransparent = Subcolor[ESubcolor::Ink] == UI::EZXSpectrumColor::Transparent;
-					const bool bPaperTransparent = Subcolor[ESubcolor::Paper] == UI::EZXSpectrumColor::Transparent;
+					const bool bInkTransparent = Subcolor[ESubcolor::Ink] == EZXColor::Transparent;
+					const bool bPaperTransparent = Subcolor[ESubcolor::Paper] == EZXColor::Transparent;
 
 					const uint8_t InkColor = bInkTransparent ? (Attribute & 0x07) : Subcolor[ESubcolor::Ink] & 0x07;
 					const uint8_t PaperColor = bPaperTransparent ? ((Attribute >> 3) & 0x07) : Subcolor[ESubcolor::Paper] & 0x07;
 
-					const bool bBright = Subcolor[ESubcolor::Bright] == UI::EZXSpectrumColor::True;
-					const bool bFlash = Subcolor[ESubcolor::Flash] == UI::EZXSpectrumColor::True;
+					const bool bBright = Subcolor[ESubcolor::Bright] == EZXColor::True;
+					const bool bFlash = Subcolor[ESubcolor::Flash] == EZXColor::True;
 
 					Attribute = (bFlash << 7) | (bBright << 6) | (PaperColor << 3) | InkColor;
 				}
 
-				_Color = UI::EZXSpectrumColor::None;
+				_Color = EZXColor::None;
 			}
 		}
 		bNeedConvertZXToCanvas = true;

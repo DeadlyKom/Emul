@@ -956,6 +956,99 @@ void UI::FillRegion(const ImRect& RectangleFill, std::vector<uint8_t>& OutputInd
 	}
 }
 
-void UI::FillRegion(const ImRect& RectangleFill, int32_t Width, int32_t Height, uint8_t* InkData, uint8_t* AttributeData, uint8_t* MaskData, EZXSpectrumColor::Type FillInk, EZXSpectrumColor::Type FillPaper, EZXSpectrumColor::Type FillMask)
+void UI::FillRegion(const ImRect& RectangleFill,
+	int32_t Width, int32_t Height,
+	uint8_t* InkData, uint8_t* AttributeData, uint8_t* MaskData,
+	EZXSpectrumColor::Type FillFlash,
+	EZXSpectrumColor::Type FillBright,
+	EZXSpectrumColor::Type FillInk,
+	EZXSpectrumColor::Type FillPaper,
+	EZXSpectrumColor::Type FillPixel,
+	EZXSpectrumColor::Type FillMask)
 {
+	const int32_t Boundary_X = Width >> 3;
+	const int32_t Boundary_Y = Height >> 3;
+
+	const int32_t Size = Width * Height;
+	const ImVec2 RectangleSize = RectangleFill.GetSize();
+	if (RectangleSize == ImVec2())
+	{
+		for (int32_t i = 0; i < Size; ++i)
+		{
+			const int32_t y = i / Width;
+			const int32_t x = i % Width;
+
+			const int32_t bx = x / 8;
+			const int32_t dx = x % 8;
+			const int32_t by = y / 8;
+			const int32_t dy = y % 8;
+
+			if (InkData != nullptr)
+			{
+				const int32_t InkOffset = (by * 8 + dy) * Boundary_X + bx;
+				const bool bPixel = FillPixel == EZXSpectrumColor::True;
+				InkData[InkOffset] = bPixel ? 0xFF : 0x00;
+			}
+
+			if (MaskData != nullptr)
+			{
+				const int32_t MaskOffset = (by * 8 + dy) * Boundary_X + bx;
+				const bool bMask = FillMask == EZXSpectrumColor::True;
+				MaskData[MaskOffset] = bMask ? 0xFF : 0x00;
+			}
+
+			if (AttributeData != nullptr)
+			{
+				const bool bFlash = FillFlash == EZXSpectrumColor::True;
+				const bool bBright = FillBright == EZXSpectrumColor::True;
+				const uint8_t Attribute = (bFlash << 7) | (bBright << 6) | ((FillPaper & 0x07) << 3) | (FillInk & 0x07);
+				const int32_t AttributeOffset = by * Boundary_X + bx;
+				AttributeData[AttributeOffset] = Attribute;
+			}
+		}
+	}
+	else
+	{
+		for (int32_t y = 0; y < (int32_t)RectangleSize.y; ++y)
+		{
+			for (int32_t x = 0; x < (int32_t)RectangleSize.x; ++x)
+			{
+				const int32_t _x = (int32_t)RectangleFill.Min.x + x;
+				const int32_t _y = (int32_t)RectangleFill.Min.y + y;
+				const int32_t bx = _x / 8;
+				const int32_t dx = _x % 8;
+				const int32_t by = _y / 8;
+				const int32_t dy = _y % 8;
+
+				if (InkData != nullptr)
+				{
+					const int32_t InkOffset = (by * 8 + dy) * Boundary_X + bx;
+					uint8_t& Pixel = InkData[InkOffset];
+
+					const bool bPixel = FillPixel == EZXSpectrumColor::True;
+					Pixel &= ~(1 << (7 - dx));
+					Pixel |= bPixel << (7 - dx);
+				}
+
+				if (MaskData != nullptr)
+				{
+					const int32_t MaskOffset = (by * 8 + dy) * Boundary_X + bx;
+					uint8_t& Mask = MaskData[MaskOffset];
+
+					const bool bMask = FillMask == EZXSpectrumColor::True;
+					Mask &= ~(1 << (7 - dx));
+					Mask |= bMask << (7 - dx);
+				}
+
+				if (AttributeData != nullptr)
+				{
+					const bool bFlash = FillFlash == EZXSpectrumColor::True;
+					const bool bBright = FillBright == EZXSpectrumColor::True;
+					const uint8_t Attribute = (bFlash << 7) | (bBright << 6) | ((FillPaper & 0x07) << 3) | (FillInk & 0x07);
+					const int32_t AttributeOffset = by * Boundary_X + bx;
+					AttributeData[AttributeOffset] = Attribute;
+				}
+			}
+		}
+	}
 }

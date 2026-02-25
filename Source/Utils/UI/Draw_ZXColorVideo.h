@@ -250,7 +250,15 @@ namespace UI
 
 	// fill region
 	void FillRegion(const ImRect& RectangleFill, std::vector<uint8_t>& OutputIndexedData, int32_t Width, int32_t Height, EZXSpectrumColor::Type FillColor);
-	void FillRegion(const ImRect& RectangleFill, int32_t Width, int32_t Height, uint8_t* InkData, uint8_t* AttributeData, uint8_t* MaskData, EZXSpectrumColor::Type FillInk, EZXSpectrumColor::Type FillPaper, EZXSpectrumColor::Type FillMask);
+	void FillRegion(const ImRect& RectangleFill,
+		int32_t Width, int32_t Height,
+		uint8_t* InkData, uint8_t* AttributeData, uint8_t* MaskData,
+		EZXSpectrumColor::Type FillFlash,
+		EZXSpectrumColor::Type FillBright,
+		EZXSpectrumColor::Type FillInk,
+		EZXSpectrumColor::Type FillPaper,
+		EZXSpectrumColor::Type FillPixel,
+		EZXSpectrumColor::Type FillMask);
 }
 
 using EZXColor = UI::EZXSpectrumColor::Type;
