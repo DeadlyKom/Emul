@@ -12,7 +12,7 @@ public:
 	SOscillograph(EFont::Type _FontName);
 	virtual ~SOscillograph() = default;
 
-	virtual void Initialize(const std::any& Arg) override;
+	virtual void Initialize(const std::vector<std::any>& Args) override;
 	virtual void Render() override;
 
 private:

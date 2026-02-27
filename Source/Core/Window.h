@@ -85,7 +85,7 @@ public:
 	{
 		Data = _Data;
 	}
-	virtual void Initialize(const std::any& Arg) {}
+	virtual void Initialize(const std::vector<std::any>& Args) {}
 	virtual void SetupHotKeys() {}
 	virtual void Render() {}
 	virtual void Tick(float DeltaTime) {}

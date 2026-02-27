@@ -100,7 +100,7 @@ void FAppSprite::Initialize()
 			}};
 
 		Viewer->NativeInitialize(Data);
-		Viewer->Initialize(Layout);
+		Viewer->Initialize({ Layout });
 		Viewer->SetupHotKeys();
 
 		Viewer->SetMenuBar(std::bind(&ThisClass::Show_MenuBar, this));
@@ -186,7 +186,15 @@ void FAppSprite::DragAndDropFile(const std::filesystem::path& FilePath)
 	}
 	else if (FilePath.extension() == L".png")
 	{
-		Import_PNG(FilePath);
+		Import_Image(FilePath, EImageFormat::PNG);
+	}
+	else if (FilePath.extension() == L".aseprite")
+	{
+		Import_Image(FilePath, EImageFormat::Aseprite);
+	}
+	else
+	{
+		LOG_ERROR("[{}]\t Format not supported.", (__FUNCTION__));
 	}
 }
 
@@ -475,7 +483,7 @@ bool FAppSprite::ShowModal_WindowNewCanvas()
 
 }
 
-void FAppSprite::Import_PNG(const std::filesystem::path& FilePath)
+void FAppSprite::Import_Image(const std::filesystem::path& FilePath, EImageFormat ImageFormat)
 {
 	std::shared_ptr<SWindow> FoundWindow;
 	for (std::shared_ptr<SWindow>& Window : Viewer->GetWindows(NAME_Canvas))
@@ -499,7 +507,7 @@ void FAppSprite::Import_PNG(const std::filesystem::path& FilePath)
 
 		std::wstring Filename = FilePath.filename().wstring();
 		std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, FilePath);
-		Viewer->AddWindow(EName::Canvas, NewCanvas, Data, FilePath);
+		Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { FilePath, ImageFormat });
 	}
 	else
 	{

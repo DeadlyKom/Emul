@@ -90,7 +90,7 @@
     <IntDir>$(SolutionDir)Bin\Emulator\Intermediate\$(Configuration)\</IntDir>
     <TargetName>ZX-Debugger</TargetName>
     <IncludePath>$(SolutionDir)\Source\;$(SolutionDir)\Source\Core;$(SolutionDir)\Dependencies\;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)\Bin\IMGUI\$(Configuration)\;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(SolutionDir)Bin\IMGUI\$(Configuration)\;$(SolutionDir)Dependencies\ZLIB\$(Configuration)\$(Platform);$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)Bin\Emulator\$(Configuration)\</OutDir>
@@ -168,7 +168,7 @@
     <Link>
       <SubSystem>Console</SubSystem>
       <GenerateDebugInformation>true</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;dxgi.lib;IMGUI.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>zsd.lib;d3d11.lib;d3dcompiler.lib;dxgi.lib;IMGUI.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -234,6 +234,7 @@
     <ClCompile Include="Motherboard\Motherboard_ClockGenerator.cpp" />
     <ClCompile Include="Motherboard\Motherboard_Thread.cpp" />
     <ClCompile Include="Settings\SpriteSettings.cpp" />
+    <ClCompile Include="Utils\Aseprite\Format.cpp" />
     <ClCompile Include="Utils\Delegate.cpp" />
     <ClCompile Include="Utils\IO.cpp" />
     <ClCompile Include="Utils\Name.cpp" />
@@ -293,6 +294,8 @@
     <ClInclude Include="resource.h" />
     <ClInclude Include="Settings\SpriteSettings.h" />
     <ClInclude Include="Utils\Array.h" />
+    <ClInclude Include="Utils\Aseprite\Definition.h" />
+    <ClInclude Include="Utils\Aseprite\Format.h" />
     <ClInclude Include="Utils\IO.h" />
     <ClInclude Include="Utils\Pipeline.h" />
     <ClInclude Include="Utils\Memory.h" />

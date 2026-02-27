@@ -52,11 +52,11 @@ void SViewer::NativeInitialize(const FNativeDataInitialize& _Data)
 	}
 }
 
-void SViewer::Initialize(const std::any& Arg)
+void SViewer::Initialize(const std::vector<std::any>& Args)
 {
 	for (auto& [Type, Window] : Windows)
 	{
-		Window->Initialize(Arg);
+		Window->Initialize(Args);
 	}
 }
 

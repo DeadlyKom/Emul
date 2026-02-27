@@ -12,7 +12,7 @@ SOscillograph::SOscillograph(EFont::Type _FontName)
 		.SetIncludeInWindows(true))
 {}
 
-void SOscillograph::Initialize(const std::any& Arg)
+void SOscillograph::Initialize(const std::vector<std::any>& Args)
 {
 }
 

@@ -10,6 +10,7 @@
 #include <any>
 #include <map>
 #include <stack>
+#include <zlib/zlib.h>
 #include <vector>
 #include <memory>
 #include <string>

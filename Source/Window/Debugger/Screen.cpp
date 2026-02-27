@@ -20,7 +20,7 @@ SScreen::SScreen(EFont::Type _FontName)
 	, bDragging(false)										// is user currently dragging to pan view
 {}
 
-void SScreen::Initialize(const std::any& Arg)
+void SScreen::Initialize(const std::vector<std::any>& Args)
 {
 	ZXColorView = std::make_shared<UI::FZXColorView>();
 

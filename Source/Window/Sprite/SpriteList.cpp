@@ -83,7 +83,7 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 		});
 }
 
-void SSpriteList::Initialize(const std::any& Arg)
+void SSpriteList::Initialize(const std::vector<std::any>& Args)
 {
 	CurrentPath = FAppFramework::GetPath(EPathType::Export);
 
@@ -863,7 +863,7 @@ void SSpriteList::ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>
 
 			std::wstring Filename = Sprite->SourcePathFile.filename().wstring();
 			std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, Sprite->SourcePathFile);
-			Viewer->AddWindow(EName::Canvas, NewCanvas, _Data, Sprite->SourcePathFile);
+			Viewer->AddWindow(EName::Canvas, NewCanvas, _Data, { Sprite->SourcePathFile });
 		}
 		else
 		{

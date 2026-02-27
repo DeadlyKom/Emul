@@ -37,7 +37,7 @@ public:
 	virtual ~SViewerBase() = default;
 
 	// begin SWindow overrides
-	virtual void Initialize(const std::any& Arg) override;
+	virtual void Initialize(const std::vector<std::any>& Args) override;
 	virtual void Render() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void Destroy() override;
@@ -46,8 +46,8 @@ public:
 	bool SetWindowVisibility(EName::Type WindowType, bool bVisibility = true);
 	std::vector<std::shared_ptr<SWindow>> GetWindows(EName::Type WindowType) const;
 	bool IsWindowVisibility(EName::Type WindowType) const;
-	void AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Window, const FNativeDataInitialize& _Data, const std::any& Arg);
-	void AppendWindows(const std::map<EName::Type, std::shared_ptr<SWindow>>& _Windows, const FNativeDataInitialize& _Data, const std::any& Arg);
+	void AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Window, const FNativeDataInitialize& _Data, const std::vector<std::any>& Args);
+	void AppendWindows(const std::map<EName::Type, std::shared_ptr<SWindow>>& _Windows, const FNativeDataInitialize& _Data, const std::vector<std::any>& Args);
 	void RemoveWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Window);
 	void SetMenuBar(MenuBarHandler Handler);
 	void ReleaseUnnecessaryWindows();

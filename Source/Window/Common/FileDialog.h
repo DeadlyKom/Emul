@@ -43,7 +43,7 @@ public:
 	SFileDialog(EFont::Type _FontName, const std::wstring& Name = L"");
 	virtual ~SFileDialog() = default;
 
-	virtual void Initialize(const std::any& Arg) override;
+	virtual void Initialize(const std::vector<std::any>& Args) override;
 	virtual void Render() override;
 	virtual void Destroy() override;
 

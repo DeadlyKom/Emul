@@ -3,6 +3,13 @@
 #include <Core/AppFramework.h>
 #include <Core/ViewerBase.h>
 
+enum class EImageFormat
+{
+	None,
+	PNG,
+	Aseprite,
+};
+
 struct FRecentFiles
 {
 	std::string VisibleName;
@@ -21,7 +28,7 @@ public:
 	virtual void Tick(float DeltaTime) override;
 	virtual void Render() override;
 	virtual bool IsOver() override;
-	virtual std::vector<std::wstring> DragAndDropExtensions() const override { return { L".png", L".json" }; }
+	virtual std::vector<std::wstring> DragAndDropExtensions() const override { return { L".json", L".png", L".aseprite" }; }
 	virtual void DragAndDropFile(const std::filesystem::path& FilePath) override;
 	virtual void LoadSettings() override;
 
@@ -32,7 +39,7 @@ private:
 	bool ShowModal_WindowNewCanvas();
 
 	void Quit() { bOpen = false; }
-	void Import_PNG(const std::filesystem::path& FilePath);
+	void Import_Image(const std::filesystem::path& FilePath, EImageFormat ImageFormat);
 	void Import_JSON(const std::filesystem::path& FilePath);
 	void Callback_OpenFile(std::filesystem::path FilePath);
 

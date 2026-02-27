@@ -32,7 +32,7 @@ void SToolBar::NativeInitialize(const FNativeDataInitialize& Data)
 		});
 }
 
-void SToolBar::Initialize(const std::any& Arg)
+void SToolBar::Initialize(const std::vector<std::any>& Args)
 {
 	ImageRectangleMarquee = FImageBase::LoadImageFromResource(IDB_RECTANGLE_MARQUEE, TEXT("PNG")).Handle;
 	ImagePencil = FImageBase::LoadImageFromResource(IDB_PENCIL, TEXT("PNG")).Handle;

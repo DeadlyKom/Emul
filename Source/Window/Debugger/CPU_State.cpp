@@ -25,7 +25,7 @@ SCPU_State::SCPU_State(EFont::Type _FontName)
 	, NewFlags(0)
 {}
 
-void SCPU_State::Initialize(const std::any& Arg)
+void SCPU_State::Initialize(const std::vector<std::any>& Args)
 {
 	HighlightRegisters =
 	{

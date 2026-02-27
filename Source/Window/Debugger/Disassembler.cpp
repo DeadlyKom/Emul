@@ -1141,7 +1141,7 @@ SDisassembler::SDisassembler(EFont::Type _FontName)
 	, Status(EThreadStatus::Unknown)
 {}
 
-void SDisassembler::Initialize(const std::any& Arg)
+void SDisassembler::Initialize(const std::vector<std::any>& Args)
 {
 	ImageProgramCounter = FImageBase::LoadImageFromResource(IDB_ARROW_RIGHT, TEXT("PNG")).Handle;
 }

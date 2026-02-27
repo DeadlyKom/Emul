@@ -1,7 +1,9 @@
 #include "Canvas.h"
 #include "SpriteList.h"
+#include <AppSprite.h>
 #include <Utils/UI/Draw.h>
 #include <Window/Sprite/Events.h>
+#include <Utils/Aseprite/Format.h>
 
 namespace
 {
@@ -114,67 +116,106 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 		});
 }
 
-void SCanvas::Initialize(const std::any& Arg)
+void SCanvas::Initialize(const std::vector<std::any>& Args)
 {
-	if (Arg.type() == typeid(std::filesystem::path))
+	EImageFormat ImageFormat = EImageFormat::None;
+	std::filesystem::path FilePath;
+
+	for (const auto& Arg : Args)
 	{
-		const std::filesystem::path FilePath = std::any_cast<std::filesystem::path>(Arg);
-
-		ZXColorView = std::make_shared<UI::FZXColorView>();
-
-		ZXColorView->Scale = ImVec2(2.5f, 2.5f);
-		ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
-
-		uint8_t* ImageData = FImageBase::LoadToMemory(FilePath, Width, Height);
-		UI::QuantizeToZX(ImageData, Width, Height, 4, ZXColorView->IndexedData);
-		UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
-		ConversionToZX(ConversationSettings);
-		FImageBase::ReleaseLoadedIntoMemory(ImageData);
-
-		ZXColorView->Device = Data.Device;
-		ZXColorView->DeviceContext = Data.DeviceContext;
-		Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Canvas);
-		
+		if (Arg.type() == typeid(std::filesystem::path))
 		{
-			FEvent_StatusBar Event;
-			Event.Tag = FEventTag::CanvasSizeTag;
-			Event.CanvasSize = ImVec2((float)Width, (float)Height);
-			SendEvent(Event);
+			FilePath = std::any_cast<std::filesystem::path>(Arg);
+		}
+		else if (Arg.type() == typeid(EImageFormat))
+		{
+			ImageFormat = std::any_cast<EImageFormat>(Arg);
+		}
+		else if (Arg.type() == typeid(ImVec2))
+		{
+			const ImVec2 CanvasSize = std::any_cast<ImVec2>(Arg);
+
+			ZXColorView = std::make_shared<UI::FZXColorView>();
+			ZXColorView->Scale = ImVec2(2.5f, 2.5f);
+			ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
+
+			Width = (int32_t)CanvasSize.x;
+			Height = (int32_t)CanvasSize.y;
+			const int32_t Size = Width * Height;
+			ZXColorView->IndexedData.resize(Size, 0);
+
+			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
+
+			UI::FConversationSettings Settings
+			{
+				.InkAlways = EZXColor::Black_,
+				.TransparentIndex = EZXColor::Transparent,
+				.ReplaceTransparent = EZXColor::White,
+			};
+			ConversionToZX(Settings);
+
+			ZXColorView->Device = Data.Device;
+			ZXColorView->DeviceContext = Data.DeviceContext;
+			Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Canvas);
+
+			{
+				FEvent_StatusBar Event;
+				Event.Tag = FEventTag::CanvasSizeTag;
+				Event.CanvasSize = ImVec2((float)Width, (float)Height);
+				SendEvent(Event);
+			}
 		}
 	}
-	else if (Arg.type() == typeid(ImVec2))
+
+	if (!FilePath.empty())
 	{
-		const ImVec2 CanvasSize = std::any_cast<ImVec2>(Arg);
-
-		ZXColorView = std::make_shared<UI::FZXColorView>();
-		ZXColorView->Scale = ImVec2(2.5f, 2.5f);
-		ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
-
-		Width = (int32_t)CanvasSize.x;
-		Height = (int32_t)CanvasSize.y;
-		const int32_t Size = Width * Height;
-		ZXColorView->IndexedData.resize(Size, 0);
-
-		UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
-
-		UI::FConversationSettings Settings
+		switch (ImageFormat)
 		{
-			.InkAlways = EZXColor::Black_,
-			.TransparentIndex = EZXColor::Transparent,
-			.ReplaceTransparent = EZXColor::White,
-		};
-		ConversionToZX(Settings);
-
-		ZXColorView->Device = Data.Device;
-		ZXColorView->DeviceContext = Data.DeviceContext;
-		Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Canvas);
-
+		case EImageFormat::PNG:
 		{
-			FEvent_StatusBar Event;
-			Event.Tag = FEventTag::CanvasSizeTag;
-			Event.CanvasSize = ImVec2((float)Width, (float)Height);
-			SendEvent(Event);
+			ZXColorView = std::make_shared<UI::FZXColorView>();
+
+			ZXColorView->Scale = ImVec2(2.5f, 2.5f);
+			ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
+
+			uint8_t* ImageData = FImageBase::LoadToMemory(FilePath, Width, Height);
+			UI::QuantizeToZX(ImageData, Width, Height, 4, ZXColorView->IndexedData);
+			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
+			ConversionToZX(ConversationSettings);
+			FImageBase::ReleaseLoadedIntoMemory(ImageData);
+
+			ZXColorView->Device = Data.Device;
+			ZXColorView->DeviceContext = Data.DeviceContext;
+			Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Canvas);
+
+			{
+				FEvent_StatusBar Event;
+				Event.Tag = FEventTag::CanvasSizeTag;
+				Event.CanvasSize = ImVec2((float)Width, (float)Height);
+				SendEvent(Event);
+			}
+			break;
 		}
+
+		case EImageFormat::Aseprite:
+		{
+			AsepriteFormat::FSprite Sprite;
+			if (!AsepriteFormat::Load(FilePath, Sprite))
+			{
+				LOG_ERROR("[{}]\t Failed to parse the Aseprite format.", (__FUNCTION__));
+			}
+
+			break;
+		}
+
+		default:
+		{
+			LOG_ERROR("[{}]\t Unknown format image.", (__FUNCTION__));
+			break;
+		}
+
+		}
+		
 	}
 }
 

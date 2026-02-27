@@ -17,7 +17,7 @@ namespace
 	  {FilterType::SCR_FILES, "SCR Files (speccy screen)"} };
 }
 
-void SFileDialog::Initialize(const std::any& Arg)
+void SFileDialog::Initialize(const std::vector<std::any>& Args)
 {
 	CurrentPath = CurrentPath.empty() ? std::filesystem::current_path().string() : CurrentPath;
 	ReadDirectory(CurrentPath);

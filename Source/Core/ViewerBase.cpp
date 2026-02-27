@@ -17,14 +17,15 @@ SViewerBase::SViewerBase(EFont::Type _FontName, uint32_t _Width, uint32_t _Heigh
 	, bDockspaceInitialized(false)
 {}
 
-void SViewerBase::Initialize(const std::any& Arg)
+void SViewerBase::Initialize(const std::vector<std::any>& Args)
 {
-	if (Arg.type() != typeid(FDockSlot))
+	for (auto& Arg : Args)
 	{
-		return;
+		if (Arg.type() == typeid(FDockSlot))
+		{
+			Layout = std::any_cast<FDockSlot>(Arg);
+		}
 	}
-
-	Layout = std::any_cast<FDockSlot>(Arg);
 }
 
 void SViewerBase::Render()
@@ -177,7 +178,7 @@ bool SViewerBase::IsWindowVisibility(EName::Type WindowType) const
 	return false;
 }
 
-void SViewerBase::AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Window, const FNativeDataInitialize& _Data, const std::any& Arg)
+void SViewerBase::AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Window, const FNativeDataInitialize& _Data, const std::vector<std::any>& Args)
 {
 	if (IsExistsWindow(WindowType, _Window))
 	{
@@ -188,13 +189,13 @@ void SViewerBase::AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Wi
 	Data.Parent = shared_from_this();
 
 	_Window->NativeInitialize(Data);
-	_Window->Initialize(Arg);
+	_Window->Initialize(Args);
 	_Window->SetupHotKeys();
 
 	Windows[WindowType].push_back(_Window);
 }
 
-void SViewerBase::AppendWindows(const std::map<EName::Type, std::shared_ptr<SWindow>>& _Windows, const FNativeDataInitialize& _Data, const std::any& Arg)
+void SViewerBase::AppendWindows(const std::map<EName::Type, std::shared_ptr<SWindow>>& _Windows, const FNativeDataInitialize& _Data, const std::vector<std::any>& Args)
 {
 	FNativeDataInitialize Data = _Data;
 	Data.Parent = shared_from_this();
@@ -208,7 +209,7 @@ void SViewerBase::AppendWindows(const std::map<EName::Type, std::shared_ptr<SWin
 		Windows[Key].push_back(Value);
 
 		Value->NativeInitialize(Data);
-		Value->Initialize(Arg);
+		Value->Initialize(Args);
 		Value->SetupHotKeys();
 	}
 }

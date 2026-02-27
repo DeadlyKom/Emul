@@ -207,7 +207,7 @@ public:
 	virtual ~SSpriteList() = default;
 
 	virtual void NativeInitialize(const FNativeDataInitialize& Data) override;
-	virtual void Initialize(const std::any& Arg) override;
+	virtual void Initialize(const std::vector<std::any>& Args) override;
 	virtual void SetupHotKeys() override;
 	virtual void Render() override;
 	virtual void Destroy() override;

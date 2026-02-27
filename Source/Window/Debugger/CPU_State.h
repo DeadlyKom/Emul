@@ -34,7 +34,7 @@ public:
 	SCPU_State(EFont::Type _FontName);
 	virtual ~SCPU_State() = default;
 
-	virtual void Initialize(const std::any& Arg) override;
+	virtual void Initialize(const std::vector<std::any>& Args) override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void Render() override;
 
