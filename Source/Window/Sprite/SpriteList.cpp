@@ -102,6 +102,8 @@ void SSpriteList::SetupHotKeys()
 	auto Self = std::dynamic_pointer_cast<SSpriteList>(shared_from_this());
 	Hotkeys =
 	{
+		{ ImGuiMod_Ctrl | ImGuiKey_A,					ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_SelectAll,						Self)	},	// (ctrl + A)
+
 		{ ImGuiKey_Escape,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Escape,							Self)	},	// cansel
 		{ ImGuiKey_Delete,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Delete,							Self)	},	// (delete)
 	};
@@ -231,6 +233,14 @@ void SSpriteList::Input_Mouse()
 	}
 }
 
+void SSpriteList::Imput_SelectAll()
+{
+	for (const std::shared_ptr<FSprite>& Sprite : Sprites)
+	{
+		Sprite->bSelected = true;
+	}
+}
+
 void SSpriteList::Imput_Escape()
 {
 	for (const std::shared_ptr<FSprite>& Sprite : Sprites)
@@ -273,6 +283,14 @@ void SSpriteList::Draw_SpriteList()
 		{
 			IndexSelectedSprite = Index;
 			SendSelectedSprite();
+
+			{
+				ImGuiContext& Context = *ImGui::GetCurrentContext();
+				if (Context.IO.MouseReleased[ImGuiMouseButton_Left] && Context.IO.KeyCtrl && !Context.IO.FontAllowUserScaling)
+				{
+					Sprite->bSelected = !Sprite->bSelected;
+				}
+			}
 		}
 		
 		// sprite Name

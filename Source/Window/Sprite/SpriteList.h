@@ -216,6 +216,8 @@ private:
 	void Input_HotKeys();
 	void Input_Mouse();
 
+	void Imput_SelectAll();
+	void Imput_Select();
 	void Imput_Escape();
 	void Imput_Delete();
 
