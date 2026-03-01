@@ -97,7 +97,7 @@
     <IntDir>$(SolutionDir)Bin\Emulator\Intermediate\$(Configuration)\</IntDir>
     <TargetName>ZX-Debugger</TargetName>
     <IncludePath>$(SolutionDir)\Source\;$(SolutionDir)\Source\Core;$(SolutionDir)\Dependencies\;$(IncludePath)</IncludePath>
-    <LibraryPath>$(SolutionDir)\Bin\IMGUI\$(Configuration)\;$(LibraryPath)</LibraryPath>
+    <LibraryPath>$(SolutionDir)Bin\IMGUI\$(Configuration)\;$(SolutionDir)Dependencies\ZLIB\$(Configuration)\$(Platform);$(LibraryPath)</LibraryPath>
     <LinkIncremental>false</LinkIncremental>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -202,7 +202,7 @@
       <OptimizeReferences>
       </OptimizeReferences>
       <GenerateDebugInformation>false</GenerateDebugInformation>
-      <AdditionalDependencies>d3d11.lib;d3dcompiler.lib;dxgi.lib;IMGUI.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>zs.lib;d3d11.lib;d3dcompiler.lib;dxgi.lib;IMGUI.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <LinkTimeCodeGeneration>UseFastLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
   </ItemDefinitionGroup>
