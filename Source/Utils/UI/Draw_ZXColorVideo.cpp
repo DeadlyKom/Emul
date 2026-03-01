@@ -697,7 +697,7 @@ int32_t UI::FindClosestColor(ImU32 Color)
 	return Best;
 }
 
-void UI::QuantizeToZX(uint8_t* RawImage, int32_t Width, int32_t Height, int32_t Channels, std::vector<uint8_t>& OutputIndexedData)
+void UI::QuantizeToZX(uint8_t* RawImage, int32_t Width, int32_t Height, int32_t Channels, std::vector<uint8_t>& OutputIndexedData, ImU32 TransparentColor)
 {
 	const int32_t Size = Width * Height;
 	OutputIndexedData.resize(Size);
@@ -705,8 +705,8 @@ void UI::QuantizeToZX(uint8_t* RawImage, int32_t Width, int32_t Height, int32_t 
 	for (int i = 0; i < Size; ++i)
 	{
 		const uint8_t* Pixel = &RawImage[i * Channels];
-		const ImU32 Color = COLOR(Pixel[0], Pixel[1], Pixel[2], Pixel[3]);
-		const int8_t Index = FindClosestColor(Color);
+		const ImU32 Color = ToU32(COLOR(Pixel[3], Pixel[2], Pixel[1], Pixel[0]));
+		const int8_t Index = Color == TransparentColor ? EZXColor::Transparent : FindClosestColor(Color);
 		OutputIndexedData[i] = Index;
 	}
 }
@@ -718,7 +718,7 @@ void UI::ZXIndexColorToImage(FImage& InOutputImage, const std::vector<uint8_t>& 
 	for (int32_t i = 0; i < IndexedData.size(); ++i)
 	{
 		const uint8_t& Value = IndexedData[i];
-		const UI::EZXSpectrumColor::Type IndexColor = static_cast<UI::EZXSpectrumColor::Type>(Value);
+		const EZXColor IndexColor = static_cast<UI::EZXSpectrumColor::Type>(Value);
 		const ImU32 ColorRGBA = ToU32(UI::ZXSpectrumColorRGBA[IndexColor]);
 		RGBA[i] = ColorRGBA;
 	}

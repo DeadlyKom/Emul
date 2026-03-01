@@ -111,6 +111,7 @@ private:
 
 	int32_t Width;
 	int32_t Height;
+	ImColor TransparentColor;
 	uint32_t OptionsFlags[2];
 	uint32_t LastOptionsFlags;
 

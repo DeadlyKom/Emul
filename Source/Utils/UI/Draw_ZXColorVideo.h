@@ -215,7 +215,7 @@ namespace UI
 
 	void GetInkPaper(const std::vector<uint8_t>& IndicesBoundary, uint8_t& OutputPaperColor, uint8_t& OutputInkColor, const UI::FConversationSettings& Settings);
 	int32_t FindClosestColor(ImU32 Color);
-	void QuantizeToZX(uint8_t* RawImage, int32_t Width, int32_t Height, int32_t Channels, std::vector<uint8_t>& OutputIndexedData);
+	void QuantizeToZX(uint8_t* RawImage, int32_t Width, int32_t Height, int32_t Channels, std::vector<uint8_t>& OutputIndexedData, ImU32 TransparentColor);
 
 	// conversion of index colors (1 color per pixel) to texture image
 	void ZXIndexColorToImage(FImage& InOutputImage, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height, bool bCreate = false);

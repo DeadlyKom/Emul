@@ -6,8 +6,10 @@
 enum class EImageFormat
 {
 	None,
+	Create,
 	PNG,
 	Aseprite,
+	Aseprite_Frame
 };
 
 struct FRecentFiles

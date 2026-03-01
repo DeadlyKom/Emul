@@ -99,15 +99,15 @@ namespace AsepriteFormat
         return String;
     }
 
-    static void ReadRawImage(std::ifstream& File, EPixelFormat PixelFormat, std::vector<uint8_t>& OutputRGBA, const FAsepriteHeader& Header)
+    static void ReadRawImage(std::ifstream& File, EPixelFormat PixelFormat, std::vector<uint8_t>& OutputRGBA, const FAsepriteHeader& Header, uint16_t X, uint16_t Y, uint16_t W, uint16_t H)
     {
         switch (PixelFormat)
         {
         case EPixelFormat::IMAGE_RGB:
         {
-            for (uint16_t y = 0; y < Header.Height; ++y)
+            for (uint16_t y = 0; y < H; ++y)
             {
-                for (uint16_t x = 0; x < Header.Width; ++x)
+                for (uint16_t x = 0; x < W; ++x)
                 {
                     const uint8_t R = Read_u8(File);
                     const uint8_t G = Read_u8(File);
@@ -116,7 +116,7 @@ namespace AsepriteFormat
 
                     const uint32_t rgba = RGBA(R, G, B, A);
 
-                    const size_t Index = (y * Header.Width + x) * sizeof(uint32_t);
+                    const size_t Index = ((Y + y) * Header.Width + X + x) * sizeof(uint32_t);
                     reinterpret_cast<uint32_t*>(&OutputRGBA[Index])[0] = rgba;
                 }
             }
@@ -125,17 +125,17 @@ namespace AsepriteFormat
 
         case EPixelFormat::IMAGE_GRAYSCALE:
         {
-            for (uint16_t y = 0; y < Header.Height; ++y)
+            for (uint16_t y = 0; y < H; ++y)
             {
-                for (uint16_t x = 0; x < Header.Width; ++x)
+                for (uint16_t x = 0; x < W; ++x)
                 {
                     const uint8_t K = Read_u8(File);
                     const uint8_t A = Read_u8(File);
 
                     const uint16_t Grayscale = GrayA(K, A);
 
-                    const size_t Index = (y * Header.Width + x) * sizeof(uint16_t);
-                    reinterpret_cast<uint16_t*>(&OutputRGBA[Index])[0] = Grayscale;
+                    const size_t Index = ((Y + y) * Header.Width + X + x) * sizeof(uint32_t);
+                    reinterpret_cast<uint32_t*>(&OutputRGBA[Index])[0] = Grayscale;
                 }
             }
             break;
@@ -143,12 +143,12 @@ namespace AsepriteFormat
 
         case EPixelFormat::IMAGE_INDEXED:
         {
-            for (uint16_t y = 0; y < Header.Height; ++y)
+            for (uint16_t y = 0; y < H; ++y)
             {
-                for (uint16_t x = 0; x < Header.Width; ++x)
+                for (uint16_t x = 0; x < W; ++x)
                 {
                     const uint8_t I = Read_u8(File);
-                    const size_t Index = (y * Header.Width + x) * sizeof(uint32_t);
+                    const size_t Index = ((Y + y) * Header.Width + X + x) * sizeof(uint32_t);
                     reinterpret_cast<uint32_t*>(&OutputRGBA[Index])[0] = I;
                 }
             }
@@ -164,13 +164,11 @@ namespace AsepriteFormat
         }
     }
 
-    static bool ReadCompressedImage(std::ifstream& File, EPixelFormat PixelFormat, std::vector<uint8_t>& OutputRGBA, const FAsepriteHeader& Header, size_t ChunkEnd)
+    static bool ReadCompressedImage(std::ifstream& File, EPixelFormat PixelFormat, std::vector<uint8_t>& OutputRGBA, const FAsepriteHeader& Header, size_t ChunkEnd, uint16_t X, uint16_t Y, uint16_t W, uint16_t H)
     {
         z_stream zstream{};
         int32_t err = inflateInit(&zstream);
-
-        const int32_t WidthBytes = Header.Width * sizeof(uint32_t);
-        std::vector<uint8_t> Scanline(WidthBytes);
+        
         std::vector<uint8_t> Compressed(4096);
         std::vector<uint8_t> Uncompressed(4096);
 
@@ -180,6 +178,8 @@ namespace AsepriteFormat
         {
             int32_t y = 0;
             size_t ScanlineOffset = 0;
+            const int32_t WidthBytes = W * sizeof(uint32_t);
+            std::vector<uint8_t> Scanline(WidthBytes);
 
             while (File.tellg() < static_cast<std::streampos>(ChunkEnd))
             {
@@ -199,11 +199,14 @@ namespace AsepriteFormat
 
                     err = inflate(&zstream, Z_NO_FLUSH);
                     if (err != Z_OK && err != Z_STREAM_END && err != Z_BUF_ERROR)
-                        throw std::runtime_error("ZLib inflate failed");
+                    {
+                        LOG_ERROR("[{}]\t ReadCompressedImage.", (__FUNCTION__));
+                        return false;
+                    }
 
                     size_t UncompressedBytes = Uncompressed.size() - zstream.avail_out;
                     size_t i = 0;
-                    while (y < Header.Height && UncompressedBytes > 0)
+                    while (y < H && UncompressedBytes > 0)
                     {
                         size_t n = std::min<size_t>(UncompressedBytes, Scanline.size() - ScanlineOffset);
                         std::copy(Uncompressed.begin() + i, Uncompressed.begin() + i + n, Scanline.begin() + ScanlineOffset);
@@ -213,7 +216,7 @@ namespace AsepriteFormat
 
                         if (ScanlineOffset == WidthBytes)
                         {
-                            const size_t Index = y * Header.Width * sizeof(uint32_t);
+                            const size_t Index = ((Y + y) * Header.Width + X) * sizeof(uint32_t);
                             uint32_t* Address = reinterpret_cast<uint32_t*>(&OutputRGBA[Index]);
                             uint8_t* Buffer = &Scanline[0];
                             for (int x = 0; x < Header.Width; ++x, ++Address)
@@ -235,13 +238,120 @@ namespace AsepriteFormat
 
         case EPixelFormat::IMAGE_GRAYSCALE:
         {
-            return false;
+            int32_t y = 0;
+            size_t ScanlineOffset = 0;
+            const int32_t WidthBytes = W * sizeof(uint16_t);
+            std::vector<uint8_t> Scanline(WidthBytes);
+
+            while (File.tellg() < static_cast<std::streampos>(ChunkEnd))
+            {
+                size_t InputBytes = std::min<size_t>(Compressed.size(), ChunkEnd - File.tellg());
+                size_t BytesRead = ReadBytes(File, Compressed.data(), InputBytes);
+                if (BytesRead == 0)
+                {
+                    break;
+                }
+
+                zstream.next_in = Compressed.data();
+                zstream.avail_in = (uInt)BytesRead;
+
+                do {
+                    zstream.next_out = Uncompressed.data();
+                    zstream.avail_out = (uInt)Uncompressed.size();
+
+                    err = inflate(&zstream, Z_NO_FLUSH);
+                    if (err != Z_OK && err != Z_STREAM_END && err != Z_BUF_ERROR)
+                    {
+                        LOG_ERROR("[{}]\t ReadCompressedImage.", (__FUNCTION__));
+                        return false;
+                    }
+
+                    size_t UncompressedBytes = Uncompressed.size() - zstream.avail_out;
+                    size_t i = 0;
+                    while (y < H && UncompressedBytes > 0)
+                    {
+                        size_t n = std::min<size_t>(UncompressedBytes, Scanline.size() - ScanlineOffset);
+                        std::copy(Uncompressed.begin() + i, Uncompressed.begin() + i + n, Scanline.begin() + ScanlineOffset);
+                        ScanlineOffset += n;
+                        i += n;
+                        UncompressedBytes -= n;
+
+                        if (ScanlineOffset == WidthBytes)
+                        {
+                            const size_t Index = ((Y + y) * Header.Width + X) * sizeof(uint32_t);
+                            uint32_t* Address = reinterpret_cast<uint32_t*>(&OutputRGBA[Index]);
+                            uint8_t* Buffer = &Scanline[0];
+                            for (int x = 0; x < W; ++x, ++Address)
+                            {
+                                const uint8_t K = *(Buffer++);
+                                const uint8_t A = *(Buffer++);
+                                *Address = GrayA(K, A);
+                            }
+                            ++y;
+                            ScanlineOffset = 0;
+                        }
+                    }
+                } while (zstream.avail_in > 0 && zstream.avail_out == 0);
+            }
             break;
         }
 
         case EPixelFormat::IMAGE_INDEXED:
         {
-            return false;
+            int32_t y = 0;
+            size_t ScanlineOffset = 0;
+            const int32_t WidthBytes = W * sizeof(uint8_t);
+            std::vector<uint8_t> Scanline(WidthBytes);
+
+            while (File.tellg() < static_cast<std::streampos>(ChunkEnd))
+            {
+                size_t InputBytes = std::min<size_t>(Compressed.size(), ChunkEnd - File.tellg());
+                size_t BytesRead = ReadBytes(File, Compressed.data(), InputBytes);
+                if (BytesRead == 0)
+                {
+                    break;
+                }
+
+                zstream.next_in = Compressed.data();
+                zstream.avail_in = (uInt)BytesRead;
+
+                do {
+                    zstream.next_out = Uncompressed.data();
+                    zstream.avail_out = (uInt)Uncompressed.size();
+
+                    err = inflate(&zstream, Z_NO_FLUSH);
+                    if (err != Z_OK && err != Z_STREAM_END && err != Z_BUF_ERROR)
+                    {
+                        LOG_ERROR("[{}]\t ReadCompressedImage.", (__FUNCTION__));
+                        return false;
+                    }
+
+                    size_t UncompressedBytes = Uncompressed.size() - zstream.avail_out;
+                    size_t i = 0;
+                    while (y < H && UncompressedBytes > 0)
+                    {
+                        size_t n = std::min<size_t>(UncompressedBytes, Scanline.size() - ScanlineOffset);
+                        std::copy(Uncompressed.begin() + i, Uncompressed.begin() + i + n, Scanline.begin() + ScanlineOffset);
+                        ScanlineOffset += n;
+                        i += n;
+                        UncompressedBytes -= n;
+
+                        if (ScanlineOffset == WidthBytes)
+                        {
+                            const size_t Index = ((Y + y) * Header.Width + X) * sizeof(uint32_t);
+                            uint32_t* Address = reinterpret_cast<uint32_t*>(&OutputRGBA[Index]);
+                            uint8_t* Buffer = &Scanline[0];
+                            for (int x = 0; x < W; ++x, ++Address)
+                            {
+                                const uint8_t I = *(Buffer++);
+                                *Address = I;
+                            }
+                            ++y;
+                            ScanlineOffset = 0;
+                        }
+                    }
+                } while (zstream.avail_in > 0 && zstream.avail_out == 0);
+            }
             break;
         }
 
@@ -418,15 +528,15 @@ namespace AsepriteFormat
             if (w > 0 && h > 0)
             {
                 // Read pixel data
-                ReadRawImage(File, PixelFormat, OutputRGBA, Header);
+                ReadRawImage(File, PixelFormat, OutputRGBA, Header, x, y, w, h);
                 if (PixelFormat == EPixelFormat::IMAGE_INDEXED)
                 {
                     // convert index to RGBA
-                    for (uint16_t y = 0; y < Header.Height; ++y)
+                    for (uint16_t _y = 0; _y < Header.Height; ++_y)
                     {
-                        for (uint16_t x = 0; x < Header.Width; ++x)
+                        for (uint16_t _x = 0; _x < Header.Width; ++_x)
                         {
-                            const size_t Index = (y * Header.Width + x) * sizeof(uint32_t);
+                            const size_t Index = (_y * Header.Width + _x) * sizeof(uint32_t);
                             uint32_t& Value = reinterpret_cast<uint32_t&>(OutputRGBA[Index]);
                             const uint32_t rgba = Palette.RGBA[Value];
                             Value = rgba;
@@ -452,9 +562,24 @@ namespace AsepriteFormat
 
             if (w > 0 && h > 0)
             {
-                if (!ReadCompressedImage(File, PixelFormat, OutputRGBA, Header, ChunkEnd))
+                if (!ReadCompressedImage(File, PixelFormat, OutputRGBA, Header, ChunkEnd, x, y, w, h))
                 {
                     LOG_ERROR("[{}]\t ReadCompressedImage.", (__FUNCTION__));
+                    break;
+                }
+                if (PixelFormat == EPixelFormat::IMAGE_INDEXED)
+                {
+                    // convert index to RGBA
+                    for (uint16_t _y = 0; _y < Header.Height; ++_y)
+                    {
+                        for (uint16_t _x = 0; _x < Header.Width; ++_x)
+                        {
+                            const size_t Index = (_y * Header.Width + _x) * sizeof(uint32_t);
+                            uint32_t& Value = reinterpret_cast<uint32_t&>(OutputRGBA[Index]);
+                            const uint32_t rgba = Header.TransparentIndex == Value ? 0x00000000 : Palette.RGBA[Value];
+                            Value = rgba;
+                        }
+                    }
                 }
             }
             break;
@@ -586,7 +711,6 @@ namespace AsepriteFormat
             OutputSprite.DurationPerFrame.resize(Header.Frames);
             std::fill(OutputSprite.DurationPerFrame.begin(), OutputSprite.DurationPerFrame.end(), std::clamp<uint16_t>(Header.Speed, 1, 65535));
         }
-        OutputSprite.MaskColor = Header.TransparentIndex;
 
         FPalette Palette;
         {
@@ -684,7 +808,7 @@ namespace AsepriteFormat
                             Palette,
                             Header,
                             ChunkPos + ChunkSize);
-                        if (LinkFrame != -1)
+                        if (LinkFrame != uint16_t(-1))
                         {
                             memcpy(OutputSprite.Frames[Frame].data(), OutputSprite.Frames[LinkFrame].data(), Size);
                         }
@@ -862,6 +986,8 @@ namespace AsepriteFormat
             // Skip frame size
             File.seekg(FramePos + FrameHeader.Size);
         }
+
+        OutputSprite.TransparentColor = Palette.RGBA[Header.TransparentIndex];
 
         return true;
 	}

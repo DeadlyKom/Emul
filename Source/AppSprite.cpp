@@ -1,5 +1,6 @@
 #include "AppSprite.h"
 #include <Utils/IO.h>
+#include <Utils/Aseprite/Format.h>
 #include "Fonts/Dos2000_ru_en.cpp"
 #include "Window/Sprite/Definition.h"
 #include <Settings/SpriteSettings.h>
@@ -505,9 +506,37 @@ void FAppSprite::Import_Image(const std::filesystem::path& FilePath, EImageForma
 			.DeviceContext = DeviceContext
 		};
 
-		std::wstring Filename = FilePath.filename().wstring();
-		std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, FilePath);
-		Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { FilePath, ImageFormat });
+		if (ImageFormat == EImageFormat::Aseprite)
+		{
+			AsepriteFormat::FSprite Sprite;
+			if (!AsepriteFormat::Load(FilePath, Sprite))
+			{
+				LOG_ERROR("[{}]\t Failed to parse the Aseprite format.", (__FUNCTION__));
+				return;
+			}
+
+			const std::wstring& Filename = FilePath.filename().wstring();
+			for (int32_t Index = 0; Index < Sprite.Frames.size(); ++Index)
+			{
+				const std::vector<uint8_t>& ImageData = Sprite.Frames[Index];
+
+				AsepriteFormat::FFrame Frame;
+				Frame.Width = Sprite.Width;
+				Frame.Height = Sprite.Height;
+				Frame.TransparentColor = Sprite.TransparentColor;
+				Frame.Image = ImageData;
+
+				std::wstring FrameFilename = std::format(L"{}_frame {}", Filename, Index);
+				std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, FrameFilename, FilePath);
+				Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { Frame, EImageFormat::Aseprite_Frame });
+			}
+		}
+		else
+		{
+			std::wstring Filename = FilePath.filename().wstring();
+			std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, FilePath);
+			Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { FilePath, ImageFormat });
+		}
 	}
 	else
 	{

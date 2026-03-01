@@ -26,12 +26,20 @@ namespace AsepriteFormat
 		return 0;
 	}
 
+	struct FFrame
+	{
+		int32_t Width;
+		int32_t Height;
+		std::vector<uint8_t> Image;
+		uint32_t TransparentColor;
+	};
+
 	struct FSprite
 	{
 		EColorMode ColorMode;
 		int32_t Width;
 		int32_t Height;
-		uint32_t MaskColor;
+		uint32_t TransparentColor;
 
 		std::vector<std::vector<uint8_t>> Frames;
 		std::vector<int32_t> DurationPerFrame;

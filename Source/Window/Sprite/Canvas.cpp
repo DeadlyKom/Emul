@@ -120,6 +120,11 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 {
 	EImageFormat ImageFormat = EImageFormat::None;
 	std::filesystem::path FilePath;
+	AsepriteFormat::FFrame Frame;
+
+	ZXColorView = std::make_shared<UI::FZXColorView>();
+	ZXColorView->Scale = ImVec2(2.5f, 2.5f);
+	ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
 
 	for (const auto& Arg : Args)
 	{
@@ -131,13 +136,14 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 		{
 			ImageFormat = std::any_cast<EImageFormat>(Arg);
 		}
+		else if (Arg.type() == typeid(AsepriteFormat::FFrame))
+		{
+			Frame = std::any_cast<AsepriteFormat::FFrame>(Arg);
+		}
 		else if (Arg.type() == typeid(ImVec2))
 		{
 			const ImVec2 CanvasSize = std::any_cast<ImVec2>(Arg);
-
-			ZXColorView = std::make_shared<UI::FZXColorView>();
-			ZXColorView->Scale = ImVec2(2.5f, 2.5f);
-			ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
+			ImageFormat = EImageFormat::Create;
 
 			Width = (int32_t)CanvasSize.x;
 			Height = (int32_t)CanvasSize.y;
@@ -167,19 +173,21 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 		}
 	}
 
-	if (!FilePath.empty())
+	switch (ImageFormat)
 	{
-		switch (ImageFormat)
-		{
-		case EImageFormat::PNG:
-		{
-			ZXColorView = std::make_shared<UI::FZXColorView>();
+	case EImageFormat::Create:
+	{
+		LOG_DISPLAY("[{}]\t Create canvas.", (__FUNCTION__));
+		break;
+	}
 
-			ZXColorView->Scale = ImVec2(2.5f, 2.5f);
-			ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
-
+	case EImageFormat::PNG:
+	{
+		if (!FilePath.empty())
+		{
+			TransparentColor = UI::ToU32(COLOR(0, 0, 0, 0));
 			uint8_t* ImageData = FImageBase::LoadToMemory(FilePath, Width, Height);
-			UI::QuantizeToZX(ImageData, Width, Height, 4, ZXColorView->IndexedData);
+			UI::QuantizeToZX(ImageData, Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
 			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
 			ConversionToZX(ConversationSettings);
 			FImageBase::ReleaseLoadedIntoMemory(ImageData);
@@ -194,28 +202,46 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 				Event.CanvasSize = ImVec2((float)Width, (float)Height);
 				SendEvent(Event);
 			}
-			break;
 		}
+		break;
+	}
 
-		case EImageFormat::Aseprite:
+	case EImageFormat::Aseprite:
+	{
+		LOG_WARNING("[{}]\t Should not be supported!", (__FUNCTION__));
+		break;
+	}
+
+	case EImageFormat::Aseprite_Frame:
+	{
+		Width = Frame.Width;
+		Height = Frame.Height;
+		TransparentColor = UI::ToU32(COLOR(0, 0, 0, 0));
+
+		UI::QuantizeToZX(Frame.Image.data(), Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
+		UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
+		ConversionToZX(ConversationSettings);
+
+		ZXColorView->Device = Data.Device;
+		ZXColorView->DeviceContext = Data.DeviceContext;
+		Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Canvas);
+
 		{
-			AsepriteFormat::FSprite Sprite;
-			if (!AsepriteFormat::Load(FilePath, Sprite))
-			{
-				LOG_ERROR("[{}]\t Failed to parse the Aseprite format.", (__FUNCTION__));
-			}
-
-			break;
+			FEvent_StatusBar Event;
+			Event.Tag = FEventTag::CanvasSizeTag;
+			Event.CanvasSize = ImVec2((float)Width, (float)Height);
+			SendEvent(Event);
 		}
 
-		default:
-		{
-			LOG_ERROR("[{}]\t Unknown format image.", (__FUNCTION__));
-			break;
-		}
+		break;
+	}
 
-		}
-		
+	default:
+	{
+		LOG_ERROR("[{}]\t Unknown format image.", (__FUNCTION__));
+		break;
+	}
+
 	}
 }
 
@@ -270,7 +296,7 @@ void SCanvas::Render()
 	{
 		if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
 		{
-			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
+			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, TransparentColor);
 		}
 		else
 		{
@@ -843,8 +869,8 @@ void SCanvas::Imput_Paste()
 	{
 		if (ClipboardImage.Width == Width && ClipboardImage.Height == Height)
 		{
-			UI::QuantizeToZX(ClipboardImage.Data.data(), Width, Height, 4, ZXColorView->IndexedData);
-			//UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
+			UI::QuantizeToZX(ClipboardImage.Data.data(), Width, Height, 4, ZXColorView->IndexedData, UI::ToU32(COLOR(0, 0, 0, 255)));
+			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
 			ConversionToZX(ConversationSettings);
 			{
 				FEvent_StatusBar Event;
@@ -1109,7 +1135,7 @@ void SCanvas::ConversionToZX(const UI::FConversationSettings& Settings)
 	UI::ZXIndexColorToImage(
 		ZXColorView->Image,
 		ZXColorView->IndexedData,
-		Width, Height);
+		Width, Height, TransparentColor);
 }
 
 void SCanvas::ConversionToCanvas(const UI::FConversationSettings& Settings)
