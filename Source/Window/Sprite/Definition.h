@@ -2,9 +2,6 @@
 
 #include <CoreMinimal.h>
 
-#define SPRITE_BUILD_MAJOR 0
-#define SPRITE_BUILD_MINOR 1
-
 struct FRGBAImage
 {
 	int32_t Width;

@@ -381,9 +381,6 @@
     <ClInclude Include="AppMain.h">
       <Filter>Source</Filter>
     </ClInclude>
-    <ClInclude Include="Window\Debugger\Definition.h">
-      <Filter>Source\Window\Debugger</Filter>
-    </ClInclude>
     <ClInclude Include="Window\Sprite\Definition.h">
       <Filter>Source\Window\Sprite</Filter>
     </ClInclude>
@@ -447,6 +444,7 @@
     <ClInclude Include="Utils\Aseprite\Definition.h">
       <Filter>Source\Utils\Aseprite</Filter>
     </ClInclude>
+    <ClInclude Include="Version.h" />
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Resource\Icons\ICONE.ico">

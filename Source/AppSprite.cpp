@@ -13,10 +13,12 @@
 #include <Window/Common/FileDialog.h>
 #include <Window/Sprite/SpriteMetadata.h>
 #include <Window/Sprite/Events.h>
+#include <Version.h>
 
 namespace
 {
-	static const std::string SpriteName = std::format("ZX-Sprite ver. {}.{}", SPRITE_BUILD_MAJOR, SPRITE_BUILD_MINOR);
+	static const std::string SpriteName = std::format(TEXT("ZX-Sprite ver. {}.{}.{} ({})"), VER_MAJOR, VER_MINOR, VER_BUILD, VER_REVISION);
+
 	static const char* MenuFileName = "File";
 	static const char* NewCanvasName = "New canvas";
 	static const char* MenuEditName = "Edit";

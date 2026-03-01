@@ -11,13 +11,14 @@
 #include "Devices/Memory/DRAM.h"
 #include "Motherboard/Motherboard.h"
 #include "Motherboard/Motherboard_Board.h"
+#include <Version.h>
 #include <Core/Fonts.h>
 #include <Core/Image.h>
 
 namespace
 {
 	static const FName MainBoardName = "Main board";
-	static const std::string DebuggerName = std::format(TEXT("ZX-Debugger ver. {}.{}"), DEBUGGER_BUILD_MAJOR, DEBUGGER_BUILD_MINOR);
+	static const std::string DebuggerName = std::format(TEXT("ZX-Debugger ver. {}.{}.{} ({})"), VER_MAJOR, VER_MINOR, VER_BUILD, VER_REVISION);
 }
 
 FAppDebugger::FAppDebugger()

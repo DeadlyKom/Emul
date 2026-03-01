@@ -205,6 +205,15 @@
       <AdditionalDependencies>zs.lib;d3d11.lib;d3dcompiler.lib;dxgi.lib;IMGUI.lib;%(AdditionalDependencies)</AdditionalDependencies>
       <LinkTimeCodeGeneration>UseFastLinkTimeCodeGeneration</LinkTimeCodeGeneration>
     </Link>
+    <PreBuildEvent>
+      <Command>@echo off
+set file=version.h
+for /f "tokens=3" %%a in ('findstr VER_BUILD %file%') do set build=%%a
+
+set /a build=%build%+1
+
+powershell -Command "(Get-Content %file%) -replace 'VER_BUILD \d+','VER_BUILD %build%' | Set-Content %file%"</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemGroup>
     <ClCompile Include="AppDebugger.cpp" />
@@ -317,10 +326,10 @@
     <ClInclude Include="Utils\UI\Draw.h" />
     <ClInclude Include="Utils\UI\Draw_ZXColorVideo.h" />
     <ClInclude Include="Utils\UndoQueue.h" />
+    <ClInclude Include="Version.h" />
     <ClInclude Include="Window\Common\FileDialog.h" />
     <ClInclude Include="Window\Debugger\CallStack.h" />
     <ClInclude Include="Window\Debugger\CPU_State.h" />
-    <ClInclude Include="Window\Debugger\Definition.h" />
     <ClInclude Include="Window\Debugger\Disassembler.h" />
     <ClInclude Include="Window\Debugger\Interface_WindowEventNotification.h" />
     <ClInclude Include="Window\Debugger\MemoryDump.h" />
