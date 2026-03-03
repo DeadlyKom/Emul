@@ -1298,6 +1298,8 @@ void SCanvas::UpdateCursorColor(bool bButton /*= false*/)
 
 void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 {
+	std::swap(OptionsFlags[0], Param.Canvas);
+
 	if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
 	{
 		for (int32_t Index = (int32_t)Param.Color.size() - 1; Index >= 0; --Index)
@@ -1334,9 +1336,10 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 
 			// swap pixel color
 			const uint8_t PixelBit = 1 << (7 - dx);
+			const uint8_t Flags = OptionsFlags[0] & ~FCanvasOptionsFlags::Source;
 
 			// swap pixel bit
-			if (Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
+			if (Flags & FCanvasOptionsFlags::Ink && Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
 			{
 				uint8_t& PixelsByte = reinterpret_cast<uint8_t*>(&Color)[3];
 				uint8_t Diff = (Pixels ^ PixelsByte) & PixelBit;
@@ -1344,7 +1347,7 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 				PixelsByte ^= Diff;
 			}
 			// swap mask bit
-			if (Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
+			if (Flags & FCanvasOptionsFlags::Mask && Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
 			{
 				uint8_t& MaskByte = reinterpret_cast<uint8_t*>(&Color)[2];
 				uint8_t Diff = (Mask ^ MaskByte) & PixelBit;
@@ -1352,7 +1355,7 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 				MaskByte ^= Diff;
 			}
 			// swap byte attribute
-			if (Subcolor[ESubcolor::Paper] != EZXColor::Transparent)
+			if (Flags & FCanvasOptionsFlags::Attribute && Subcolor[ESubcolor::Paper] != EZXColor::Transparent)
 			{
 				std::swap(Attribute, reinterpret_cast<uint8_t*>(&Color)[1]);
 			}
@@ -1361,7 +1364,6 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 			uint8_t& _Color = reinterpret_cast<uint8_t*>(&Color)[0];
 			if (_Color != EZXColor::None)
 			{
-				const uint8_t Flags = OptionsFlags[0] & ~FCanvasOptionsFlags::Source;
 				if (Flags & FCanvasOptionsFlags::Ink)
 				{
 					if (_Color != EZXColor::Transparent)
