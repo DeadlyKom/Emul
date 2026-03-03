@@ -1,4 +1,4 @@
-#include "Canvas.h"
+﻿#include "Canvas.h"
 #include "SpriteList.h"
 #include <AppSprite.h>
 #include <Utils/UI/Draw.h>
@@ -43,6 +43,7 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 		.SetFontName(_FontName)
 		.SetDockSlot("##Layout_Canvas")
 		.SetIncludeInWindows(true))
+	, bDirty(false)
 	, bDragging(false)
 	, bRefreshCanvas(false)
 	, bRectangleMarqueeActive(false)
@@ -268,7 +269,7 @@ void SCanvas::SetupHotKeys()
 		{ ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Redo,							Self)	},	// (ctrl + shift + Z)
 
 		// global
-		{ ImGuiMod_Ctrl | ImGuiKey_S,					ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_Save,							Self)	},	// (ctrl + S)
+		{ ImGuiMod_Ctrl | ImGuiKey_S,					ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteFocused,	std::bind(&ThisClass::Imput_Save,							Self)	},	// (ctrl + S)
 	};
 }
 
@@ -316,6 +317,8 @@ void SCanvas::Render()
 	}
 
 	const bool bNoMove = ToolMode[0] == EToolMode::RectangleMarquee;
+	//const std::string Title = /*bDirty ? "* " + GetWindowName() : */GetWindowName();
+	//const std::string UniqueID = Title + "##" + GetWindowName();
 	ImGui::Begin(GetWindowName().c_str(), &bOpen, bNoMove ? ImGuiWindowFlags_NoMove : ImGuiWindowFlags_None);
 	{
 		if (bNoMove)
@@ -361,13 +364,14 @@ void SCanvas::Render()
 		}
 
 		const float WindowWidth = ImGui::GetWindowContentRegionMax().x;
+		const float WidthDirty = 25.0f;
 		const float WidthSource = 25.0f;
 		const float WidthConvert = 25.0f;
 		const float WidthInk = 25.0f;
 		const float WidthPaper = 25.0f;
 		const float WidthMask = 25.0f;
 		const float Spacing = ImGui::GetStyle().ItemSpacing.x;
-		const float TotalWidth = WidthSource + WidthConvert + WidthInk + WidthPaper + WidthMask + Spacing * 4.0f;
+		const float TotalWidth = WidthDirty + WidthSource + WidthConvert + WidthInk + WidthPaper + WidthMask + Spacing * 5.0f;
 		const float StartButtons = WindowWidth - TotalWidth;
 
 		const bool bSourceEnabled = ZXColorView->IndexedData.size() > 0;
@@ -377,6 +381,11 @@ void SCanvas::Render()
 		const bool bMaskEnabled = ZXColorView->MaskData.size() > 0;
 
 		ImGui::SameLine(StartButtons);
+		if (UI::Button("*", bDirty, { WidthDirty, WidthDirty }))
+		{
+			Imput_Save();
+		}
+		ImGui::SameLine();
 		if (UI::Button("S", bSource, { WidthSource, WidthSource }, bSourceEnabled))
 		{
 			if (!(OptionsFlags[0] & FCanvasOptionsFlags::Source))
@@ -941,13 +950,13 @@ void SCanvas::Imput_Redo()
 
 void SCanvas::Imput_Save()
 {
-	if (SourcePathFile.empty())
+	if (SourcePathFile.empty() || !bDirty)
 	{
 		return;
 	}
 	std::filesystem::path SavePath = SourcePathFile.parent_path();
 	std::filesystem::path SaveName = SourcePathFile.stem();
-	Save(SavePath, SaveName);
+	bDirty = !Save(SavePath, SaveName);
 }
 
 void SCanvas::Reset_RectangleMarquee()
@@ -1044,6 +1053,7 @@ void SCanvas::Handler_Pencil()
 		UndoQueue.BeginContinuous();
 		PixelStrokeBegin = UndoQueue.UndoSize();
 	}
+
 	const int8_t ButtonIndex = Context.IO.MouseDown[ImGuiMouseButton_Left] ? 0 : 1;
 	const float X = FMath::Clamp((float)FMath::FloorToInt32(ZXColorView->CursorPosition.x), 0.0f, (float)Width - 1);
 	const float Y = FMath::Clamp((float)FMath::FloorToInt32(ZXColorView->CursorPosition.y), 0.0f, (float)Height - 1);
@@ -1265,6 +1275,8 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 			Pixel
 		)
 	);
+
+	bDirty = true;
 }
 
 void SCanvas::UpdateCursorColor(bool bButton /*= false*/)

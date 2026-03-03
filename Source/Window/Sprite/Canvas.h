@@ -89,6 +89,7 @@ private:
 	void UndoSwapPixel(FPixelToCanvas& Param);
 	void UndoUnitePixels(FPixelToCanvas& A, const FPixelToCanvas& B);
 
+	bool bDirty;
 	bool bDragging;
 	bool bRefreshCanvas;
 	bool bRectangleMarqueeActive;
