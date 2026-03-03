@@ -58,6 +58,14 @@ void SPalette::NativeInitialize(const FNativeDataInitialize& Data)
 					Subcolor[ESubcolor::Paper] = (UI::EZXSpectrumColor::Type)AttributePaperColor;
 					Subcolor[ESubcolor::Bright] = bAttributeBright ? UI::EZXSpectrumColor::True : UI::EZXSpectrumColor::False;
 
+					if (Subcolor[ESubcolor::Ink] == EZXColor::Transparent)
+					{
+						Subcolor[ESubcolor::Ink] = EZXColor::Black_;
+					}
+					if (Subcolor[ESubcolor::Paper] == EZXColor::Transparent)
+					{
+						Subcolor[ESubcolor::Paper] = EZXColor::Black_;
+					}
 
 					ButtonColor[0] = AttributeInkColor;
 					ButtonColor[1] = AttributePaperColor;

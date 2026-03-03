@@ -1117,22 +1117,22 @@ void SCanvas::Handler_Eyedropper()
 		switch (Flags)
 		{
 		case FCanvasOptionsFlags::Ink:																// 0010
-			Subcolor[ESubcolor::Ink] = (UI::EZXSpectrumColor::Type)AttributeInkColor;
+			Subcolor[ESubcolor::Ink] = (EZXColor)AttributeInkColor;
 			break;
 		case FCanvasOptionsFlags::Attribute:														// 0100
 		case FCanvasOptionsFlags::Ink | FCanvasOptionsFlags::Attribute:								// 0110
-			Subcolor[ESubcolor::Ink] = (UI::EZXSpectrumColor::Type)AttributeInkColor;
-			Subcolor[ESubcolor::Paper] = (UI::EZXSpectrumColor::Type)AttributePaperColor;
+			Subcolor[ESubcolor::Ink] = EZXColor(AttributeInkColor == EZXColor::Transparent ? EZXColor::Black_ : AttributeInkColor);
+			Subcolor[ESubcolor::Paper] = EZXColor(AttributePaperColor == EZXColor::Transparent ? EZXColor::Black_ : AttributePaperColor);
 			Subcolor[ESubcolor::Bright] = bAttributeBright ? EZXColor::True : EZXColor::False;
 			break;
 		case FCanvasOptionsFlags::Mask:																// 1000
 		case FCanvasOptionsFlags::Mask | FCanvasOptionsFlags::Ink:									// 1010
-			Subcolor[ESubcolor::Ink] = (UI::EZXSpectrumColor::Type)AttributeInkColor;
+			Subcolor[ESubcolor::Ink] = EZXColor(AttributeInkColor == EZXColor::Transparent ? EZXColor::Black_ : AttributeInkColor);
 			break;
 		case FCanvasOptionsFlags::Mask | FCanvasOptionsFlags::Attribute:							// 1100
 		case FCanvasOptionsFlags::Mask | FCanvasOptionsFlags::Attribute | FCanvasOptionsFlags::Ink:	// 1110
-			Subcolor[ESubcolor::Ink] = (UI::EZXSpectrumColor::Type)AttributeInkColor;
-			Subcolor[ESubcolor::Paper] = (UI::EZXSpectrumColor::Type)AttributePaperColor;
+			Subcolor[ESubcolor::Ink] = EZXColor(AttributeInkColor == EZXColor::Transparent ? EZXColor::Black_ : AttributeInkColor);
+			Subcolor[ESubcolor::Paper] = EZXColor(AttributePaperColor == EZXColor::Transparent ? EZXColor::Black_ : AttributePaperColor);
 			Subcolor[ESubcolor::Bright] = bAttributeBright ? EZXColor::True : EZXColor::False;
 			break;
 		}

@@ -6,13 +6,14 @@
 #include <Utils/UI/Draw_ZXColorVideo.h>
 #include <json/json.hpp>
 #include <Utils/IO.h>
+#include <AppSprite.h>
+#include <Window/Sprite/Events.h>
+#include "Canvas.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
 #include "stb/stb_image_write.h"
 
 #include "resource.h"
-#include <Window/Sprite/Events.h>
-#include "Canvas.h"
 
 namespace
 {
@@ -882,7 +883,7 @@ void SSpriteList::ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>
 
 			std::wstring Filename = Sprite->SourcePathFile.filename().wstring();
 			std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, Sprite->SourcePathFile);
-			Viewer->AddWindow(EName::Canvas, NewCanvas, _Data, { Sprite->SourcePathFile });
+			Viewer->AddWindow(EName::Canvas, NewCanvas, _Data, { Sprite->SourcePathFile, EImageFormat::PNG });
 		}
 		else
 		{
