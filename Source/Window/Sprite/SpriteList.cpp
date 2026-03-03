@@ -786,6 +786,7 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 			))
 			{
 				std::cerr << "Failed to write PNG!" << std::endl;
+				LOG_ERROR("[{}]\t Failed to write PNG!", (__FUNCTION__));
 			}
 		}
 

@@ -25,9 +25,6 @@ namespace
 	static const char* MenuQuitName = "Quit";
 	static const char* MenuMetadataName = "Metadata";
 
-	const char* ExportToName = "##ExportTo";
-	static const char* AddMetaToRegionName = "##AddMetaToRegion";
-
 	int32_t TextEditNumberCallback(ImGuiInputTextCallbackData* Data)
 	{
 		switch (Data->EventFlag)

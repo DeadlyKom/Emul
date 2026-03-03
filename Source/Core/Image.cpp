@@ -134,6 +134,7 @@ FImage& FImageBase::LoadFromFile(const std::filesystem::path& FilePath)
 	if (FAILED(hr))
 	{
 		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+		return DefaultImage;
 	}
 	Texture->Release();
 
@@ -356,39 +357,6 @@ bool FImageBase::UpdateTexture(FImageHandle _Handle, void* ImageData)
 		{
 			// Copy only the useful data of the string (SourcePitch bytes), skipping the padding in GPU memory (DestinationPitch)
 			std::memcpy(dstData + y * DestinationPitch, SourceData + y * SourcePitch, SourcePitch);
-		}
-
-		Unlock(TextureResource, Texture);
-		return true;
-	}
-	return false;
-}
-
-bool FImageBase::GetTextureData(FImageHandle _Handle, std::vector<uint32_t>& OutputImageData)
-{
-	FImage& Image = GetImage(_Handle);
-	OutputImageData.resize(Image.GetLength());
-
-	ID3D11Texture2D* Texture = nullptr;
-	ID3D11Resource* TextureResource = nullptr;
-	D3D11_MAPPED_SUBRESOURCE MappedResource;
-	if (Lock(Image.ShaderResourceView, TextureResource, Texture, MappedResource))
-	{
-		// Calculate the original pitch of the source data line (UnalignedPitch)
-		const UINT DestinationPitch = UINT(Image.Width * Image.GetFormatSize());
-
-		// Get the row pitch of the target GPU memory (MappedResource.RowPitch)
-		// This parameter is returned by Map() and is already aligned (likely 256 bytes).
-		const UINT SourcePitch = MappedResource.RowPitch;
-
-		const uint8_t* srcData = static_cast<const uint8_t*>(MappedResource.pData);
-		uint8_t* DestinationData = reinterpret_cast<uint8_t*>(OutputImageData.data());
-
-		// Copying data line by line
-		for (UINT y = 0; y < Image.Height; ++y)
-		{
-			// Copy only the useful data of the string (SourcePitch bytes), skipping the padding in GPU memory (DestinationPitch)
-			std::memcpy(DestinationData + y * DestinationPitch, srcData + y * SourcePitch, SourcePitch);
 		}
 
 		Unlock(TextureResource, Texture);

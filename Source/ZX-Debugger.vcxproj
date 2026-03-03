@@ -170,6 +170,15 @@
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <AdditionalDependencies>zsd.lib;d3d11.lib;d3dcompiler.lib;dxgi.lib;IMGUI.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
+    <PreBuildEvent>
+      <Command>@echo off
+set file=version.h
+for /f "tokens=3" %%a in ('findstr VER_BUILD %file%') do set build=%%a
+
+set /a build=%build%+1
+
+powershell -Command "(Get-Content %file%) -replace 'VER_BUILD \d+','VER_BUILD %build%' | Set-Content %file%"</Command>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>

@@ -218,6 +218,7 @@ namespace UI
 	void QuantizeToZX(uint8_t* RawImage, int32_t Width, int32_t Height, int32_t Channels, std::vector<uint8_t>& OutputIndexedData, ImU32 TransparentColor);
 
 	// conversion of index colors (1 color per pixel) to texture image
+	void ZXIndexColorToRGBA(std::vector<uint32_t>& OutputRGBA, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height);
 	void ZXIndexColorToImage(FImage& InOutputImage, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height, bool bCreate = false);
 	
 	// conversion of index colors (1 color per pixel) to ZX format

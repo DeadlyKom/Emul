@@ -3,7 +3,10 @@
 #include <AppSprite.h>
 #include <Utils/UI/Draw.h>
 #include <Window/Sprite/Events.h>
+#include <Utils/IO.h>
 #include <Utils/Aseprite/Format.h>
+
+#include "stb/stb_image_write.h"
 
 namespace
 {
@@ -52,6 +55,7 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	, LastSetPixelPosition(-1.0f, -1.0f)
 	, Width(0)
 	, Height(0)
+	, ImageFormat(EImageFormat::None)
 	, SourcePathFile(_SourcePathFile)
 {
 	ButtonColor[0] = EZXColor::Black_;
@@ -118,8 +122,6 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 
 void SCanvas::Initialize(const std::vector<std::any>& Args)
 {
-	EImageFormat ImageFormat = EImageFormat::None;
-	std::filesystem::path FilePath;
 	AsepriteFormat::FFrame Frame;
 
 	ZXColorView = std::make_shared<UI::FZXColorView>();
@@ -130,7 +132,7 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 	{
 		if (Arg.type() == typeid(std::filesystem::path))
 		{
-			FilePath = std::any_cast<std::filesystem::path>(Arg);
+			SourcePathFile = std::any_cast<std::filesystem::path>(Arg);
 		}
 		else if (Arg.type() == typeid(EImageFormat))
 		{
@@ -183,15 +185,15 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 
 	case EImageFormat::PNG:
 	{
-		if (!FilePath.empty())
+		if (!SourcePathFile.empty())
 		{
 			TransparentColor = UI::ToU32(COLOR(0, 0, 0, 0));
-			uint8_t* ImageData = FImageBase::LoadToMemory(FilePath, Width, Height);
-			UI::QuantizeToZX(ImageData, Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
-			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
-			ConversionToZX(ConversationSettings);
-			FImageBase::ReleaseLoadedIntoMemory(ImageData);
 
+			std::filesystem::path LoadPath = SourcePathFile.parent_path();
+			std::filesystem::path LoadName = SourcePathFile.stem();
+
+			Load(LoadPath, LoadName);
+			
 			ZXColorView->Device = Data.Device;
 			ZXColorView->DeviceContext = Data.DeviceContext;
 			Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Canvas);
@@ -264,6 +266,9 @@ void SCanvas::SetupHotKeys()
 		{ ImGuiKey_Delete,								ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Delete,							Self)	},	// (delete)
 		{ ImGuiMod_Ctrl | ImGuiKey_Z,					ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Undo,							Self)	},	// (ctrl + Z)
 		{ ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Redo,							Self)	},	// (ctrl + shift + Z)
+
+		// global
+		{ ImGuiMod_Ctrl | ImGuiKey_S,					ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_Save,							Self)	},	// (ctrl + S)
 	};
 }
 
@@ -296,7 +301,7 @@ void SCanvas::Render()
 	{
 		if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
 		{
-			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, TransparentColor);
+			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
 		}
 		else
 		{
@@ -934,6 +939,17 @@ void SCanvas::Imput_Redo()
 	UndoQueue.Redo();
 }
 
+void SCanvas::Imput_Save()
+{
+	if (SourcePathFile.empty())
+	{
+		return;
+	}
+	std::filesystem::path SavePath = SourcePathFile.parent_path();
+	std::filesystem::path SaveName = SourcePathFile.stem();
+	Save(SavePath, SaveName);
+}
+
 void SCanvas::Reset_RectangleMarquee()
 {
 	ZXColorView->RectangleMarqueeRect = ImRect(0.0f, 0.0f, 0.0f, 0.0f);
@@ -1123,6 +1139,79 @@ void SCanvas::Handler_Eyedropper()
 	}
 }
 
+bool SCanvas::Save(const std::filesystem::path& SavePath, const std::filesystem::path& SaveName)
+{
+	FImageBase& Images = FImageBase::Get();
+	std::vector<uint32_t> RGBA;
+	UI::ZXIndexColorToRGBA(RGBA, ZXColorView->IndexedData, Width, Height);
+
+	constexpr int32_t Channels = 4;
+	if (!stbi_write_png(
+		SourcePathFile.string().c_str(),
+		Width,
+		Height,
+		Channels,
+		RGBA.data(),
+		Width * Channels))
+	{
+		std::cerr << "Failed to write PNG!" << std::endl;
+		LOG_ERROR("[{}]\t Failed to write PNG!", (__FUNCTION__));
+		return false;
+	}
+
+	std::filesystem::path InkDataFilePath;
+	if (ZXColorView->InkData.size() > 0)
+	{
+		InkDataFilePath = IO::NormalizePath(std::filesystem::absolute(SavePath / std::format("{}.ink", SaveName.string())));
+		IO::SaveBinaryData(ZXColorView->InkData, InkDataFilePath, false);
+	}
+
+	std::filesystem::path AttributeDataFilePath;
+	if (ZXColorView->AttributeData.size() > 0)
+	{
+		AttributeDataFilePath = IO::NormalizePath(std::filesystem::absolute(SavePath / std::format("{}.attr", SaveName.string())));
+		IO::SaveBinaryData(ZXColorView->AttributeData, AttributeDataFilePath, false);
+	}
+
+	std::filesystem::path MaskDataFilePath;
+	if (ZXColorView->MaskData.size() > 0)
+	{
+		MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(SavePath / std::format("{}.mask", SaveName.string())));
+		IO::SaveBinaryData(ZXColorView->MaskData, MaskDataFilePath, false);
+	}
+
+	return true;
+}
+
+bool SCanvas::Load(const std::filesystem::path& LoadPath, const std::filesystem::path& LoadName)
+{
+	uint8_t* ImageData = FImageBase::LoadToMemory(SourcePathFile, Width, Height);
+	UI::QuantizeToZX(ImageData, Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
+	UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
+	ConversionToZX(ConversationSettings);
+	FImageBase::ReleaseLoadedIntoMemory(ImageData);
+
+	// ink
+	{
+		std::filesystem::path InkDataFilePath = IO::NormalizePath(std::filesystem::absolute(LoadPath / std::format("{}.ink", LoadName.string())));
+		IO::LoadBinaryData(ZXColorView->InkData, InkDataFilePath);
+	}
+
+	// attribute
+	{
+		std::filesystem::path AttributeDataFilePath = IO::NormalizePath(std::filesystem::absolute(LoadPath / std::format("{}.attr", LoadName.string())));
+		IO::LoadBinaryData(ZXColorView->AttributeData, AttributeDataFilePath);
+	}
+
+	// mask
+	{
+		std::filesystem::path MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(LoadPath / std::format("{}.mask", LoadName.string())));
+		IO::LoadBinaryData(ZXColorView->MaskData, MaskDataFilePath);
+	}
+
+	return true;
+}
+
 void SCanvas::ConversionToZX(const UI::FConversationSettings& Settings)
 {
 	UI::ZXIndexColorToZXAttributeColor(
@@ -1135,7 +1224,7 @@ void SCanvas::ConversionToZX(const UI::FConversationSettings& Settings)
 	UI::ZXIndexColorToImage(
 		ZXColorView->Image,
 		ZXColorView->IndexedData,
-		Width, Height, TransparentColor);
+		Width, Height);
 }
 
 void SCanvas::ConversionToCanvas(const UI::FConversationSettings& Settings)

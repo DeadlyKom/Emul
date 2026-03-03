@@ -22,6 +22,7 @@ namespace FCanvasOptionsFlags
 	};
 }
 
+enum class EImageFormat;
 struct FSprite;
 
 class SCanvas : public SViewerChildBase
@@ -68,11 +69,15 @@ private:
 	void Imput_Delete();
 	void Imput_Undo();
 	void Imput_Redo();
+	void Imput_Save();
 
 	void Reset_RectangleMarquee();
 	void Handler_RectangleMarquee();
 	void Handler_Pencil();
 	void Handler_Eyedropper();
+
+	bool Save(const std::filesystem::path& SavePath, const std::filesystem::path& SaveName);
+	bool Load(const std::filesystem::path& LoadPath, const std::filesystem::path& LoadName);
 
 	void ConversionToZX(const UI::FConversationSettings& Settings);
 	void ConversionToCanvas(const UI::FConversationSettings& Settings);
@@ -128,6 +133,7 @@ private:
 	std::shared_ptr<UI::FZXColorView> ZXColorView;
 	UI::FConversationSettings ConversationSettings;
 	EToolMode::Type ToolMode[2];
+	EImageFormat ImageFormat;
 	std::filesystem::path SourcePathFile;
 
 	// Undo/Redo

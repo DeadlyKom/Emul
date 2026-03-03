@@ -711,17 +711,23 @@ void UI::QuantizeToZX(uint8_t* RawImage, int32_t Width, int32_t Height, int32_t 
 	}
 }
 
-void UI::ZXIndexColorToImage(FImage& InOutputImage, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height, bool bCreate)
+void UI::ZXIndexColorToRGBA(std::vector<uint32_t>& OutputRGBA, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height)
 {
 	const int32_t Size = Width * Height;
-	std::vector<uint32_t> RGBA(Size);
+	OutputRGBA.resize(Size);
 	for (int32_t i = 0; i < IndexedData.size(); ++i)
 	{
 		const uint8_t& Value = IndexedData[i];
 		const EZXColor IndexColor = static_cast<UI::EZXSpectrumColor::Type>(Value);
 		const ImU32 ColorRGBA = ToU32(UI::ZXSpectrumColorRGBA[IndexColor]);
-		RGBA[i] = ColorRGBA;
+		OutputRGBA[i] = ColorRGBA;
 	}
+}
+
+void UI::ZXIndexColorToImage(FImage& InOutputImage, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height, bool bCreate)
+{
+	std::vector<uint32_t> RGBA;
+	ZXIndexColorToRGBA(RGBA, IndexedData, Width, Height);
 
 	FImageBase& Images = FImageBase::Get();
 	if (bCreate)
