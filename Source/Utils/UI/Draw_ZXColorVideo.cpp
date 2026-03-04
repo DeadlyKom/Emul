@@ -843,7 +843,8 @@ void UI::ZXAttributeColorToImage(
 	const uint8_t* MaskData,
 	bool bCreate /*= false*/,
 	std::vector<uint8_t>* OutputIndexedData /*= nullptr*/,
-	bool bMaskInverse /*= true*/)
+	bool bMaskInverse /*= true*/,
+	bool bTransparentMask /*= false*/)
 {
 	const int32_t Size = Width * Height;
 	std::vector<uint32_t> RGBA(Size);
@@ -919,12 +920,23 @@ void UI::ZXAttributeColorToImage(
 
 		const int8_t ColorInk = (Pixels << dx) & 0x80 ? InkColor : PaperColor;
 		const int8_t Color = ((Mask << dx) & 0x80) ? EZXSpectrumColor::Transparent : ColorInk;
+		const int8_t TransparentMask = ((Mask << dx) & 0x80) ? EZXSpectrumColor::Magenta_ : EZXSpectrumColor::Black_;
 		if (OutputIndexedData)
 		{
 			(*OutputIndexedData)[i] = Color;
 		}
-		const ImU32 ColorRGBA = ToU32(UI::ZXSpectrumColorRGBA[Color]);
-		RGBA[i] = ColorRGBA;
+
+		const ImVec4 ColorRGBA = ToVec4(UI::ZXSpectrumColorRGBA[Color]);
+		ImVec4 MaskColorRGBA = ToVec4(UI::ZXSpectrumColorRGBA[TransparentMask]) * 0.5f;
+		MaskColorRGBA.w = 1.0f;
+
+		ImVec4 BlandColor = ColorRGBA + (bTransparentMask ? MaskColorRGBA : ImVec4());
+		BlandColor.x = ImClamp<float>(BlandColor.x, 0.0f, 1.0f);
+		BlandColor.y = ImClamp<float>(BlandColor.y, 0.0f, 1.0f);
+		BlandColor.z = ImClamp<float>(BlandColor.z, 0.0f, 1.0f);
+		BlandColor.w = ImClamp<float>(BlandColor.w, 0.0f, 1.0f);
+
+		RGBA[i] = ColorToU32(BlandColor);
 	}
 
 	FImageBase& Images = FImageBase::Get();

@@ -92,6 +92,7 @@ private:
 	bool bDirty;
 	bool bDragging;
 	bool bRefreshCanvas;
+	bool bTransparentMask;
 	bool bRectangleMarqueeActive;
 	bool bNeedConvertCanvasToZX;
 	bool bNeedConvertZXToCanvas;
@@ -135,6 +136,7 @@ private:
 	UI::FConversationSettings ConversationSettings;
 	EToolMode::Type ToolMode[2];
 	EImageFormat ImageFormat;
+	int32_t ImageFrameIndex;
 	std::filesystem::path SourcePathFile;
 
 	// Undo/Redo

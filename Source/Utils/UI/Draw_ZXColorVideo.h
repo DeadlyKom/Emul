@@ -247,7 +247,8 @@ namespace UI
 		const uint8_t* MaskData,
 		bool bCreate = false,
 		std::vector<uint8_t>* OutputIndexedData = nullptr,
-		bool bMaskInverse = true);
+		bool bMaskInverse = true,
+		bool bTransparentMask = false);
 
 	// fill region
 	void FillRegion(const ImRect& RectangleFill, std::vector<uint8_t>& OutputIndexedData, int32_t Width, int32_t Height, EZXSpectrumColor::Type FillColor);

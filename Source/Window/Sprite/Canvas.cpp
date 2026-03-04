@@ -46,6 +46,7 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	, bDirty(false)
 	, bDragging(false)
 	, bRefreshCanvas(false)
+	, bTransparentMask(false)
 	, bRectangleMarqueeActive(false)
 	, bNeedConvertCanvasToZX(false)
 	, bNeedConvertZXToCanvas(false)
@@ -57,6 +58,7 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	, Width(0)
 	, Height(0)
 	, ImageFormat(EImageFormat::None)
+	, ImageFrameIndex(INDEX_NONE)
 	, SourcePathFile(_SourcePathFile)
 {
 	ButtonColor[0] = EZXColor::Black_;
@@ -142,6 +144,10 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 		else if (Arg.type() == typeid(AsepriteFormat::FFrame))
 		{
 			Frame = std::any_cast<AsepriteFormat::FFrame>(Arg);
+		}
+		else if (ImageFormat == EImageFormat::Aseprite_Frame && Arg.type() == typeid(int32_t))
+		{
+			ImageFrameIndex = std::any_cast<int32_t>(Arg);
 		}
 		else if (Arg.type() == typeid(ImVec2))
 		{
@@ -309,9 +315,11 @@ void SCanvas::Render()
 			UI::ZXAttributeColorToImage(
 				ZXColorView->Image,
 				Width, Height,
-				bInk ? ZXColorView->InkData.data() : nullptr,
-				bPaper ? ZXColorView->AttributeData.data() : nullptr,
-				bMask ? ZXColorView->MaskData.data() : nullptr);
+				(bTransparentMask | bInk) ? ZXColorView->InkData.data() : nullptr,
+				(bTransparentMask | bPaper) ? ZXColorView->AttributeData.data() : nullptr,
+				bMask ? ZXColorView->MaskData.data() : nullptr,
+				false, nullptr, true,
+				bTransparentMask);
 		}
 		bRefreshCanvas = false;
 	}
@@ -352,6 +360,13 @@ void SCanvas::Render()
 		}
 		if (ImGui::BeginPopup("##Context"))
 		{
+			if (ImGui::Checkbox("Transparent", &bTransparentMask))
+			{
+				bRefreshCanvas = true;
+			}
+
+			ImGui::Separator();
+
 			ImGui::Checkbox("Grid", &ZXColorView->Options.bGrid);
 			ImGui::Checkbox("Attribute Grid", &ZXColorView->Options.bAttributeGrid);
 			ImGui::Checkbox("Alpha Checkerboard", &ZXColorView->Options.bAlphaCheckerboardGrid);
@@ -1155,9 +1170,16 @@ bool SCanvas::Save(const std::filesystem::path& SavePath, const std::filesystem:
 	std::vector<uint32_t> RGBA;
 	UI::ZXIndexColorToRGBA(RGBA, ZXColorView->IndexedData, Width, Height);
 
+	std::filesystem::path NewSaveName = SaveName;
+	if (ImageFormat == EImageFormat::Aseprite_Frame && ImageFrameIndex != INDEX_NONE)
+	{
+		NewSaveName = std::format("{0}_frame_{1}", SaveName.string(), ImageFrameIndex);
+	}
+
+	std::filesystem::path PNGFilePath = IO::NormalizePath(SavePath / std::format("{0}.png", NewSaveName.string(), ImageFrameIndex));
 	constexpr int32_t Channels = 4;
 	if (!stbi_write_png(
-		SourcePathFile.string().c_str(),
+		PNGFilePath.string().c_str(),
 		Width,
 		Height,
 		Channels,
@@ -1172,21 +1194,21 @@ bool SCanvas::Save(const std::filesystem::path& SavePath, const std::filesystem:
 	std::filesystem::path InkDataFilePath;
 	if (ZXColorView->InkData.size() > 0)
 	{
-		InkDataFilePath = IO::NormalizePath(std::filesystem::absolute(SavePath / std::format("{}.ink", SaveName.string())));
+		InkDataFilePath = IO::NormalizePath(std::filesystem::absolute(SavePath / std::format("{}.ink", NewSaveName.string())));
 		IO::SaveBinaryData(ZXColorView->InkData, InkDataFilePath, false);
 	}
 
 	std::filesystem::path AttributeDataFilePath;
 	if (ZXColorView->AttributeData.size() > 0)
 	{
-		AttributeDataFilePath = IO::NormalizePath(std::filesystem::absolute(SavePath / std::format("{}.attr", SaveName.string())));
+		AttributeDataFilePath = IO::NormalizePath(std::filesystem::absolute(SavePath / std::format("{}.attr", NewSaveName.string())));
 		IO::SaveBinaryData(ZXColorView->AttributeData, AttributeDataFilePath, false);
 	}
 
 	std::filesystem::path MaskDataFilePath;
 	if (ZXColorView->MaskData.size() > 0)
 	{
-		MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(SavePath / std::format("{}.mask", SaveName.string())));
+		MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(SavePath / std::format("{}.mask", NewSaveName.string())));
 		IO::SaveBinaryData(ZXColorView->MaskData, MaskDataFilePath, false);
 	}
 
@@ -1333,6 +1355,7 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 			uint8_t& Pixels = ZXColorView->InkData[InkMaskOffset];
 			uint8_t& Mask = ZXColorView->MaskData[InkMaskOffset];
 			uint8_t& Attribute = ZXColorView->AttributeData[by * Boundary_X + bx];
+			uint8_t _Attribute = Attribute;
 
 			// swap pixel color
 			const uint8_t PixelBit = 1 << (7 - dx);
@@ -1364,13 +1387,13 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 			uint8_t& _Color = reinterpret_cast<uint8_t*>(&Color)[0];
 			if (_Color != EZXColor::None)
 			{
-				if (Flags & FCanvasOptionsFlags::Ink)
+				if (bTransparentMask || Flags & FCanvasOptionsFlags::Ink)
 				{
 					if (_Color != EZXColor::Transparent)
 					{
 						const uint8_t PixelBit = 1 << (7 - dx);
 						const bool bOperation = (_Color & 0x07) != EZXColor::White;
-						if (bOperation)
+						if (!bTransparentMask && bOperation)
 						{
 							Pixels |= PixelBit;									// set bit
 						}
@@ -1393,7 +1416,7 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 						Mask &= ~(PixelBit);								// reset bit
 					}
 				}
-				if (Flags & FCanvasOptionsFlags::Attribute)
+				if (bTransparentMask || Flags & FCanvasOptionsFlags::Attribute)
 				{
 					const bool bInkTransparent = Subcolor[ESubcolor::Ink] == EZXColor::Transparent;
 					const bool bPaperTransparent = Subcolor[ESubcolor::Paper] == EZXColor::Transparent;
@@ -1401,8 +1424,8 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 					const uint8_t InkColor = bInkTransparent ? (Attribute & 0x07) : Subcolor[ESubcolor::Ink] & 0x07;
 					const uint8_t PaperColor = bPaperTransparent ? ((Attribute >> 3) & 0x07) : Subcolor[ESubcolor::Paper] & 0x07;
 
-					const bool bBright = Subcolor[ESubcolor::Bright] == EZXColor::True;
-					const bool bFlash = Subcolor[ESubcolor::Flash] == EZXColor::True;
+					const bool bBright = bTransparentMask ? (_Attribute & 0x40) : Subcolor[ESubcolor::Bright] == EZXColor::True;
+					const bool bFlash = bTransparentMask ? (_Attribute & 0x80) : Subcolor[ESubcolor::Flash] == EZXColor::True;
 
 					Attribute = (bFlash << 7) | (bBright << 6) | (PaperColor << 3) | InkColor;
 				}

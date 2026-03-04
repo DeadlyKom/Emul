@@ -527,7 +527,7 @@ void FAppSprite::Import_Image(const std::filesystem::path& FilePath, EImageForma
 
 				std::wstring FrameFilename = std::format(L"{}_frame {}", Filename, Index);
 				std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, FrameFilename, FilePath);
-				Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { Frame, EImageFormat::Aseprite_Frame });
+				Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { Frame, EImageFormat::Aseprite_Frame, Index });
 			}
 		}
 		else
