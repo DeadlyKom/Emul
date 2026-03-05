@@ -1048,12 +1048,6 @@ void SCanvas::Handler_Pencil()
 		if (UndoQueue.IsContinuous())
 		{
 			UndoQueue.EndContinuous();
-			size_t PixelsStroke = UndoQueue.UndoSize() - PixelStrokeBegin;
-			if (PixelsStroke == 0)
-			{
-				return;
-			}
-			UndoQueue.Stroke(PixelsStroke);
 		}
 		return;
 	}
@@ -1291,9 +1285,8 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 		Pixel.Canvas = OptionsFlags[0];
 	}
 	UndoQueue.SetWithUndo(
-		std::make_shared<Undo::TAction<ThisClass, FPixelToCanvas>>(
+		std::make_shared<Undo::TAction<FPixelToCanvas>>(
 			std::bind(&ThisClass::UndoSwapPixel, this, std::placeholders::_1),
-			std::bind(&ThisClass::UndoUnitePixels, this, std::placeholders::_1, std::placeholders::_2),
 			Pixel
 		)
 	);
@@ -1436,64 +1429,4 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 		bNeedConvertZXToCanvas = true;
 	}
 	bRefreshCanvas = true;
-}
-
-void SCanvas::UndoUnitePixels(FPixelToCanvas& A, const FPixelToCanvas& B)
-{
-	for (int IndexB = 0; IndexB < B.Position.size(); ++IndexB)
-	{
-		bool bFound = false;
-		const ImVec2& PosB = B.Position[IndexB];
-
-		//const uint32_t& ColorB = B.Color[IndexB];
-		//const uint8_t& _Color = reinterpret_cast<const uint8_t*>(&ColorB)[0];
-		//uint8_t AttributeB = reinterpret_cast<const uint8_t*>(&ColorB)[1];
-		//if (_Color == UI::EZXSpectrumColor::None)
-		//{
-		//	for (int IndexA = 0; IndexA < A.Position.size(); ++IndexA)
-		//	{
-		//		const ImVec2& PosA = A.Position[IndexA];
-		//		if (PosA == PosB)
-		//		{
-		//			bFound = true;
-		//			break;
-		//		}
-		//
-		//		const int32_t PosA_x = (int32_t)PosA.x >> 3;
-		//		const int32_t PosA_y = (int32_t)PosA.y >> 3;
-		//		const int32_t PosB_x = (int32_t)PosB.x >> 3;
-		//		const int32_t PosB_y = (int32_t)PosB.y >> 3;
-		//
-		//		if (PosA_x != PosB_x || PosA_y != PosB_y)
-		//		{
-		//			continue;
-		//		}
-		//
-		//		uint32_t& ColorA = A.Color[IndexA]; 
-		//		uint8_t& AttributeA = reinterpret_cast<uint8_t*>(&ColorA)[1];
-		//		if (AttributeB != AttributeA)
-		//		{
-		//			bFound = true;
-		//		}
-		//	}
-		//}
-		//else
-		{
-			for (int IndexA = 0; IndexA < A.Position.size(); ++IndexA)
-			{
-				const ImVec2& PosA = A.Position[IndexA];
-				if (PosA == PosB)
-				{
-					bFound = true;
-					break;
-				}
-			}
-		}
-
-		if (!bFound)
-		{
-			A.Position.push_back(B.Position[IndexB]);
-			A.Color.push_back(B.Color[IndexB]);
-		}
-	}
 }

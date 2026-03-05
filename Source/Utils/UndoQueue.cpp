@@ -4,37 +4,9 @@ namespace Undo
 {
     void FQueue::SetWithUndo(FActionPtr Action)
     {
-        //if (bIsContinuous)
-        //{
-        //    if (!CurrentContinuous)
-        //    {
-        //        CurrentContinuous = Action;
-        //        UndoStack.push(Action);
-        //        RedoStack = {};
-        //    }
-        //    Action->Execute();
-        //}
-        //else
-        {
-            Action->Execute();
-            UndoStack.push(Action);
-            RedoStack = {};
-        }
-    }
-
-    void FQueue::Stroke(size_t StrokeNum)
-    {
-        FActionPtr UnitedAction = UndoStack.top();
-        UndoStack.pop();
-
-        for (size_t Num = StrokeNum; Num > 1; --Num)
-        {
-            FActionPtr CurrentAction = UndoStack.top();
-            UndoStack.pop();
-            CurrentAction->Unite(CurrentAction.get(), UnitedAction.get());
-            UnitedAction = CurrentAction;
-        }
-        UndoStack.push(UnitedAction);
+        Action->Execute();
+        UndoStack.push(Action);
+        RedoStack = {};
     }
 
     void FQueue::Undo()
@@ -43,10 +15,19 @@ namespace Undo
         {
             return;
         }
-        FActionPtr Action = UndoStack.top();
-        UndoStack.pop();
-        Action->Execute();
-        RedoStack.push(Action);
+
+        while (!UndoStack.empty())
+        {
+            FActionPtr Action = UndoStack.top();
+            UndoStack.pop();
+            Action->Execute();
+            RedoStack.push(Action);
+
+            if (dynamic_cast<FContinuousMarkerAction*>(Action.get()))
+            {
+                break;
+            }
+        }
     }
 
     void FQueue::Redo()
@@ -55,10 +36,18 @@ namespace Undo
         {
             return;
         }
-        FActionPtr Action = RedoStack.top();
-        RedoStack.pop();
-        Action->Execute();
-        UndoStack.push(Action);
+        while (!RedoStack.empty())
+        {
+            FActionPtr Action = RedoStack.top();
+            RedoStack.pop();
+            Action->Execute();
+            UndoStack.push(Action);
+
+            if (dynamic_cast<FContinuousMarkerAction*>(Action.get()))
+            {
+                break;
+            }
+        }
     }
 
     void FQueue::Clear()
@@ -69,10 +58,10 @@ namespace Undo
     void FQueue::BeginContinuous()
     {
         bIsContinuous = true;
+        UndoStack.push(std::make_shared<FContinuousMarkerAction>());
     }
     void FQueue::EndContinuous()
     {
         bIsContinuous = false;
-        CurrentContinuous.reset();
     }
 }
