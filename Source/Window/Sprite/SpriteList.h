@@ -234,8 +234,15 @@ private:
 		const std::vector<uint8_t>& AttributeData,
 		const std::vector<uint8_t>& MaskData);
 
+	std::vector<std::shared_ptr<FSprite>> UpdateSprite(
+		const std::filesystem::path& SourcePathFile,
+		const std::vector<uint8_t>& IndexedData,
+		const std::vector<uint8_t>& InkData,
+		const std::vector<uint8_t>& AttributeData,
+		const std::vector<uint8_t>& MaskData);
+
 	bool ImportSprites(const std::filesystem::path& FilePath, std::vector<std::shared_ptr<FSprite>>& OutputSprites);
-	void ExportSprites(const std::filesystem::path& ScriptFilePath, const std::filesystem::path& ExportPath, const std::vector<std::shared_ptr<FSprite>>& SelectedSprites);
+	void ExportSprites(const std::filesystem::path& ScriptFilePath, const std::filesystem::path& ExportPath, const std::vector<std::shared_ptr<FSprite>>& SelectedSprites, bool bOpenFolder = true);
 
 	void SendSelectedSprite() const;
 	void ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>& ReadSprites);

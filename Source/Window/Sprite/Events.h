@@ -16,6 +16,7 @@ namespace FEventTag
 	static const FName CanvasSizeTag = TEXT("CanvasSize");;
 	static const FName MousePositionTag = TEXT("MouseState");
 	static const FName AddSpriteTag = TEXT("AddSprite");
+	static const FName UpdateSpriteTag = TEXT("UpdateSprite");
 	static const FName SelectedSpritesChangedTag = TEXT("SelectedSpritesChanged");
 }
 

@@ -972,6 +972,18 @@ void SCanvas::Imput_Save()
 	std::filesystem::path SavePath = SourcePathFile.parent_path();
 	std::filesystem::path SaveName = SourcePathFile.stem();
 	bDirty = !Save(SavePath, SaveName);
+
+	{
+		FEvent_Sprite Event;
+		Event.Tag = FEventTag::UpdateSpriteTag;
+		Event.SourcePathFile = SourcePathFile;
+		Event.IndexedData = ZXColorView->IndexedData;
+		Event.InkData = ZXColorView->InkData;
+		Event.AttributeData = ZXColorView->AttributeData;
+		Event.MaskData = ZXColorView->MaskData;
+
+		SendEvent(Event);
+	}
 }
 
 void SCanvas::Reset_RectangleMarquee()

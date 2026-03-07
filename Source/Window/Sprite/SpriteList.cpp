@@ -72,6 +72,18 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 					Event.AttributeData,
 					Event.MaskData);
 			}
+			else if (Event.Tag == FEventTag::UpdateSpriteTag)
+			{
+				std::vector<std::shared_ptr<FSprite>> SelectedSprites = UpdateSprite(
+					Event.SourcePathFile,
+					Event.IndexedData,
+					Event.InkData,
+					Event.AttributeData,
+					Event.MaskData
+				);
+
+				ExportSprites("", CurrentPath, SelectedSprites, false);
+			}
 		});
 	SubscribeEvent<FEvent_ImportJSON>(
 		[this](const FEvent_ImportJSON& Event)
@@ -79,6 +91,7 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 			std::vector<std::shared_ptr<FSprite>> ReadSprites;
 			if (ImportSprites(Event.FilePath, ReadSprites))
 			{
+				CurrentPath = Event.FilePath.parent_path();;
 				ApplyImportSprites(ReadSprites);
 			}
 		});
@@ -610,6 +623,106 @@ void SSpriteList::AddSprite(
 	Sprites.push_back(NewSprite);
 }
 
+std::vector<std::shared_ptr<FSprite>> SSpriteList::UpdateSprite(const std::filesystem::path& SourcePathFile, const std::vector<uint8_t>& IndexedData, const std::vector<uint8_t>& InkData, const std::vector<uint8_t>& AttributeData, const std::vector<uint8_t>& MaskData)
+{
+	std::vector<std::shared_ptr<FSprite>> UpdatedSprites;
+
+	for (std::shared_ptr<FSprite>& Sprite : Sprites)
+	{
+		if (Sprite->SourcePathFile != SourcePathFile)
+		{
+			continue;
+		}
+
+		const int32_t Boundary_X = Sprite->Width >> 3;
+		const int32_t Boundary_Y = Sprite->Height >> 3;
+		const uint32_t NormalSizeX = uint32_t(Sprite->Width / 8) * 8;
+		const uint32_t NormalSizeY = uint32_t(Sprite->Height / 8) * 8;
+		const int32_t SpriteBoundary_X = NormalSizeX >> 3;
+		const int32_t SpriteBoundary_Y = NormalSizeY >> 3;
+
+		const int32_t Size = Sprite->Width * Sprite->Height;
+		std::vector<uint32_t> RGBA(Size);
+
+		uint32_t Index = 0;
+		for (uint32_t y = Sprite->SpritePositionToImageY; y < (Sprite->SpritePositionToImageY + Sprite->Height); ++y)
+		{
+			for (uint32_t x = Sprite->SpritePositionToImageX; x < (Sprite->SpritePositionToImageX + Sprite->Width); ++x)
+			{
+				const int32_t bx = x / 8;
+				const int32_t dx = x % 8;
+				const int32_t by = y / 8;
+				const int32_t dy = y % 8;
+
+				const int32_t Sprbx = (x - Sprite->SpritePositionToImageX) / 8;
+				const int32_t Sprby = (y - Sprite->SpritePositionToImageY) / 8;
+				const int32_t Sprdy = (y - Sprite->SpritePositionToImageY) % 8;
+
+				uint8_t Mask = 0xFF;
+				uint8_t Pixels = 0x00;
+				uint8_t InkColor = UI::EZXSpectrumColor::Black_;
+				uint8_t PaperColor = UI::EZXSpectrumColor::White_;
+
+				// Ink
+				{
+					const int32_t InkOffset = (by * 8 + dy) * Boundary_X + bx;
+					Pixels = InkData[InkOffset];
+
+					const int32_t NewInkOffset = (Sprby * 8 + Sprdy) * SpriteBoundary_X + Sprbx;
+					Sprite->ZXColorView->InkData[InkOffset] = Pixels;
+				}
+
+				// Mask
+				{
+					const int32_t MaskOffset = (by * 8 + dy) * Boundary_X + bx;
+					Mask = MaskData[MaskOffset];
+					const int32_t NewMaskOffset = (Sprby * 8 + Sprdy) * SpriteBoundary_X + Sprbx;
+					Sprite->ZXColorView->MaskData[NewMaskOffset] = Mask;
+					Mask = ~Mask;
+				}
+
+				// Attribute
+				{
+					const int32_t AttributeOffset = by * Boundary_X + bx;
+					const uint8_t Attribute = AttributeData[AttributeOffset];
+
+					const int32_t NewAttributeOffset = Sprby * SpriteBoundary_X + Sprbx;
+					Sprite->ZXColorView->AttributeData[NewAttributeOffset] = Attribute;
+
+					const bool bBright = (Attribute >> 6) & 0x01;
+					InkColor = (Attribute & 0x07) | (bBright << 3);
+					PaperColor = ((Attribute >> 3) & 0x07) | (bBright << 3);
+				}
+
+				if (InkColor == UI::EZXSpectrumColor::Transparent)
+				{
+					InkColor = UI::EZXSpectrumColor::Black_;
+				}
+				if (PaperColor == UI::EZXSpectrumColor::Transparent)
+				{
+					PaperColor = UI::EZXSpectrumColor::Black_;
+				}
+
+				const int8_t ColorInk = (Pixels << dx) & 0x80 ? InkColor : PaperColor;
+				const int8_t Color = ((Mask << dx) & 0x80) ? UI::EZXSpectrumColor::Transparent : ColorInk;
+				Sprite->ZXColorView->IndexedData[Index] = Color;
+
+				const ImU32 ColorRGBA = UI::ToU32(UI::ZXSpectrumColorRGBA[Color]);
+				RGBA[Index] = ColorRGBA;
+
+				++Index;
+			}
+		}
+
+		FImageBase& Images = FImageBase::Get();
+		Images.UpdateTexture(Sprite->ZXColorView->Image.Handle, RGBA.data());
+
+		UpdatedSprites.push_back(Sprite);
+	}
+
+	return std::move(UpdatedSprites);
+}
+
 bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vector<std::shared_ptr<FSprite>>& OutputSprites)
 {
 	nlohmann::ordered_json Json;
@@ -725,7 +838,7 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 	return true;
 }
 
-void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, const std::filesystem::path& ExportPath, const std::vector<std::shared_ptr<FSprite>>& SelectedSprites)
+void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, const std::filesystem::path& ExportPath, const std::vector<std::shared_ptr<FSprite>>& SelectedSprites, bool bOpenFolder /*= true*/)
 {
 	std::error_code ec;
 	nlohmann::ordered_json Json;
@@ -842,7 +955,10 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 		JsonFile << Json.dump(4);
 		JsonFile.close();
 	}
-	IO::OpenFolder(ExportPath);
+	if (bOpenFolder)
+	{
+		IO::OpenFolder(ExportPath);
+	}
 }
 
 void SSpriteList::SendSelectedSprite() const 
