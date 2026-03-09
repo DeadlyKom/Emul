@@ -132,7 +132,7 @@ void SViewerBase::Destroy()
 	}
 }
 
-bool SViewerBase::SetWindowVisibility(EName::Type WindowType, bool bVisibility)
+bool SViewerBase::SetWindowVisibility(EName::Type WindowType, bool bVisibility, const std::wstring& WindowName /*= L""*/)
 {
 	const auto It = Windows.find(WindowType);
 	if (It == Windows.end())
@@ -142,10 +142,35 @@ bool SViewerBase::SetWindowVisibility(EName::Type WindowType, bool bVisibility)
 
 	for (std::shared_ptr<SWindow>& Window : It->second)
 	{
-		Window->SetOpen(bVisibility);
+		if (WindowName.empty())
+		{
+			Window->SetOpen(bVisibility);
+		}
+		else if (Window->GetWindowWName() == WindowName)
+		{
+			Window->SetOpen(bVisibility);
+		}
 	}
 
 	return true;
+}
+
+std::shared_ptr<SWindow> SViewerBase::GetWindow(EName::Type WindowType, const std::wstring& WindowName /*= L""*/) const
+{
+	const auto It = Windows.find(WindowType);
+	if (It == Windows.end())
+	{
+		return {};
+	}
+
+	for (const std::shared_ptr<SWindow>& Window : It->second)
+	{
+		if (Window && Window->GetWindowWName() == WindowName)
+		{
+			return Window;
+		}
+	}
+	return nullptr;
 }
 
 std::vector<std::shared_ptr<SWindow>> SViewerBase::GetWindows(EName::Type WindowType) const

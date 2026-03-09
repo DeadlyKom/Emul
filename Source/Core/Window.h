@@ -117,6 +117,15 @@ public:
 	{
 		return ToString();
 	}
+	inline std::wstring GetWindowWName() const
+	{
+		const size_t Pos = Name.find(L"##");
+		if (Pos != std::wstring::npos)
+		{
+			return Name.substr(0, Pos);
+		}
+		return Name;
+	}
 	void DestroyWindow() { bPendingKill = true; }
 	bool IsDestroyWindow() const { return bPendingKill; }
 	const FNativeDataInitialize& GetNativeDataInitialize() const { return Data; }

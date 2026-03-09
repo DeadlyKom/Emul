@@ -88,6 +88,9 @@ private:
 	// undo/redo
 	void UndoSwapPixel(FPixelToCanvas& Param);
 
+	bool SplitSpriteName(const std::string& Name, std::string& Base, int32_t& Number);
+	std::string GetNextSpriteName(const std::map<int32_t, std::string>& Sprites);
+
 	bool bDirty;
 	bool bDragging;
 	bool bRefreshCanvas;
@@ -127,6 +130,7 @@ private:
 	char CreateSpriteNameBuffer[BUFFER_SIZE_INPUT] = "";
 	char CreateSpriteWidthBuffer[BUFFER_SIZE_INPUT] = "";
 	char CreateSpriteHeightBuffer[BUFFER_SIZE_INPUT] = "";
+	std::map<int32_t, std::string> SpriteNames;
 
 	// clipboard
 	FRGBAImage ClipboardImage;

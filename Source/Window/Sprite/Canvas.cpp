@@ -121,6 +121,25 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 				SelectedSprites = Event.Sprites;
 			}
 		});
+
+	SubscribeEvent<FEvent_Sprite>(
+		[this](const FEvent_Sprite& Event)
+		{
+			if (Event.Tag == FEventTag::RenamedSpriteTag)
+			{
+				SpriteNames[Event.UniqueID] = Event.SpriteName;
+			}
+			else if (Event.Tag == FEventTag::ResponseAllSpritesTag)
+			{
+				SpriteNames[Event.UniqueID] = Event.SpriteName;
+			}
+		});
+
+	{
+		FEvent_Sprite Event;
+		Event.Tag = FEventTag::RequestAllSpritesTag;
+		SendEvent(Event);
+	}
 }
 
 void SCanvas::Initialize(const std::vector<std::any>& Args)
@@ -623,7 +642,9 @@ void SCanvas::Draw_PopupMenu_CreateSprite()
 		if (ImGui::IsWindowAppearing())
 		{
 			CreateSpriteSize = ZXColorView->RectangleMarqueeRect.GetSize();
-			sprintf(CreateSpriteNameBuffer, std::format("Sprite {}", ++SpriteCounter).c_str());
+
+			const std::string NextSpriteName = GetNextSpriteName(SpriteNames);
+			sprintf(CreateSpriteNameBuffer, NextSpriteName.c_str());
 			sprintf(CreateSpriteWidthBuffer, "%i\n", int(CreateSpriteSize.x));
 			sprintf(CreateSpriteHeightBuffer, "%i\n", int(CreateSpriteSize.y));
 
@@ -1441,4 +1462,61 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 		bNeedConvertZXToCanvas = true;
 	}
 	bRefreshCanvas = true;
+}
+
+bool SCanvas::SplitSpriteName(const std::string& Name, std::string& Base, int32_t& Number)
+{
+	if (Name.empty())
+	{
+		return false;
+	}
+
+	int32_t Index = (int32_t)Name.size() - 1;
+
+	// start from the end while there are numbers
+	while (Index >= 0 && std::isdigit(Name[Index]))
+	{
+		--Index;
+	}
+
+	// if there are no numbers
+	if (Index == (int32_t)Name.size() - 1)
+	{
+		Base = Name;
+		Number = 0;
+		return true;
+	}
+
+	Base = Name.substr(0, Index + 1);
+	Number = std::stoi(Name.substr(Index + 1));
+
+	return true;
+}
+
+std::string SCanvas::GetNextSpriteName(const std::map<int32_t, std::string>& Sprites)
+{
+	std::string BestBase;
+	int32_t MaxIndex = -1;
+
+	for (const auto& [ID, Name] : Sprites)
+	{
+		int32_t Number;
+		std::string Base;
+
+		if (SplitSpriteName(Name, Base, Number))
+		{
+			if (Number > MaxIndex)
+			{
+				MaxIndex = Number;
+				BestBase = Base;
+			}
+		}
+	}
+
+	if (BestBase.empty())
+	{
+		return std::format("Sprite {}", ++SpriteCounter);
+	}
+
+	return BestBase + std::to_string(MaxIndex + 1);
 }

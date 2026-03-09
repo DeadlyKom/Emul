@@ -16,7 +16,11 @@ namespace FEventTag
 	static const FName CanvasSizeTag = TEXT("CanvasSize");;
 	static const FName MousePositionTag = TEXT("MouseState");
 	static const FName AddSpriteTag = TEXT("AddSprite");
+	static const FName AddedSpriteTag = TEXT("AddedSprite");
+	static const FName RenamedSpriteTag = TEXT("RenamedSprite");
 	static const FName UpdateSpriteTag = TEXT("UpdateSprite");
+	static const FName RequestAllSpritesTag = TEXT("RequestAllSprites");
+	static const FName ResponseAllSpritesTag = TEXT("ResponseAllSprites");
 	static const FName SelectedSpritesChangedTag = TEXT("SelectedSpritesChanged");
 }
 
@@ -67,6 +71,9 @@ struct FEvent_Sprite : public IEvent
 	// p - 3-bit color paper
 	// i - 3-bit color pixel
 	std::vector<uint8_t> MaskData;		// auto mask from alpha channel
+
+	// auxiliary variables
+	int32_t UniqueID;
 };
 
 struct FEvent_SelectedSprite : public IEvent

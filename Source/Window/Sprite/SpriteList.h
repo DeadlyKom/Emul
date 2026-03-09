@@ -172,9 +172,9 @@ struct FSprite
 	std::filesystem::path SourcePathFile;
 
 	// internal variable
-	static uint32_t StaticUniqueID;
+	static int32_t StaticUniqueID;
 
-	uint32_t UniqueID;
+	int32_t UniqueID;
 	bool bSelected;
 	float Scale;
 	double HoverStartTime;

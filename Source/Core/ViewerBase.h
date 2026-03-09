@@ -43,7 +43,8 @@ public:
 	virtual void Destroy() override;
 	// end SWindow overrides
 
-	bool SetWindowVisibility(EName::Type WindowType, bool bVisibility = true);
+	bool SetWindowVisibility(EName::Type WindowType, bool bVisibility = true, const std::wstring& WindowName = L"");
+	std::shared_ptr<SWindow> GetWindow(EName::Type WindowType, const std::wstring& WindowName = L"") const;
 	std::vector<std::shared_ptr<SWindow>> GetWindows(EName::Type WindowType) const;
 	bool IsWindowVisibility(EName::Type WindowType) const;
 	void AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Window, const FNativeDataInitialize& _Data, const std::vector<std::any>& Args);

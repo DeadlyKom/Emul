@@ -36,7 +36,7 @@ namespace
 
 }
 
-uint32_t FSprite::StaticUniqueID = 0;
+int32_t FSprite::StaticUniqueID = 0;
 
 SSpriteList::SSpriteList(EFont::Type _FontName, std::string _DockSlot /*= ""*/)
 	: Super(FWindowInitializer()
@@ -93,6 +93,21 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 			{
 				CurrentPath = Event.FilePath.parent_path();;
 				ApplyImportSprites(ReadSprites);
+			}
+		});
+	SubscribeEvent<FEvent_Sprite>(
+		[this](const FEvent_Sprite& Event)
+		{
+			if (Event.Tag == FEventTag::RequestAllSpritesTag)
+			{
+				for (std::shared_ptr<FSprite> Sprite : Sprites)
+				{
+					FEvent_Sprite Event;
+					Event.Tag = FEventTag::ResponseAllSpritesTag;
+					Event.SpriteName = Sprite->Name;
+					Event.UniqueID = Sprite->UniqueID;
+					SendEvent(Event);
+				}
 			}
 		});
 }
@@ -286,7 +301,7 @@ void SSpriteList::Draw_SpriteList()
 	for (uint32_t Index = 0; Index < SpriteNum; ++Index)
 	{
 		ImGui::PushID(Index);
-		const std::string EditingSpriteName = std::format("{}_PropertyName{}", Sprites[Index]->StaticUniqueID, Index);
+		const std::string EditingSpriteName = std::format("{}_SpriteName{}", Sprites[Index]->StaticUniqueID, Index);
 
 		std::shared_ptr<FSprite>& Sprite = Sprites[Index];
 		const std::string StringID = std::format("SpriteButton##%{}", Index);
@@ -345,9 +360,19 @@ void SSpriteList::Draw_SpriteList()
 				// Click outside the field - we also finish editing
 				if (!ImGui::IsItemHovered() && ImGui::IsMouseClicked(0))
 				{
+					Sprite->Name = InputBuffer;
 					EditingSprites[EditingSpriteName] = false;
 				}
 				ImGui::SetItemDefaultFocus(); // the cursor is immediately in InputText
+
+				if (!EditingSprites[EditingSpriteName])
+				{
+					FEvent_Sprite Event;
+					Event.Tag = FEventTag::RenamedSpriteTag;
+					Event.SpriteName = Sprite->Name;
+					Event.UniqueID = Sprite->UniqueID;
+					SendEvent(Event);
+				}
 			}
 			else
 			{
@@ -510,6 +535,14 @@ void SSpriteList::AddSprite(
 	NewSprite->ZXColorView = std::make_shared<UI::FZXColorView>();
 	NewSprite->ZXColorView->Scale = ImVec2(1.0f, 1.0f);
 	NewSprite->ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
+
+	{
+		FEvent_Sprite Event;
+		Event.Tag = FEventTag::RenamedSpriteTag;
+		Event.SpriteName = NewSprite->Name;
+		Event.UniqueID = NewSprite->UniqueID;
+		SendEvent(Event);
+	}
 
 	{
 		const uint32_t NormalSizeX = uint32_t(NewSprite->Width / 8) * 8;
@@ -868,7 +901,7 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 		std::filesystem::path IndexedDataFilePath;
 		if (Sprite->ZXColorView->IndexedData.size() > 0)
 		{
-			IndexedDataFilePath = IO::NormalizePath(ExportPath / std::format("IndexedData_{}.png", Sprite->Name));
+			IndexedDataFilePath = IO::NormalizePath(ExportPath / std::format("{}.idx.png", Sprite->Name));
 			const std::filesystem::path UniqueIndexedDataFilePath = bUniqueExportFilename ? IO::GetUniquePath(IndexedDataFilePath, ec) : IndexedDataFilePath;
 			if (ec)
 			{
@@ -907,21 +940,21 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 		std::filesystem::path InkDataFilePath;
 		if (Sprite->ZXColorView->InkData.size() > 0)
 		{
-			InkDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("InkData_{}.bin", Sprite->Name)));
+			InkDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("{}.ink.bin", Sprite->Name)));
 			IO::SaveBinaryData(Sprite->ZXColorView->InkData, InkDataFilePath, bUniqueExportFilename);
 		}
 
 		std::filesystem::path AttributeDataFilePath;
 		if (Sprite->ZXColorView->AttributeData.size() > 0)
 		{
-			AttributeDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("AttributeData_{}.bin", Sprite->Name)));
+			AttributeDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("{}.attr.bin", Sprite->Name)));
 			IO::SaveBinaryData(Sprite->ZXColorView->AttributeData, AttributeDataFilePath, bUniqueExportFilename);
 		}
 
 		std::filesystem::path MaskDataFilePath;
 		if (Sprite->ZXColorView->MaskData.size() > 0)
 		{
-			MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("MaskData_{}.bin", Sprite->Name)));
+			MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("{}.mask.bin", Sprite->Name)));
 			IO::SaveBinaryData(Sprite->ZXColorView->MaskData, MaskDataFilePath, bUniqueExportFilename);
 		}
 
@@ -986,10 +1019,11 @@ void SSpriteList::SendSelectedSprite() const
 void SSpriteList::ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>& ReadSprites)
 {
 	Sprites = ReadSprites;
+	std::shared_ptr<SViewerBase> Viewer = GetParent();
 	for (std::shared_ptr<FSprite> Sprite : Sprites)
 	{
-		std::shared_ptr<SViewerBase> Viewer = GetParent();
-		if (Viewer->GetWindows(NAME_Canvas).empty())
+		const std::wstring Filename = Sprite->SourcePathFile.filename().wstring();
+		if (!Viewer->GetWindow(NAME_Canvas, Filename))
 		{
 			FNativeDataInitialize _Data
 			{
@@ -1003,7 +1037,7 @@ void SSpriteList::ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>
 		}
 		else
 		{
-			Viewer->SetWindowVisibility(NAME_Canvas);
+			Viewer->SetWindowVisibility(NAME_Canvas, true, Filename);
 		}
 	}
 }
