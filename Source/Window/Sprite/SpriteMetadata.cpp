@@ -28,7 +28,7 @@ void SSpriteMetadata::NativeInitialize(const FNativeDataInitialize& Data)
 		{
 			if (Event.Tag == FEventTag::SelectedSpritesChangedTag)
 			{
-				SelectedSprite = Event.Sprites.empty() ? nullptr : Event.Sprites[0];
+				SelectedSprite = Event.Sprite;
 			}
 		});
 }

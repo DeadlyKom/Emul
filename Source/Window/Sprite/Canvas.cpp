@@ -118,7 +118,11 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 		{
 			if (Event.Tag == FEventTag::SelectedSpritesChangedTag)
 			{
-				SelectedSprites = Event.Sprites;
+				SelectedSprite = Event.Sprite;
+				ZXColorView->bVisibilityRectangleMarquee = true;
+				ZXColorView->RectangleMarqueeRect.Min = ImVec2((float)SelectedSprite->SpritePositionToImageX, (float)SelectedSprite->SpritePositionToImageY);
+				ZXColorView->RectangleMarqueeRect.Max = ImVec2((float)SelectedSprite->SpritePositionToImageX + (float)SelectedSprite->Width, (float)SelectedSprite->SpritePositionToImageY + (float)SelectedSprite->Height);
+				// ToDo: screen space rect
 			}
 		});
 
@@ -306,10 +310,9 @@ void SCanvas::SetupHotKeys()
 void SCanvas::Tick(float DeltaTime)
 {
 	ZXColorView->TimeCounter += DeltaTime;
-
-	for (const std::shared_ptr<FSprite>& Sprite : SelectedSprites)
+	if (SelectedSprite)
 	{
-		Sprite->ZXColorView->TimeCounter += DeltaTime;
+		SelectedSprite->ZXColorView->TimeCounter += DeltaTime;
 	}
 }
 
@@ -544,11 +547,9 @@ void SCanvas::Draw_PopupMenu()
 {
 	const ImGuiID CreateSpriteID = ImGui::GetCurrentWindow()->GetID(CreateSpriteName);
 
-	auto AddRegionLambda = [=, this](int32_t SelectIndex) -> bool
+	auto AddRegionLambda = [=, this]() -> bool
 		{
-			IndexSelectedSprites = SelectIndex;
-
-			const std::shared_ptr<FSprite>& Sprite = SelectedSprites[IndexSelectedSprites];
+			const std::shared_ptr<FSprite>& Sprite = SelectedSprite;
 			ImRect SpriteRect(
 				float(Sprite->SpritePositionToImageX), float(Sprite->SpritePositionToImageY),
 				float(Sprite->SpritePositionToImageX + Sprite->Width), float(Sprite->SpritePositionToImageY + Sprite->Height));
@@ -593,7 +594,7 @@ void SCanvas::Draw_PopupMenu()
 				}
 			}
 
-			SelectedSprites[IndexSelectedSprites]->Regions.push_back(NewRegion);
+			Sprite->Regions.push_back(NewRegion);
 			return true;
 		};
 
@@ -603,28 +604,9 @@ void SCanvas::Draw_PopupMenu()
 		{
 			ImGui::OpenPopup(CreateSpriteID);
 		}
-		
-		if (SelectedSprites.size() == 1)
+		if (ImGui::MenuItem("Add Region"))
 		{
-			if (ImGui::MenuItem("Add Region"))
-			{
-				AddRegionLambda(0);
-			}
-		}
-		else if (SelectedSprites.size() > 1)
-		{
-			if (ImGui::BeginMenu("Add Region"))
-			{
-				for (int32_t i = 0; i < SelectedSprites.size(); ++i)
-				{
-					const std::shared_ptr<FSprite>& Sprite = SelectedSprites[i];
-					if (ImGui::MenuItem(Sprite->Name.c_str()))
-					{
-						AddRegionLambda(i);
-					}
-				}
-				ImGui::EndMenu();
-			}
+			AddRegionLambda();
 		}
 
 		ImGui::EndPopup();	
@@ -763,7 +745,7 @@ void SCanvas::Draw_PopupMenu_CreateSprite()
 			Event.Height = Height;
 			Event.SpriteRect = SpriteRect;
 			Event.SpriteName = CreateSpriteNameBuffer;
-			Event.SourcePathFile = SourcePathFile;
+			Event.SourcePathFile = SourcePathFile.empty() ? std::filesystem::path(GetWindowWName()) : SourcePathFile;
 
 			Event.IndexedData = ZXColorView->IndexedData;
 			Event.InkData = ZXColorView->InkData;

@@ -106,8 +106,7 @@ private:
 	bool bRectangularSprite;
 
 	// popup menu 'Add Meta'
-	int32_t IndexSelectedSprites;
-	std::vector<std::shared_ptr<FSprite>> SelectedSprites;
+	std::shared_ptr<FSprite> SelectedSprite;
 
 	ImGuiID CanvasID;
 

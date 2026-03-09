@@ -150,6 +150,8 @@ bool SViewerBase::SetWindowVisibility(EName::Type WindowType, bool bVisibility, 
 		{
 			Window->SetOpen(bVisibility);
 		}
+
+		ImGui::SetWindowFocus(Window->GetWindowName().c_str());
 	}
 
 	return true;

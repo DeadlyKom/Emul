@@ -1010,19 +1010,32 @@ void SSpriteList::SendSelectedSprite() const
 {
 	if (IndexSelectedSprite != INDEX_NONE && Sprites.size() > IndexSelectedSprite)
 	{
+		const std::shared_ptr<FSprite>& Sprite = Sprites[IndexSelectedSprite];
+		std::shared_ptr<SViewerBase> Viewer = GetParent();
 		// forced open window 'Edit metadata'
 		{
-			std::shared_ptr<SViewerBase> Viewer = GetParent();
 			if (Viewer && !Viewer->IsWindowVisibility(NAME_SpriteMetadata))
 			{
 				Viewer->SetWindowVisibility(NAME_SpriteMetadata);
 			}
 		}
 
+		// forced open window Canvas
+		{
+			if (Viewer && !Viewer->IsWindowVisibility(NAME_Canvas))
+			{
+				Viewer->SetWindowVisibility(NAME_SpriteMetadata);
+			}
+
+			const std::wstring Filename = Sprite->SourcePathFile.filename().wstring();
+			std::wstring FrameFilename = std::format(L"{}_frame {}", Filename, Sprite->AsepriteIndex);
+			Viewer->SetWindowVisibility(NAME_Canvas, true, FrameFilename);
+		}
+
 		FEvent_SelectedSprite Event;
 		{
 			Event.Tag = FEventTag::SelectedSpritesChangedTag;
-			Event.Sprites.push_back(Sprites[IndexSelectedSprite]);
+			Event.Sprite = Sprite;
 		}
 		SendEvent(Event);
 	}
@@ -1057,7 +1070,6 @@ void SSpriteList::ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>
 
 		const std::wstring Filename = FilePath.filename().wstring();
 		std::wstring FrameFilename = std::format(L"{}_frame {}", Filename, Sprite->AsepriteIndex);
-
 		if (!Viewer->GetWindow(NAME_Canvas, FrameFilename))
 		{
 			FNativeDataInitialize _Data

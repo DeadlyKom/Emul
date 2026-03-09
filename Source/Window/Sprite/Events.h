@@ -83,7 +83,7 @@ struct FEvent_Sprite : public IEvent
 
 struct FEvent_SelectedSprite : public IEvent
 {
-	std::vector<std::shared_ptr<FSprite>> Sprites;
+	std::shared_ptr<FSprite> Sprite;
 };
 
 struct FEvent_ImportJSON : public IEvent
