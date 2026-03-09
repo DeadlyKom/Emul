@@ -131,6 +131,65 @@ void FAppSprite::LoadSettings()
 	}
 }
 
+void FAppSprite::Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const std::filesystem::path& FilePath, EImageFormat ImageFormat)
+{
+	std::shared_ptr<SWindow> FoundWindow;
+	for (std::shared_ptr<SWindow>& Window : Viewer->GetWindows(NAME_Canvas))
+	{
+		std::shared_ptr<SCanvas> Canvas = dynamic_pointer_cast<SCanvas>(Window);
+		if (!Canvas || Canvas->GetSourcePathFile() != FilePath)
+		{
+			continue;
+		}
+		FoundWindow = Window;
+		break;
+	}
+
+	if (!FoundWindow)
+	{
+		FNativeDataInitialize Data = Viewer->GetNativeDataInitialize();
+		if (ImageFormat == EImageFormat::PNG)
+		{
+			std::wstring Filename = FilePath.filename().wstring();
+			std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, FilePath);
+			Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { FilePath, ImageFormat });
+		}
+		else if (ImageFormat == EImageFormat::Aseprite)
+		{
+			AsepriteFormat::FSprite Sprite;
+			if (!AsepriteFormat::Load(FilePath, Sprite))
+			{
+				LOG_ERROR("[{}]\t Failed to parse the Aseprite format.", (__FUNCTION__));
+				return;
+			}
+
+			const std::wstring& Filename = FilePath.filename().wstring();
+			for (int32_t Index = 0; Index < Sprite.Frames.size(); ++Index)
+			{
+				const std::vector<uint8_t>& ImageData = Sprite.Frames[Index];
+
+				AsepriteFormat::FFrame Frame;
+				Frame.Width = Sprite.Width;
+				Frame.Height = Sprite.Height;
+				Frame.TransparentColor = Sprite.TransparentColor;
+				Frame.Image = ImageData;
+
+				std::wstring FrameFilename = std::format(L"{}_frame {}", Filename, Index);
+				std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, FrameFilename, FilePath);
+				Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { Frame, EImageFormat::Aseprite_Frame, Index });
+			}
+		}
+		else
+		{
+			LOG_ERROR("[{}]\t Unsupported format : {}", (__FUNCTION__), (int32_t)ImageFormat);
+		}
+	}
+	else
+	{
+		FoundWindow->SetOpen(true);
+	}
+}
+
 void FAppSprite::Shutdown()
 {
 	if (Viewer)
@@ -186,11 +245,11 @@ void FAppSprite::DragAndDropFile(const std::filesystem::path& FilePath)
 	}
 	else if (FilePath.extension() == L".png")
 	{
-		Import_Image(FilePath, EImageFormat::PNG);
+		Import_Image(Viewer, FilePath, EImageFormat::PNG);
 	}
 	else if (FilePath.extension() == L".aseprite")
 	{
-		Import_Image(FilePath, EImageFormat::Aseprite);
+		Import_Image(Viewer, FilePath, EImageFormat::Aseprite);
 	}
 	else
 	{
@@ -481,66 +540,6 @@ bool FAppSprite::ShowModal_WindowNewCanvas()
 	}
 	return bVisible;
 
-}
-
-void FAppSprite::Import_Image(const std::filesystem::path& FilePath, EImageFormat ImageFormat)
-{
-	std::shared_ptr<SWindow> FoundWindow;
-	for (std::shared_ptr<SWindow>& Window : Viewer->GetWindows(NAME_Canvas))
-	{
-		std::shared_ptr<SCanvas> Canvas = dynamic_pointer_cast<SCanvas>(Window);
-		if (!Canvas || Canvas->GetSourcePathFile() != FilePath)
-		{
-			continue;
-		}
-		FoundWindow = Window;
-		break;
-	}
-
-	if (!FoundWindow)
-	{
-		FNativeDataInitialize Data
-		{
-			.Device = Device,
-			.DeviceContext = DeviceContext
-		};
-
-		if (ImageFormat == EImageFormat::Aseprite)
-		{
-			AsepriteFormat::FSprite Sprite;
-			if (!AsepriteFormat::Load(FilePath, Sprite))
-			{
-				LOG_ERROR("[{}]\t Failed to parse the Aseprite format.", (__FUNCTION__));
-				return;
-			}
-
-			const std::wstring& Filename = FilePath.filename().wstring();
-			for (int32_t Index = 0; Index < Sprite.Frames.size(); ++Index)
-			{
-				const std::vector<uint8_t>& ImageData = Sprite.Frames[Index];
-
-				AsepriteFormat::FFrame Frame;
-				Frame.Width = Sprite.Width;
-				Frame.Height = Sprite.Height;
-				Frame.TransparentColor = Sprite.TransparentColor;
-				Frame.Image = ImageData;
-
-				std::wstring FrameFilename = std::format(L"{}_frame {}", Filename, Index);
-				std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, FrameFilename, FilePath);
-				Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { Frame, EImageFormat::Aseprite_Frame, Index });
-			}
-		}
-		else
-		{
-			std::wstring Filename = FilePath.filename().wstring();
-			std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, FilePath);
-			Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { FilePath, ImageFormat });
-		}
-	}
-	else
-	{
-		FoundWindow->SetOpen(true);
-	}
 }
 
 void FAppSprite::Import_JSON(const std::filesystem::path& FilePath)

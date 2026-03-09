@@ -207,6 +207,7 @@ void SViewerBase::AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Wi
 {
 	if (IsExistsWindow(WindowType, _Window))
 	{
+		SetWindowVisibility(WindowType);
 		return;
 	}
 
@@ -218,6 +219,7 @@ void SViewerBase::AddWindow(EName::Type WindowType, std::shared_ptr<SWindow> _Wi
 	_Window->SetupHotKeys();
 
 	Windows[WindowType].push_back(_Window);
+	SetWindowVisibility(WindowType);
 }
 
 void SViewerBase::AppendWindows(const std::map<EName::Type, std::shared_ptr<SWindow>>& _Windows, const FNativeDataInitialize& _Data, const std::vector<std::any>& Args)

@@ -75,6 +75,7 @@ struct FEvent_Sprite : public IEvent
 	std::vector<uint8_t> MaskData;		// auto mask from alpha channel
 
 	// auxiliary variables
+	int32_t AsepriteIndex;
 	int32_t UniqueID;
 
 	using IEvent::IEvent;

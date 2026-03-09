@@ -174,6 +174,7 @@ struct FSprite
 	// internal variable
 	static int32_t StaticUniqueID;
 
+	int32_t AsepriteIndex;
 	int32_t UniqueID;
 	bool bSelected;
 	float Scale;
@@ -189,6 +190,7 @@ struct FSprite
 		, Name("")
 		, SpritePositionToImageX(INDEX_NONE)
 		, SpritePositionToImageY(INDEX_NONE)
+		, AsepriteIndex(INDEX_NONE)
 		, UniqueID(StaticUniqueID++)
 		, bSelected(false)
 		, Scale(1.0f)
@@ -232,7 +234,8 @@ private:
 		const std::vector<uint8_t>& IndexedData,
 		const std::vector<uint8_t>& InkData,
 		const std::vector<uint8_t>& AttributeData,
-		const std::vector<uint8_t>& MaskData);
+		const std::vector<uint8_t>& MaskData,
+		int32_t AsepriteIndex = INDEX_NONE);
 
 	std::vector<std::shared_ptr<FSprite>> UpdateSprite(
 		const std::filesystem::path& SourcePathFile,

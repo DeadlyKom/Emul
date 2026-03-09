@@ -34,6 +34,8 @@ public:
 	virtual void DragAndDropFile(const std::filesystem::path& FilePath) override;
 	virtual void LoadSettings() override;
 
+	static void Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const std::filesystem::path& FilePath, EImageFormat ImageFormat);
+
 private:
 	void Show_MenuBar();
 
@@ -41,7 +43,6 @@ private:
 	bool ShowModal_WindowNewCanvas();
 
 	void Quit() { bOpen = false; }
-	void Import_Image(const std::filesystem::path& FilePath, EImageFormat ImageFormat);
 	void Import_JSON(const std::filesystem::path& FilePath);
 	void Callback_OpenFile(std::filesystem::path FilePath);
 

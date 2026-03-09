@@ -769,6 +769,7 @@ void SCanvas::Draw_PopupMenu_CreateSprite()
 			Event.InkData = ZXColorView->InkData;
 			Event.AttributeData = ZXColorView->AttributeData;
 			Event.MaskData = ZXColorView->MaskData;
+			Event.AsepriteIndex = ImageFrameIndex;
 
 			SendEvent(Event);
 

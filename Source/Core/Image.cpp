@@ -151,6 +151,7 @@ FImage& FImageBase::LoadFromFile(const std::filesystem::path& FilePath)
 	if (FAILED(hr))
 	{
 		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+		return DefaultImage;
 	}
 
 	stbi_image_free(ImageData);
@@ -224,6 +225,7 @@ FImage& FImageBase::FromMemory(std::vector<uint8_t> Memory)
 	if (FAILED(hr))
 	{
 		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+		return DefaultImage;
 	}
 	Texture->Release();
 
@@ -240,6 +242,7 @@ FImage& FImageBase::FromMemory(std::vector<uint8_t> Memory)
 	if (FAILED(hr))
 	{
 		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+		return DefaultImage;
 	}
 
 	stbi_image_free(ImageData);
@@ -296,6 +299,7 @@ FImage& FImageBase::CreateTexture(void* ImageData, int32_t Width, int32_t Height
 	if (FAILED(hr))
 	{
 		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+		return DefaultImage;
 	}
 
 	// create texture view
@@ -309,6 +313,7 @@ FImage& FImageBase::CreateTexture(void* ImageData, int32_t Width, int32_t Height
 	if (FAILED(hr))
 	{
 		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+		return DefaultImage;
 	}
 	Texture->Release();
 
@@ -325,6 +330,7 @@ FImage& FImageBase::CreateTexture(void* ImageData, int32_t Width, int32_t Height
 	if (FAILED(hr))
 	{
 		LOG_ERROR("[{}]\t  DirectX: {}", (__FUNCTION__), GetErrorMessage(hr));
+		return DefaultImage;
 	}
 
 	Images.emplace(Counter++, Image);
