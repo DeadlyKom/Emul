@@ -11,6 +11,7 @@ struct FSprite;
 namespace FEventTag
 {
 	static const FName ChangeToolModeTag = TEXT("ChangeToolMode");
+	static const FName RequestToolModeTag = TEXT("RequestToolMode");
 	static const FName CanvasOptionsFlagsTag = TEXT("CanvasOptionsFlags");
 	static const FName ChangeColorTag = TEXT("ChangeColor");
 	static const FName CanvasSizeTag = TEXT("CanvasSize");;
@@ -44,6 +45,7 @@ struct FEvent_StatusBar : public IEvent
 struct FEvent_ToolBar : public IEvent
 {
 	FChangeToolMode ChangeToolMode;
+	using IEvent::IEvent;
 };
 
 struct FEvent_Color : public IEvent
@@ -74,6 +76,8 @@ struct FEvent_Sprite : public IEvent
 
 	// auxiliary variables
 	int32_t UniqueID;
+
+	using IEvent::IEvent;
 };
 
 struct FEvent_SelectedSprite : public IEvent

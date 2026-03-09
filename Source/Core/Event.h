@@ -9,8 +9,12 @@ namespace FEventTag
 
 struct IEvent
 {
-	FName Tag = FEventTag::AnyTag;
+	FName Tag;
 	virtual ~IEvent() = default;
+
+	IEvent(FName _Tag = FEventTag::AnyTag)
+		: Tag(_Tag)
+	{}
 };
 
 using EventHandler = std::function<void(const IEvent&)>;

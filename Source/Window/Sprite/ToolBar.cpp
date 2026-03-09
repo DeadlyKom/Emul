@@ -30,6 +30,17 @@ void SToolBar::NativeInitialize(const FNativeDataInitialize& Data)
 				SetToolMode(Event.ChangeToolMode.ToolMode, true, true);
 			}
 		});
+	SubscribeEvent<FEvent_ToolBar>(
+		[this](const FEvent_ToolBar& Event)
+		{
+			if (Event.Tag == FEventTag::RequestToolModeTag)
+			{
+				FEvent_ToolBar Event;
+				Event.Tag = FEventTag::ChangeToolModeTag;
+				Event.ChangeToolMode.ToolMode = ToolMode[0];
+				SendEvent(Event);
+			}
+		});
 }
 
 void SToolBar::Initialize(const std::vector<std::any>& Args)

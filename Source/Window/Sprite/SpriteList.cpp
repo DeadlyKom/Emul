@@ -901,7 +901,7 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 		std::filesystem::path IndexedDataFilePath;
 		if (Sprite->ZXColorView->IndexedData.size() > 0)
 		{
-			IndexedDataFilePath = IO::NormalizePath(ExportPath / std::format("{}.idx.png", Sprite->Name));
+			IndexedDataFilePath = IO::NormalizePath(ExportPath / std::format("{}.png", Sprite->Name));
 			const std::filesystem::path UniqueIndexedDataFilePath = bUniqueExportFilename ? IO::GetUniquePath(IndexedDataFilePath, ec) : IndexedDataFilePath;
 			if (ec)
 			{
@@ -940,21 +940,21 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 		std::filesystem::path InkDataFilePath;
 		if (Sprite->ZXColorView->InkData.size() > 0)
 		{
-			InkDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("{}.ink.bin", Sprite->Name)));
+			InkDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("{}.ink", Sprite->Name)));
 			IO::SaveBinaryData(Sprite->ZXColorView->InkData, InkDataFilePath, bUniqueExportFilename);
 		}
 
 		std::filesystem::path AttributeDataFilePath;
 		if (Sprite->ZXColorView->AttributeData.size() > 0)
 		{
-			AttributeDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("{}.attr.bin", Sprite->Name)));
+			AttributeDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("{}.attr", Sprite->Name)));
 			IO::SaveBinaryData(Sprite->ZXColorView->AttributeData, AttributeDataFilePath, bUniqueExportFilename);
 		}
 
 		std::filesystem::path MaskDataFilePath;
 		if (Sprite->ZXColorView->MaskData.size() > 0)
 		{
-			MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("{}.mask.bin", Sprite->Name)));
+			MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("{}.mask", Sprite->Name)));
 			IO::SaveBinaryData(Sprite->ZXColorView->MaskData, MaskDataFilePath, bUniqueExportFilename);
 		}
 

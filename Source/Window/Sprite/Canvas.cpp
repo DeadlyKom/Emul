@@ -135,10 +135,15 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 			}
 		});
 
+	// request for receiving current statuses
 	{
-		FEvent_Sprite Event;
-		Event.Tag = FEventTag::RequestAllSpritesTag;
-		SendEvent(Event);
+		// sprite names
+		FEvent_Sprite Event_Sprite(FEventTag::RequestAllSpritesTag);
+		SendEvent(Event_Sprite);
+
+		// tools
+		FEvent_ToolBar Event_ToolBar(FEventTag::RequestToolModeTag);
+		SendEvent(Event_ToolBar);
 	}
 }
 
@@ -910,6 +915,31 @@ void SCanvas::ApplyToolMode()
 	case EToolMode::PaintBucket:
 		break;
 	}
+}
+
+void SCanvas::Imput_SelectAll()
+{
+	if (ToolMode[0] != EToolMode::RectangleMarquee)
+	{
+		return;
+	}
+
+	ZXColorView->bVisibilityRectangleMarquee = true;
+	bRectangleMarqueeActive = true;
+
+	ImVec2 p1 = ImVec2();
+	ImVec2 p2 = ImVec2(ZXColorView->Image.Size.x, ZXColorView->Image.Size.y);
+
+	// normalize the rectangle (Min is always to the left/above, Max is to the right/below)
+	ZXColorView->RectangleMarqueeRect.Min = ImVec2(ImMin(p1.x, p2.x), ImMin(p1.y, p2.y));
+	ZXColorView->RectangleMarqueeRect.Max = ImVec2(ImMax(p1.x, p2.x), ImMax(p1.y, p2.y));
+
+	// last pixel inclusion compensation
+	ZXColorView->RectangleMarqueeRect.Max.x += 1.0f;
+	ZXColorView->RectangleMarqueeRect.Max.y += 1.0f;
+
+	ZXColorView->RectangleMarqueeRect.Min = ImClamp(ZXColorView->RectangleMarqueeRect.Min, ImVec2(0, 0), ZXColorView->Image.Size);
+	ZXColorView->RectangleMarqueeRect.Max = ImClamp(ZXColorView->RectangleMarqueeRect.Max, ImVec2(0, 0), ZXColorView->Image.Size);
 }
 
 void SCanvas::Imput_Paste()
