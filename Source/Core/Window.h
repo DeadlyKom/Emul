@@ -18,6 +18,7 @@ struct FNativeDataInitialize
 struct FWindowInitializer
 {
 	bool bOpen = true;
+	bool bNeedFocus = false;
 	std::wstring Name;
 	std::string DockSlot;
 	EFont::Type FontName;
@@ -28,6 +29,11 @@ struct FWindowInitializer
 	FWindowInitializer& SetOpen(bool _bOpen)
 	{
 		bOpen = _bOpen;
+		return *this;
+	}
+	FWindowInitializer& SetFocus(bool _bNeedFocus)
+	{
+		bNeedFocus = _bNeedFocus;
 		return *this;
 	}
 	FWindowInitializer& SetName(const std::wstring& _Name)
@@ -68,6 +74,7 @@ public:
 	SWindow(const FWindowInitializer& _WindowInitializer)
 		: WindowInitializer(_WindowInitializer)
 		, bOpen(_WindowInitializer.bOpen)
+		, bNeedFocus(_WindowInitializer.bNeedFocus)
 		, bIncludeInWindows(_WindowInitializer.bIncludeInWindows)
 		, DefaultWidth(_WindowInitializer.Width)
 		, DefaultHeight(_WindowInitializer.Height)
@@ -96,6 +103,9 @@ public:
 	virtual void Open() { bOpen = true; }
 	virtual void Close() { bOpen = false; }
 	virtual bool IsOpen() const { return bOpen; }
+	virtual bool NeedFocus() const { return bNeedFocus; }
+	virtual void Focus() { bNeedFocus = true; }
+	virtual void ResetFocus() { bNeedFocus = false; }
 	virtual bool IsIncludeInWindows() const { return bIncludeInWindows; }
 	virtual void SetWindowDefaultPosSize()
 	{
@@ -143,6 +153,7 @@ protected:
 	FWindowInitializer WindowInitializer;
 
 	bool bOpen;
+	bool bNeedFocus;
 	bool bNeedDock;
 	bool bPendingKill;
 	bool bIncludeInWindows;

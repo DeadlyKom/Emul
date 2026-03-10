@@ -77,7 +77,7 @@ private:
 	void Handler_Eyedropper();
 
 	bool Save(const std::filesystem::path& SavePath, const std::filesystem::path& SaveName);
-	bool Load(const std::filesystem::path& LoadPath, const std::filesystem::path& LoadName);
+	bool Load(const std::filesystem::path& LoadPath, const std::filesystem::path& LoadName, bool bLoadImage = true);
 
 	void ConversionToZX(const UI::FConversationSettings& Settings);
 	void ConversionToCanvas(const UI::FConversationSettings& Settings);

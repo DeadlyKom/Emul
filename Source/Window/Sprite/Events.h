@@ -78,6 +78,9 @@ struct FEvent_Sprite : public IEvent
 	int32_t AsepriteIndex;
 	int32_t UniqueID;
 
+	int32_t CanvasWidth;
+	int32_t CanvasHeight;
+
 	using IEvent::IEvent;
 };
 

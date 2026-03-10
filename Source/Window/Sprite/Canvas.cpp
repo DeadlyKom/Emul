@@ -118,6 +118,12 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 		{
 			if (Event.Tag == FEventTag::SelectedSpritesChangedTag)
 			{
+				const std::wstring Filename = Event.Sprite->GetFilename();
+				if (GetWindowWName() != Filename)
+				{
+					return;
+				}
+
 				SelectedSprite = Event.Sprite;
 				ZXColorView->bVisibilityRectangleMarquee = true;
 				ZXColorView->RectangleMarqueeRect.Min = ImVec2((float)SelectedSprite->SpritePositionToImageX, (float)SelectedSprite->SpritePositionToImageY);
@@ -264,6 +270,13 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 		Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Canvas);
 
 		{
+			std::filesystem::path LoadPath = Frame.Path;
+			std::filesystem::path LoadName = Frame.Name;
+
+			Load(LoadPath, LoadName, false);
+		}
+
+		{
 			FEvent_StatusBar Event;
 			Event.Tag = FEventTag::CanvasSizeTag;
 			Event.CanvasSize = ImVec2((float)Width, (float)Height);
@@ -325,6 +338,11 @@ void SCanvas::Render()
 		Close();
 		return;
 	}
+	if (NeedFocus())
+	{
+		ImGui::SetNextWindowFocus();
+		ResetFocus();
+	}
 
 	const bool bInk = OptionsFlags[0] & FCanvasOptionsFlags::Ink;
 	const bool bMask = OptionsFlags[0] & FCanvasOptionsFlags::Mask;
@@ -354,6 +372,7 @@ void SCanvas::Render()
 	const bool bNoMove = ToolMode[0] == EToolMode::RectangleMarquee;
 	//const std::string Title = /*bDirty ? "* " + GetWindowName() : */GetWindowName();
 	//const std::string UniqueID = Title + "##" + GetWindowName();
+
 	ImGui::Begin(GetWindowName().c_str(), &bOpen, bNoMove ? ImGuiWindowFlags_NoMove : ImGuiWindowFlags_None);
 	{
 		if (bNoMove)
@@ -999,22 +1018,29 @@ void SCanvas::Imput_Redo()
 
 void SCanvas::Imput_Save()
 {
-	if (SourcePathFile.empty() || !bDirty)
+	if (!bDirty)
 	{
 		return;
 	}
-	std::filesystem::path SavePath = SourcePathFile.parent_path();
-	std::filesystem::path SaveName = SourcePathFile.stem();
-	bDirty = !Save(SavePath, SaveName);
+
+	if (!SourcePathFile.empty())
+	{
+		std::filesystem::path SavePath = SourcePathFile.parent_path();
+		std::filesystem::path SaveName = SourcePathFile.stem();
+		bDirty = !Save(SavePath, SaveName);
+	}
 
 	{
 		FEvent_Sprite Event;
 		Event.Tag = FEventTag::UpdateSpriteTag;
-		Event.SourcePathFile = SourcePathFile;
+		Event.CanvasWidth = Width;
+		Event.CanvasHeight = Height;
+		Event.SourcePathFile = SourcePathFile.empty() ? std::filesystem::path(GetWindowWName()) : SourcePathFile;
 		Event.IndexedData = ZXColorView->IndexedData;
 		Event.InkData = ZXColorView->InkData;
 		Event.AttributeData = ZXColorView->AttributeData;
 		Event.MaskData = ZXColorView->MaskData;
+		Event.AsepriteIndex = ImageFrameIndex;
 
 		SendEvent(Event);
 	}
@@ -1213,7 +1239,7 @@ bool SCanvas::Save(const std::filesystem::path& SavePath, const std::filesystem:
 	std::filesystem::path NewSaveName = SaveName;
 	if (ImageFormat == EImageFormat::Aseprite_Frame && ImageFrameIndex != INDEX_NONE)
 	{
-		NewSaveName = std::format("{0}_frame_{1}", SaveName.string(), ImageFrameIndex);
+		NewSaveName = std::format("{}_frame_{}", SaveName.string(), ImageFrameIndex);
 	}
 
 	std::filesystem::path PNGFilePath = IO::NormalizePath(SavePath / std::format("{0}.png", NewSaveName.string(), ImageFrameIndex));
@@ -1255,13 +1281,16 @@ bool SCanvas::Save(const std::filesystem::path& SavePath, const std::filesystem:
 	return true;
 }
 
-bool SCanvas::Load(const std::filesystem::path& LoadPath, const std::filesystem::path& LoadName)
+bool SCanvas::Load(const std::filesystem::path& LoadPath, const std::filesystem::path& LoadName, bool bLoadImage /*= true*/)
 {
-	uint8_t* ImageData = FImageBase::LoadToMemory(SourcePathFile, Width, Height);
-	UI::QuantizeToZX(ImageData, Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
-	UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
-	ConversionToZX(ConversationSettings);
-	FImageBase::ReleaseLoadedIntoMemory(ImageData);
+	if (bLoadImage)
+	{
+		uint8_t* ImageData = FImageBase::LoadToMemory(SourcePathFile, Width, Height);
+		UI::QuantizeToZX(ImageData, Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
+		UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
+		ConversionToZX(ConversationSettings);
+		FImageBase::ReleaseLoadedIntoMemory(ImageData);
+	}
 
 	// ink
 	{

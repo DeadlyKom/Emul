@@ -197,6 +197,18 @@ struct FSprite
 		, HoverStartTime(-1.0)
 		, OptionsFlags(0)
 	{}
+
+	std::wstring GetFilename() const
+	{
+		const std::wstring Filename = SourcePathFile.stem().wstring();
+		std::wstring FrameFilename = Filename;
+		if (AsepriteIndex != INDEX_NONE)
+		{
+			FrameFilename = std::format(L"{}_frame_{}", Filename, AsepriteIndex);
+		}
+
+		return FrameFilename;
+	}
 };
 
 class SSpriteList : public SViewerChildBase
@@ -238,14 +250,21 @@ private:
 		int32_t AsepriteIndex = INDEX_NONE);
 
 	std::vector<std::shared_ptr<FSprite>> UpdateSprite(
+		int32_t CanvasWidth, int32_t CanvasHeight,
 		const std::filesystem::path& SourcePathFile,
 		const std::vector<uint8_t>& IndexedData,
 		const std::vector<uint8_t>& InkData,
 		const std::vector<uint8_t>& AttributeData,
-		const std::vector<uint8_t>& MaskData);
+		const std::vector<uint8_t>& MaskData,
+		int32_t AsepriteIndex = INDEX_NONE);
 
 	bool ImportSprites(const std::filesystem::path& FilePath, std::vector<std::shared_ptr<FSprite>>& OutputSprites);
-	void ExportSprites(const std::filesystem::path& ScriptFilePath, const std::filesystem::path& ExportPath, const std::vector<std::shared_ptr<FSprite>>& SelectedSprites, bool bOpenFolder = true);
+	void ExportSprites(
+		const std::filesystem::path& ScriptFilePath,
+		const std::filesystem::path& ExportPath,
+		const std::vector<std::shared_ptr<FSprite>>& SelectedSprites,
+		bool bOpenFolder = true,
+		bool bCreate = true);
 
 	void SendSelectedSprite() const;
 	void ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>& ReadSprites);

@@ -32,6 +32,8 @@ namespace AsepriteFormat
 		int32_t Height;
 		std::vector<uint8_t> Image;
 		uint32_t TransparentColor;
+		std::filesystem::path Path;
+		std::filesystem::path Name;
 	};
 
 	struct FSprite

@@ -131,6 +131,22 @@ void FAppSprite::LoadSettings()
 	}
 }
 
+EImageFormat FAppSprite::SupportImageFormat(const std::filesystem::path& FilePath)
+{
+	if (FilePath.extension() == L".png")
+	{
+		return EImageFormat::PNG;
+	}
+	else if (FilePath.extension() == L".aseprite")
+	{
+		return EImageFormat::Aseprite;
+	}
+	else
+	{
+		return EImageFormat::None;
+	}
+}
+
 void FAppSprite::Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const std::filesystem::path& FilePath, EImageFormat ImageFormat)
 {
 	std::shared_ptr<SWindow> FoundWindow;
@@ -163,20 +179,23 @@ void FAppSprite::Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const 
 				return;
 			}
 
-			const std::wstring& Filename = FilePath.filename().wstring();
+			std::filesystem::path Path = FilePath.parent_path();
+			std::filesystem::path Filename = FilePath.stem();
 			for (int32_t Index = 0; Index < Sprite.Frames.size(); ++Index)
 			{
 				const std::vector<uint8_t>& ImageData = Sprite.Frames[Index];
 
+				std::wstring FrameFilename = std::format(L"{}_frame_{}", Filename.wstring(), Index);
 				AsepriteFormat::FFrame Frame;
 				Frame.Width = Sprite.Width;
 				Frame.Height = Sprite.Height;
 				Frame.TransparentColor = Sprite.TransparentColor;
 				Frame.Image = ImageData;
+				Frame.Name = FrameFilename;
+				Frame.Path = Path;
 
-				std::wstring FrameFilename = std::format(L"{}_frame {}", Filename, Index);
 				std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, FrameFilename, FilePath);
-				Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { Frame, EImageFormat::Aseprite_Frame, Index });
+				Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { Frame, EImageFormat::Aseprite_Frame, Index});
 			}
 		}
 		else
@@ -241,20 +260,18 @@ void FAppSprite::DragAndDropFile(const std::filesystem::path& FilePath)
 {
 	if (FilePath.extension() == L".json")
 	{
-		Import_JSON(FilePath);
-	}
-	else if (FilePath.extension() == L".png")
-	{
-		Import_Image(Viewer, FilePath, EImageFormat::PNG);
-	}
-	else if (FilePath.extension() == L".aseprite")
-	{
-		Import_Image(Viewer, FilePath, EImageFormat::Aseprite);
+		return Import_JSON(FilePath);
 	}
 	else
 	{
-		LOG_ERROR("[{}]\t Format not supported.", (__FUNCTION__));
+		EImageFormat ImageFormat = SupportImageFormat(FilePath);
+		switch (ImageFormat)
+		{
+		case EImageFormat::PNG:			return Import_Image(Viewer, FilePath, EImageFormat::PNG);
+		case EImageFormat::Aseprite:	return Import_Image(Viewer, FilePath, EImageFormat::Aseprite);
+		}
 	}
+	LOG_ERROR("[{}]\t Format not supported.", (__FUNCTION__));
 }
 
 void FAppSprite::Show_MenuBar()

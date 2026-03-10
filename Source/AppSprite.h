@@ -7,6 +7,7 @@ enum class EImageFormat
 {
 	None,
 	Create,
+	JSON,
 	PNG,
 	Aseprite,
 	Aseprite_Frame
@@ -34,6 +35,7 @@ public:
 	virtual void DragAndDropFile(const std::filesystem::path& FilePath) override;
 	virtual void LoadSettings() override;
 
+	static EImageFormat SupportImageFormat(const std::filesystem::path& FilePath);
 	static void Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const std::filesystem::path& FilePath, EImageFormat ImageFormat);
 
 private:

@@ -76,14 +76,17 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 			else if (Event.Tag == FEventTag::UpdateSpriteTag)
 			{
 				std::vector<std::shared_ptr<FSprite>> SelectedSprites = UpdateSprite(
+					Event.CanvasWidth,
+					Event.CanvasHeight,
 					Event.SourcePathFile,
 					Event.IndexedData,
 					Event.InkData,
 					Event.AttributeData,
-					Event.MaskData
+					Event.MaskData,
+					Event.AsepriteIndex
 				);
 
-				ExportSprites("", CurrentPath, SelectedSprites, false);
+				ExportSprites("", CurrentPath, SelectedSprites, false, false);
 			}
 		});
 	SubscribeEvent<FEvent_ImportJSON>(
@@ -649,7 +652,7 @@ void SSpriteList::AddSprite(
 		}
 
 		FImageBase& Images = FImageBase::Get();
-		NewSprite->ZXColorView->Image = Images.CreateTexture(RGBA.data(), NewSprite->Width, NewSprite->Height, D3D11_CPU_ACCESS_READ, D3D11_USAGE_DEFAULT);
+		NewSprite->ZXColorView->Image = Images.CreateTexture(RGBA.data(), NewSprite->Width, NewSprite->Height, D3D11_CPU_ACCESS_WRITE, D3D11_USAGE_DYNAMIC);
 	}
 	
 	NewSprite->ZXColorView->Device = Data.Device;
@@ -659,19 +662,31 @@ void SSpriteList::AddSprite(
 	Sprites.push_back(NewSprite);
 }
 
-std::vector<std::shared_ptr<FSprite>> SSpriteList::UpdateSprite(const std::filesystem::path& SourcePathFile, const std::vector<uint8_t>& IndexedData, const std::vector<uint8_t>& InkData, const std::vector<uint8_t>& AttributeData, const std::vector<uint8_t>& MaskData)
+std::vector<std::shared_ptr<FSprite>> SSpriteList::UpdateSprite(
+	int32_t CanvasWidth, int32_t CanvasHeight,
+	const std::filesystem::path& SourcePathFile,
+	const std::vector<uint8_t>& IndexedData,
+	const std::vector<uint8_t>& InkData,
+	const std::vector<uint8_t>& AttributeData,
+	const std::vector<uint8_t>& MaskData,
+	int32_t AsepriteIndex /*= INDEX_NONE*/)
 {
 	std::vector<std::shared_ptr<FSprite>> UpdatedSprites;
-
 	for (std::shared_ptr<FSprite>& Sprite : Sprites)
 	{
-		if (Sprite->SourcePathFile != SourcePathFile)
+		if (!SourcePathFile.empty() && Sprite->SourcePathFile != SourcePathFile)
 		{
 			continue;
 		}
 
-		const int32_t Boundary_X = Sprite->Width >> 3;
-		const int32_t Boundary_Y = Sprite->Height >> 3;
+		const EImageFormat ImageFormat = FAppSprite::SupportImageFormat(SourcePathFile);
+		if (ImageFormat == EImageFormat::Aseprite && (Sprite->AsepriteIndex == INDEX_NONE || Sprite->AsepriteIndex != AsepriteIndex))
+		{
+			continue;
+		}
+
+		const int32_t CanvasBoundary_X = CanvasWidth >> 3;
+		const int32_t CanvasBoundary_Y = CanvasHeight >> 3;
 		const uint32_t NormalSizeX = uint32_t(Sprite->Width / 8) * 8;
 		const uint32_t NormalSizeY = uint32_t(Sprite->Height / 8) * 8;
 		const int32_t SpriteBoundary_X = NormalSizeX >> 3;
@@ -701,16 +716,16 @@ std::vector<std::shared_ptr<FSprite>> SSpriteList::UpdateSprite(const std::files
 
 				// Ink
 				{
-					const int32_t InkOffset = (by * 8 + dy) * Boundary_X + bx;
+					const int32_t InkOffset = (by * 8 + dy) * CanvasBoundary_X + bx;
 					Pixels = InkData[InkOffset];
 
 					const int32_t NewInkOffset = (Sprby * 8 + Sprdy) * SpriteBoundary_X + Sprbx;
-					Sprite->ZXColorView->InkData[InkOffset] = Pixels;
+					Sprite->ZXColorView->InkData[NewInkOffset] = Pixels;
 				}
 
 				// Mask
 				{
-					const int32_t MaskOffset = (by * 8 + dy) * Boundary_X + bx;
+					const int32_t MaskOffset = (by * 8 + dy) * CanvasBoundary_X + bx;
 					Mask = MaskData[MaskOffset];
 					const int32_t NewMaskOffset = (Sprby * 8 + Sprdy) * SpriteBoundary_X + Sprbx;
 					Sprite->ZXColorView->MaskData[NewMaskOffset] = Mask;
@@ -719,7 +734,7 @@ std::vector<std::shared_ptr<FSprite>> SSpriteList::UpdateSprite(const std::files
 
 				// Attribute
 				{
-					const int32_t AttributeOffset = by * Boundary_X + bx;
+					const int32_t AttributeOffset = by * CanvasBoundary_X + bx;
 					const uint8_t Attribute = AttributeData[AttributeOffset];
 
 					const int32_t NewAttributeOffset = Sprby * SpriteBoundary_X + Sprbx;
@@ -875,10 +890,39 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 	return true;
 }
 
-void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, const std::filesystem::path& ExportPath, const std::vector<std::shared_ptr<FSprite>>& SelectedSprites, bool bOpenFolder /*= true*/)
+void SSpriteList::ExportSprites(
+	const std::filesystem::path& ScriptFilePath,
+	const std::filesystem::path& ExportPath,
+	const std::vector<std::shared_ptr<FSprite>>& SelectedSprites,
+	bool bOpenFolder /*= true*/,
+	bool bCreate /*= true*/)
 {
 	std::error_code ec;
-	nlohmann::ordered_json Json;
+	std::filesystem::path JsonFilePath = IO::NormalizePath(ExportPath / "Export.json");
+	const std::filesystem::path UniqueJsonFilePath = bUniqueExportFilename ? IO::GetUniquePath(JsonFilePath, ec) : JsonFilePath;
+	if (ec)
+	{
+		return;
+	}
+
+	nlohmann::ordered_json Json = nlohmann::ordered_json::array();
+	// Load existing JSON if you need to update it
+	if (!bCreate && std::filesystem::exists(UniqueJsonFilePath))
+	{
+		std::ifstream In(UniqueJsonFilePath, std::ios::binary);
+		if (In.is_open())
+		{
+			try
+			{
+				In >> Json;
+			}
+			catch (...)
+			{
+				Json = nlohmann::ordered_json::array();
+			}
+			In.close();
+		}
+	}
 
 	if (!ScriptFilePath.empty())
 	{
@@ -985,15 +1029,23 @@ void SSpriteList::ExportSprites(const std::filesystem::path& ScriptFilePath, con
 			SpriteJson.emplace("Regions", Sprite->Regions);
 		}
 
-		Json.push_back(SpriteJson);
+		// Finding a sprite in JSON
+		auto It = std::find_if(Json.begin(), Json.end(),
+			[&](const nlohmann::json& Item)
+			{
+				return Item.contains("SprName") && Item["SprName"] == Sprite->Name;
+			});
+
+		if (It != Json.end())
+		{
+			*It = SpriteJson;			// update
+		}
+		else
+		{
+			Json.push_back(SpriteJson); // added
+		}
 	}
 
-	std::filesystem::path JsonFilePath = IO::NormalizePath(ExportPath / "Export.json");
-	const std::filesystem::path UniqueJsonFilePath = bUniqueExportFilename ? IO::GetUniquePath(JsonFilePath, ec) : JsonFilePath;
-	if (ec)
-	{
-		return;
-	}
 	std::ofstream JsonFile(UniqueJsonFilePath, std::ios::binary);
 	if (JsonFile.is_open())
 	{
@@ -1022,14 +1074,13 @@ void SSpriteList::SendSelectedSprite() const
 
 		// forced open window Canvas
 		{
-			if (Viewer && !Viewer->IsWindowVisibility(NAME_Canvas))
+			const std::wstring Filename = Sprite->GetFilename();
+			std::shared_ptr<SWindow> Window = Viewer->GetWindow(NAME_Canvas, Filename);
+			if (Window)
 			{
-				Viewer->SetWindowVisibility(NAME_SpriteMetadata);
+				Window->SetOpen(true);
+				Window->Focus();
 			}
-
-			const std::wstring Filename = Sprite->SourcePathFile.filename().wstring();
-			std::wstring FrameFilename = std::format(L"{}_frame {}", Filename, Sprite->AsepriteIndex);
-			Viewer->SetWindowVisibility(NAME_Canvas, true, FrameFilename);
 		}
 
 		FEvent_SelectedSprite Event;
@@ -1047,17 +1098,8 @@ void SSpriteList::ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>
 	std::shared_ptr<SViewerBase> Viewer = GetParent();
 	for (std::shared_ptr<FSprite> Sprite : Sprites)
 	{
-		EImageFormat ImageFormat = EImageFormat::None;
 		const std::filesystem::path& FilePath = Sprite->SourcePathFile;
-		if (FilePath.extension() == L".png")
-		{
-			ImageFormat = EImageFormat::PNG;
-		}
-		else if (FilePath.extension() == L".aseprite")
-		{
-			ImageFormat = EImageFormat::Aseprite;
-		}
-
+		EImageFormat ImageFormat = FAppSprite::SupportImageFormat(FilePath);
 		if (ImageFormat != EImageFormat::None)
 		{
 			FAppSprite::Import_Image(Viewer, FilePath, ImageFormat);
@@ -1068,9 +1110,8 @@ void SSpriteList::ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>
 			continue;
 		}
 
-		const std::wstring Filename = FilePath.filename().wstring();
-		std::wstring FrameFilename = std::format(L"{}_frame {}", Filename, Sprite->AsepriteIndex);
-		if (!Viewer->GetWindow(NAME_Canvas, FrameFilename))
+		const std::wstring Filename = Sprite->GetFilename();
+		if (!Viewer->GetWindow(NAME_Canvas, Filename))
 		{
 			FNativeDataInitialize _Data
 			{
@@ -1079,12 +1120,12 @@ void SSpriteList::ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>
 			};
 
 			std::wstring Filename = Sprite->SourcePathFile.filename().wstring();
-			std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, FrameFilename, Sprite->SourcePathFile);
+			std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, Sprite->SourcePathFile);
 			Viewer->AddWindow(EName::Canvas, NewCanvas, _Data, { Sprite->SourcePathFile, ImageFormat });
 		}
 		else
 		{
-			Viewer->SetWindowVisibility(NAME_Canvas, true, FrameFilename);
+			Viewer->SetWindowVisibility(NAME_Canvas, true, Filename);
 		}
 	}
 }
