@@ -891,7 +891,8 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 			NewSprite->ZXColorView->AttributeData.data(),
 			NewSprite->ZXColorView->MaskData.data(),
 			true,
-			&NewSprite->ZXColorView->IndexedData, true /* ????????!!!!!!!*/);
+			&NewSprite->ZXColorView->IndexedData,
+			true /* ????????!!!!!!!*/);
 		OutputSprites.push_back(NewSprite);
 	}
 

@@ -1514,17 +1514,17 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 						}
 					}
 				}
-				if (Flags & FCanvasOptionsFlags::Mask)
+				if (bTransparentMask || Flags & FCanvasOptionsFlags::Mask)
 				{
 					const uint8_t PixelBit = 1 << (7 - dx);
 					const bool bOperation = _Color != EZXColor::Transparent;
 					if (bOperation)
 					{
-						Mask |= PixelBit;									// set bit
+						Mask |= PixelBit;										// set bit
 					}
 					else
 					{
-						Mask &= ~(PixelBit);								// reset bit
+						Mask &= ~(PixelBit);									// reset bit
 					}
 				}
 				if (bTransparentMask || Flags & FCanvasOptionsFlags::Attribute)
