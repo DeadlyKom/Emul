@@ -284,11 +284,16 @@ void SSpriteList::Imput_Escape()
 
 void SSpriteList::Imput_Delete()
 {
-	if (IndexSelectedSprite < 0 && IndexSelectedSprite >= Sprites.size())
+	if (IndexSelectedSprite < 0 || IndexSelectedSprite >= Sprites.size())
 	{
 		return;
 	}
 	Sprites.erase(Sprites.begin() + IndexSelectedSprite);
+
+	if (Sprites.empty())
+	{
+		IndexSelectedSprite = INDEX_NONE;
+	}
 }
 
 void SSpriteList::Draw_SpriteList()
@@ -436,11 +441,14 @@ void SSpriteList::Draw_ExportSprites()
 	{
 		ScriptFileNames.clear();
 		ScriptFileNames.reserve(ScriptFiles.size());
-		std::transform(
-			ScriptFiles.begin(), ScriptFiles.end(),
-			std::back_inserter(ScriptFileNames),
-			[](const auto& pair) { return pair.first; }
-		);
+		std::for_each(ScriptFiles.begin(), ScriptFiles.end(),
+			[&](const auto& pair)
+			{
+				if (!pair.second.empty())
+				{
+					ScriptFileNames.push_back(pair.first);
+				}
+			});
 	}
 
 	if (ImGui::BeginCombo("##ScriptCombo", IndexSelectedScript == INDEX_NONE ? "None" : ScriptFileNames[IndexSelectedScript].c_str(), 0))
