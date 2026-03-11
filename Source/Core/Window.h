@@ -74,6 +74,7 @@ public:
 	SWindow(const FWindowInitializer& _WindowInitializer)
 		: WindowInitializer(_WindowInitializer)
 		, bOpen(_WindowInitializer.bOpen)
+		, bFocus(false)
 		, bNeedFocus(_WindowInitializer.bNeedFocus)
 		, bIncludeInWindows(_WindowInitializer.bIncludeInWindows)
 		, DefaultWidth(_WindowInitializer.Width)
@@ -103,6 +104,8 @@ public:
 	virtual void Open() { bOpen = true; }
 	virtual void Close() { bOpen = false; }
 	virtual bool IsOpen() const { return bOpen; }
+	virtual bool IsFocus() const { return bFocus; }
+	virtual void SetFocus(bool bNewFocus) { bFocus = bNewFocus; }
 	virtual bool NeedFocus() const { return bNeedFocus; }
 	virtual void Focus() { bNeedFocus = true; }
 	virtual void ResetFocus() { bNeedFocus = false; }
@@ -153,6 +156,7 @@ protected:
 	FWindowInitializer WindowInitializer;
 
 	bool bOpen;
+	bool bFocus;
 	bool bNeedFocus;
 	bool bNeedDock;
 	bool bPendingKill;

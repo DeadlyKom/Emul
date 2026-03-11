@@ -423,7 +423,7 @@ void SCanvas::Render()
 	//const std::string Title = /*bDirty ? "* " + GetWindowName() : */GetWindowName();
 	//const std::string UniqueID = Title + "##" + GetWindowName();
 
-	ImGui::Begin(GetWindowName().c_str(), &bOpen, bNoMove ? ImGuiWindowFlags_NoMove : ImGuiWindowFlags_None);
+	SetFocus(ImGui::Begin(GetWindowName().c_str(), &bOpen, bNoMove ? ImGuiWindowFlags_NoMove : ImGuiWindowFlags_None));
 	{
 		if (bNoMove)
 		{

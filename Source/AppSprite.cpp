@@ -103,6 +103,7 @@ void FAppSprite::Initialize()
 		Viewer->NativeInitialize(Data);
 		Viewer->Initialize({ Layout });
 		Viewer->SetupHotKeys();
+		SetupHotKeys();
 
 		Viewer->SetMenuBar(std::bind(&ThisClass::Show_MenuBar, this));
 		Viewer->AppendWindows({
@@ -259,6 +260,7 @@ void FAppSprite::Render()
 
 	if (Viewer)
 	{
+		Input_HotKeys();
 		Viewer->Render();
 	}
 
@@ -286,6 +288,17 @@ void FAppSprite::DragAndDropFile(const std::filesystem::path& FilePath)
 		}
 	}
 	LOG_ERROR("[{}]\t Format not supported.", (__FUNCTION__));
+}
+
+void FAppSprite::SetupHotKeys()
+{
+	Hotkeys =
+	{
+		// global
+		{ ImGuiMod_Ctrl | ImGuiKey_W,					ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteAlways,	std::bind(&ThisClass::Imput_Close,	this)	},	// (ctrl + S)
+		{ ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_W,	ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteAlways,	std::bind(&ThisClass::Imput_CloseAll,	this)},	// (ctrl + S)
+	};
+
 }
 
 void FAppSprite::Show_MenuBar()
@@ -338,7 +351,16 @@ void FAppSprite::Show_MenuBar()
 		ImGui::Separator();
 
 		if (ImGui::MenuItem("Save", "Ctrl+S")) {}
-		if (ImGui::MenuItem("Save As..")) {}
+		if (ImGui::MenuItem("Save As..", "Ctrl+Shift+S")) {}
+		if (ImGui::MenuItem("Close", "Ctrl+W"))
+		{
+			Imput_Close();
+		}
+		if (ImGui::MenuItem("Close All", "Ctrl+Shift+W"))
+		{
+			Imput_CloseAll();
+		}
+
 		ImGui::Separator();
 
 		if (ImGui::MenuItem(MenuQuitName, "Alt+F4"))
@@ -711,6 +733,31 @@ bool FAppSprite::ShowModal_WindowgGridSettings()
 		}
 	}
 	return bVisible;
+}
+
+void  FAppSprite::Input_HotKeys()
+{
+	Shortcut::Handler(Hotkeys);
+}
+
+void FAppSprite::Imput_Close()
+{
+	for (std::shared_ptr<SWindow>& Window : Viewer->GetWindows(NAME_Canvas))
+	{
+		if (Window->IsFocus())
+		{
+			Viewer->RemoveWindow(NAME_Canvas, Window);
+			break;
+		}
+	}
+}
+
+void FAppSprite::Imput_CloseAll()
+{
+	for (std::shared_ptr<SWindow>& Window : Viewer->GetWindows(NAME_Canvas))
+	{
+		Viewer->RemoveWindow(NAME_Canvas, Window);
+	}
 }
 
 void FAppSprite::Import_JSON(const std::filesystem::path& FilePath)

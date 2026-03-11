@@ -51,11 +51,17 @@ public:
 	static void Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const std::filesystem::path& FilePath, EImageFormat ImageFormat);
 
 private:
+	void SetupHotKeys();
+
 	void Show_MenuBar();
 
 	bool ShowModal_WindowQuit();
 	bool ShowModal_WindowNewCanvas();
 	bool ShowModal_WindowgGridSettings();
+
+	void Input_HotKeys();
+	void Imput_Close();
+	void Imput_CloseAll();
 
 	void Quit() { bOpen = false; }
 	void Import_JSON(const std::filesystem::path& FilePath);
@@ -87,4 +93,6 @@ private:
 	std::shared_ptr<SViewerBase> Viewer;
 	std::vector<FRecentFiles> RecentFiles;
 	std::map<std::string, std::string> ScriptFiles;
+
+	std::vector<FHotKey> Hotkeys;
 };
