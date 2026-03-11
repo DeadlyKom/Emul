@@ -70,7 +70,7 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	Subcolor[ESubcolor::Flash] = EZXColor::False;
 
 	OptionsFlags[0] = FCanvasOptionsFlags::Source;
-	OptionsFlags[1] = FCanvasOptionsFlags::None;
+	OptionsFlags[1] = FCanvasOptionsFlags::Source;
 
 	ToolMode[0] = EToolMode::None;
 	ToolMode[1] = EToolMode::None;
@@ -86,6 +86,52 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 {
 	Super::NativeInitialize(Data);
+
+	SubscribeEvent<FEvent_Canvas>(
+		[this](const FEvent_Canvas& Event)
+		{
+			if (!Event.CanvasName.empty() && GetWindowWName() == Event.CanvasName)
+			{
+				return;
+			}
+
+			if (Event.Tag == FEventTag::CanvasOptionsFlagsTag)
+			{
+				OptionsFlags[0] = Event.OptionsFlags;
+				OptionsFlags[1] = Event.OptionsFlags;
+			}
+			else if (Event.Tag == FEventTag::CanvasViewFlagsTag)
+			{
+				bTransparentMask = Event.ViewFlags.bTransparentMask;
+				ZXColorView->Options.bGrid = Event.ViewFlags.bGrid;
+				ZXColorView->Options.bPixelGrid = Event.ViewFlags.bPixelGrid;
+				ZXColorView->Options.bAttributeGrid = Event.ViewFlags.bAttributeGrid;
+				ZXColorView->Options.bAlphaCheckerboardGrid = Event.ViewFlags.bAlphaCheckerboardGrid;
+				ZXColorView->Options.GridSettingSize = Event.ViewFlags.GridSettingSize;
+				ZXColorView->Options.GridSettingOffset = Event.ViewFlags.GridSettingOffset;
+				
+				ZXColorView->TransparentColor = Event.ViewFlags.TransparentColor;
+				bTransparentMask = Event.ViewFlags.bTransparentMask;
+			}
+			else if (Event.Tag == FEventTag::CanvasViewScaleTag)
+			{
+				if (Event.CanvasWidth != Width || Event.CanvasHeight != Height)
+				{
+					return;
+				}
+				UI::Set_ZXViewScale(ZXColorView, Event.MouseWheel);
+			}
+			else if (Event.Tag == FEventTag::CanvasViewPositionTag)
+			{
+				if (Event.CanvasWidth != Width || Event.CanvasHeight != Height)
+				{
+					return;
+				}
+				UI::Add_ZXViewDeltaPosition(ZXColorView, Event.ImagePosition);
+			}
+
+			bRefreshCanvas = true;
+		});
 
 	SubscribeEvent<FEvent_Color>(
 		[this](const FEvent_Color& Event)
@@ -144,17 +190,6 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 				SpriteNames[Event.UniqueID] = Event.SpriteName;
 			}
 		});
-
-	// request for receiving current statuses
-	{
-		// sprite names
-		FEvent_Sprite Event_Sprite(FEventTag::RequestAllSpritesTag);
-		SendEvent(Event_Sprite);
-
-		// tools
-		FEvent_ToolBar Event_ToolBar(FEventTag::RequestToolModeTag);
-		SendEvent(Event_ToolBar);
-	}
 }
 
 void SCanvas::Initialize(const std::vector<std::any>& Args)
@@ -293,6 +328,21 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 	}
 
 	}
+
+	// request for receiving current statuses
+	{
+		// canvas view flags
+		FEvent_Canvas Event_Canvas(FEventTag::RequestCanvasViewFlagsTag);
+		SendEvent(Event_Canvas);
+
+		// sprite names
+		FEvent_Sprite Event_Sprite(FEventTag::RequestAllSpritesTag);
+		SendEvent(Event_Sprite);
+
+		// tools
+		FEvent_ToolBar Event_ToolBar(FEventTag::RequestToolModeTag);
+		SendEvent(Event_ToolBar);
+	}
 }
 
 void SCanvas::SetupHotKeys()
@@ -360,8 +410,8 @@ void SCanvas::Render()
 			UI::ZXAttributeColorToImage(
 				ZXColorView->Image,
 				Width, Height,
-				(bTransparentMask | bInk) ? ZXColorView->InkData.data() : nullptr,
-				(bTransparentMask | bPaper) ? ZXColorView->AttributeData.data() : nullptr,
+				(bTransparentMask || bInk) ? ZXColorView->InkData.data() : nullptr,
+				(bTransparentMask || bPaper) ? ZXColorView->AttributeData.data() : nullptr,
 				bMask ? ZXColorView->MaskData.data() : nullptr,
 				false, nullptr, true,
 				bTransparentMask);
@@ -398,31 +448,6 @@ void SCanvas::Render()
 		Input_Mouse();
 		ApplyToolMode();
 		Draw_PopupMenu();
-
-		ImGui::Spacing();
-		if (ImGui::Button("Options", { 0.0f, 25.0f }))
-		{
-			ImGui::OpenPopup("##Context");
-		}
-		if (ImGui::BeginPopup("##Context"))
-		{
-			if (ImGui::Checkbox("Transparent", &bTransparentMask))
-			{
-				bRefreshCanvas = true;
-			}
-
-			ImGui::Separator();
-
-			ImGui::Checkbox("Grid", &ZXColorView->Options.bGrid);
-			ImGui::Checkbox("Attribute Grid", &ZXColorView->Options.bAttributeGrid);
-			ImGui::Checkbox("Alpha Checkerboard", &ZXColorView->Options.bAlphaCheckerboardGrid);
-			
-			ImGui::SameLine();
-
-			ImGui::ColorEdit4("MyColor##3", (float*)&ZXColorView->TransparentColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoAlpha);
-
-			ImGui::EndPopup();
-		}
 
 		const float WindowWidth = ImGui::GetWindowContentRegionMax().x;
 		const float WidthDirty = 25.0f;
@@ -538,6 +563,7 @@ void SCanvas::Render()
 			OptionsFlags[1] = OptionsFlags[0];
 			FEvent_Canvas Event;
 			Event.Tag = FEventTag::CanvasOptionsFlagsTag;
+			Event.CanvasName = GetWindowWName();
 			Event.OptionsFlags = OptionsFlags[0];
 			SendEvent(Event);
 		}
@@ -820,6 +846,9 @@ void SCanvas::Input_Mouse()
 		return;
 	}
 
+	//// hard reset any popup menu
+	//ImGui::CloseCurrentPopup();
+
 	{
 		ZXColorView->CursorPosition = UI::GetMouse(ZXColorView);
 		FEvent_StatusBar Event;
@@ -831,6 +860,14 @@ void SCanvas::Input_Mouse()
 	if (MouseWheel != 0.0f && !Context.IO.FontAllowUserScaling)
 	{
 		UI::Set_ZXViewScale(ZXColorView, MouseWheel);
+
+		FEvent_Canvas Event;
+		Event.Tag = FEventTag::CanvasViewScaleTag;
+		Event.CanvasName = GetWindowWName();
+		Event.CanvasWidth = Width;
+		Event.CanvasHeight = Height;
+		Event.MouseWheel = MouseWheel;
+		SendEvent(Event);
 	}
 	else if (!bDragging && Context.IO.MouseDown[ImGuiMouseButton_Middle])
 	{
@@ -843,13 +880,18 @@ void SCanvas::Input_Mouse()
 	// dragging
 	if (bDragging)
 	{
-		// hard reset any popup menu
-		ImGui::CloseCurrentPopup();
-
 		const ImVec2 Delta = ImGui::GetIO().MouseDelta;
 		if (Delta.x != 0 || Delta.y != 0)
 		{
 			UI::Add_ZXViewDeltaPosition(ZXColorView, Delta);
+
+			FEvent_Canvas Event;
+			Event.Tag = FEventTag::CanvasViewPositionTag;
+			Event.CanvasName = GetWindowWName();
+			Event.CanvasWidth = Width;
+			Event.CanvasHeight = Height;
+			Event.ImagePosition = Delta;
+			SendEvent(Event);
 		}
 	}
 }
@@ -878,6 +920,7 @@ void SCanvas::SetToolMode(EToolMode::Type NewToolMode, bool bForce /*= true*/, b
 	{
 		FEvent_Canvas Event;
 		Event.Tag = FEventTag::ChangeToolModeTag;
+		Event.CanvasName = GetWindowWName();
 		Event.ChangeToolMode.ToolMode = NewToolMode;
 		SendEvent(Event);
 	}
@@ -1388,7 +1431,7 @@ void SCanvas::UpdateCursorColor(bool bButton /*= false*/)
 
 void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 {
-	std::swap(OptionsFlags[0], Param.Canvas);
+	//std::swap(OptionsFlags[0], Param.Canvas);
 
 	if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
 	{
@@ -1430,7 +1473,7 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 			const uint8_t Flags = OptionsFlags[0] & ~FCanvasOptionsFlags::Source;
 
 			// swap pixel bit
-			if (Flags & FCanvasOptionsFlags::Ink && Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
+			if (/*Flags & FCanvasOptionsFlags::Ink && */Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
 			{
 				uint8_t& PixelsByte = reinterpret_cast<uint8_t*>(&Color)[3];
 				uint8_t Diff = (Pixels ^ PixelsByte) & PixelBit;
@@ -1438,7 +1481,7 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 				PixelsByte ^= Diff;
 			}
 			// swap mask bit
-			if (Flags & FCanvasOptionsFlags::Mask && Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
+			if (/*Flags & FCanvasOptionsFlags::Mask && */Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
 			{
 				uint8_t& MaskByte = reinterpret_cast<uint8_t*>(&Color)[2];
 				uint8_t Diff = (Mask ^ MaskByte) & PixelBit;
@@ -1446,7 +1489,7 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 				MaskByte ^= Diff;
 			}
 			// swap byte attribute
-			if (Flags & FCanvasOptionsFlags::Attribute && Subcolor[ESubcolor::Paper] != EZXColor::Transparent)
+			if (/*Flags & FCanvasOptionsFlags::Attribute && */Subcolor[ESubcolor::Paper] != EZXColor::Transparent)
 			{
 				std::swap(Attribute, reinterpret_cast<uint8_t*>(&Color)[1]);
 			}

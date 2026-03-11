@@ -18,6 +18,18 @@ struct FRecentFiles
 	std::string VisibleName;
 };
 
+struct FViewFlags
+{
+	bool bGrid = false;
+	bool bPixelGrid = true;
+	bool bAttributeGrid = false;
+	bool bAlphaCheckerboardGrid = true;
+	bool bTransparentMask = false;
+	ImVec2 GridSettingSize = ImVec2(16.0f, 16.0f);
+	ImVec2 GridSettingOffset = ImVec2(0.0f, 0.0f);
+	ImVec4 TransparentColor = ImVec4(0.169f, 0.396f, 0.925f, 0.0f);
+};
+
 class FAppSprite : public FAppFramework
 {
 	using ThisClass = FAppSprite;
@@ -43,12 +55,14 @@ private:
 
 	bool ShowModal_WindowQuit();
 	bool ShowModal_WindowNewCanvas();
+	bool ShowModal_WindowgGridSettings();
 
 	void Quit() { bOpen = false; }
 	void Import_JSON(const std::filesystem::path& FilePath);
 	void Callback_OpenFile(std::filesystem::path FilePath);
 
 	bool bOpen;
+	FViewFlags ViewFlags;
 
 	// popup menu 'New Canvas'
 	bool bRectangularCanvas;
@@ -60,6 +74,15 @@ private:
 	char NewCanvasNameBuffer[BUFFER_SIZE_INPUT] = "";
 	char NewCanvasWidthBuffer[BUFFER_SIZE_INPUT] = "";
 	char NewCanvasHeightBuffer[BUFFER_SIZE_INPUT] = "";
+
+	// popup menu 'Grid Settings' 
+	char GridSettingsWidthBuffer[BUFFER_SIZE_INPUT] = "";
+	char GridSettingsHeightBuffer[BUFFER_SIZE_INPUT] = "";
+	char GridSettingsOffsetXBuffer[BUFFER_SIZE_INPUT] = "";
+	char GridSettingsOffsetYBuffer[BUFFER_SIZE_INPUT] = "";
+	bool bTmpGrid;
+	ImVec2 TmpGridSettingSize;
+	ImVec2 TmpGridSettingOffset;
 
 	std::shared_ptr<SViewerBase> Viewer;
 	std::vector<FRecentFiles> RecentFiles;

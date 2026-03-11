@@ -30,6 +30,7 @@ void SToolBar::NativeInitialize(const FNativeDataInitialize& Data)
 				SetToolMode(Event.ChangeToolMode.ToolMode, true, true);
 			}
 		});
+
 	SubscribeEvent<FEvent_ToolBar>(
 		[this](const FEvent_ToolBar& Event)
 		{

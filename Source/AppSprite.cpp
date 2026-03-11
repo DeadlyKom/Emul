@@ -23,6 +23,7 @@ namespace
 	static const char* NewCanvasName = "New canvas";
 	static const char* MenuEditName = "Edit";
 	static const char* MenuQuitName = "Quit";
+	static const char* GridSettingsName = "Grid Settings";
 	static const char* MenuMetadataName = "Metadata";
 
 	int32_t TextEditNumberCallback(ImGuiInputTextCallbackData* Data)
@@ -115,6 +116,19 @@ void FAppSprite::Initialize()
 
 	FFonts& Fonts = FFonts::Get();
 	Fonts.LoadFont(NAME_DOS_12, &Dos2000_ru_en_compressed_data[0], Dos2000_ru_en_compressed_size, 12.0f, 0);
+	Viewer->GetEventSystem().Subscribe<FEvent_Canvas>(
+		this,
+		[this](const FEvent_Canvas& Event)
+		{
+			if (Event.Tag == FEventTag::RequestCanvasViewFlagsTag)
+			{
+				FEvent_Canvas Event;
+				Event.Tag = FEventTag::CanvasViewFlagsTag;
+				Event.CanvasName = {};
+				Event.ViewFlags = ViewFlags;
+				Viewer->GetEventSystem().Publish(Event);
+			}
+		});
 }
 
 void FAppSprite::LoadSettings()
@@ -278,6 +292,8 @@ void FAppSprite::Show_MenuBar()
 {
 	const ImGuiID NewCanvaseID = ImGui::GetCurrentWindow()->GetID(NewCanvasName);
 	const ImGuiID QuitID = ImGui::GetCurrentWindow()->GetID(MenuQuitName);
+	const ImGuiID GridSettingsID = ImGui::GetCurrentWindow()->GetID(GridSettingsName);
+
 	if (ImGui::BeginMenu(MenuFileName))
 	{
 		if (ImGui::BeginMenu("New"))
@@ -340,6 +356,65 @@ void FAppSprite::Show_MenuBar()
 		ImGui::EndMenu();
 	}
 
+	if (ImGui::BeginMenu("View"))
+	{
+		if (ImGui::BeginMenu("Show"))
+		{
+			bool bUpdateOptions = false;
+			if (ImGui::MenuItem("Transparent", NULL, ViewFlags.bTransparentMask))
+			{
+				ViewFlags.bTransparentMask = !ViewFlags.bTransparentMask;
+				bUpdateOptions = true;
+			}
+			ImGui::Separator();
+			if (ImGui::MenuItem("Grid", NULL, ViewFlags.bGrid))
+			{
+				ViewFlags.bGrid = !ViewFlags.bGrid;
+				bUpdateOptions = true;
+			}
+			if (ImGui::MenuItem("Pixel Grid", NULL, ViewFlags.bPixelGrid))
+			{
+				ViewFlags.bPixelGrid = !ViewFlags.bPixelGrid;
+				bUpdateOptions = true;
+			}
+			if (ImGui::MenuItem("Attribute Grid", NULL, ViewFlags.bAttributeGrid))
+			{
+				ViewFlags.bAttributeGrid = !ViewFlags.bAttributeGrid;
+				bUpdateOptions = true;
+			}
+			if (ImGui::MenuItem("Alpha Checkerboard", NULL, ViewFlags.bAlphaCheckerboardGrid))
+			{
+				ViewFlags.bAlphaCheckerboardGrid = !ViewFlags.bAlphaCheckerboardGrid;
+				bUpdateOptions = true;
+			}
+			if (ViewFlags.bAlphaCheckerboardGrid)
+			{
+				if (ImGui::ColorEdit4("MyColor##3", (float*)&ViewFlags.TransparentColor, ImGuiColorEditFlags_NoInputs | ImGuiColorEditFlags_NoLabel | ImGuiColorEditFlags_NoAlpha))
+				{
+					bUpdateOptions = true;
+				}
+			}
+			ImGui::EndMenu();
+
+			if (bUpdateOptions)
+			{
+				FEvent_Canvas Event;
+				Event.Tag = FEventTag::CanvasViewFlagsTag;
+				Event.CanvasName = {};
+				Event.ViewFlags = ViewFlags;
+				Viewer->GetEventSystem().Publish(Event);
+			}
+		}
+		ImGui::Separator();
+
+		if (ImGui::MenuItem("Grid Settings"))
+		{
+			ImGui::OpenPopup(GridSettingsID);
+		}
+
+		ImGui::EndMenu();
+	}
+
 	if (Viewer && ImGui::BeginMenu(MenuMetadataName))
 	{
 		if (ImGui::MenuItem("Show window", nullptr, false, !Viewer->IsWindowVisibility(NAME_SpriteMetadata)))
@@ -364,6 +439,7 @@ void FAppSprite::Show_MenuBar()
 
 	if (ShowModal_WindowQuit()) {}
 	else if (ShowModal_WindowNewCanvas()) {}
+	else if (ShowModal_WindowgGridSettings()) {}
 }
 
 bool FAppSprite::ShowModal_WindowQuit()
@@ -556,7 +632,85 @@ bool FAppSprite::ShowModal_WindowNewCanvas()
 		ImGui::EndPopup();
 	}
 	return bVisible;
+}
 
+bool FAppSprite::ShowModal_WindowgGridSettings()
+{
+	// always center this window when appearing
+	if (ImGui::IsWindowAppearing())
+	{
+		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+	}
+
+	const bool bVisible = ImGui::BeginPopupModal(GridSettingsName, NULL, ImGuiWindowFlags_AlwaysAutoResize);
+	if (bVisible)
+	{
+		bool bUpdateOptions = false;
+		if (ImGui::IsWindowAppearing())
+		{
+			bTmpGrid = ViewFlags.bGrid;
+			TmpGridSettingSize = ViewFlags.GridSettingSize;
+			TmpGridSettingOffset = ViewFlags.GridSettingOffset;
+
+			ViewFlags.bGrid = true;
+
+			sprintf(GridSettingsWidthBuffer, "%i\n", int(TmpGridSettingSize.x));
+			sprintf(GridSettingsHeightBuffer, "%i\n", int(TmpGridSettingSize.y));
+			sprintf(GridSettingsOffsetXBuffer, "%i\n", int(TmpGridSettingOffset.x));
+			sprintf(GridSettingsOffsetYBuffer, "%i\n", int(TmpGridSettingOffset.y));
+		}
+
+		const float TextWidth = ImGui::CalcTextSize("A").x;
+		const float TextHeight = ImGui::GetTextLineHeightWithSpacing();
+
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
+		ImGui::Text("Size :");
+		ImGui::Separator();
+
+		const ImGuiInputTextFlags InputNumberTextFlags = ImGuiInputTextFlags_CharsDecimal | ImGuiInputTextFlags_CallbackCharFilter | ImGuiInputTextFlags_CallbackEdit;
+		bUpdateOptions |= ImGui::InputTextEx("Width ", NULL, GridSettingsWidthBuffer, IM_ARRAYSIZE(GridSettingsWidthBuffer), ImVec2(TextWidth * 10.0f, TextHeight), InputNumberTextFlags, &TextEditNumberCallback, (void*)&ViewFlags.GridSettingSize.x);
+		bUpdateOptions |= ImGui::InputTextEx("Height ", NULL, GridSettingsHeightBuffer, IM_ARRAYSIZE(GridSettingsHeightBuffer), ImVec2(TextWidth * 10.0f, TextHeight), InputNumberTextFlags, &TextEditNumberCallback, (void*)&ViewFlags.GridSettingSize.y);
+
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));
+		ImGui::Text("Offset :");
+		ImGui::Separator();
+
+		ViewFlags.GridSettingOffset = ImClamp(ViewFlags.GridSettingOffset, ImVec2(0.0f, 0.0f), ImMax(ViewFlags.GridSettingSize - ImVec2(1.0f, 1.0f), ImVec2(0.0f, 0.0f)));
+		bUpdateOptions |= ImGui::SliderFloat("X ", &ViewFlags.GridSettingOffset.x, 0, ImClamp(ViewFlags.GridSettingSize.x, 0.0f, ViewFlags.GridSettingSize.x - 1.0f), "%.0f");
+		bUpdateOptions |= ImGui::SliderFloat("Y ", &ViewFlags.GridSettingOffset.y, 0, ImClamp(ViewFlags.GridSettingSize.y, 0.0f, ViewFlags.GridSettingSize.y - 1.0f), "%.0f");
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));
+
+		ImGui::Separator();
+
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));
+
+		if (ImGui::ButtonEx("OK", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
+		{
+			ViewFlags.bGrid = bTmpGrid;
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SetItemDefaultFocus();
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
+		{
+			ViewFlags.GridSettingSize = TmpGridSettingSize;
+			ViewFlags.GridSettingOffset = TmpGridSettingOffset;
+			ViewFlags.bGrid = bTmpGrid;
+
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+
+		if (bUpdateOptions)
+		{
+			FEvent_Canvas Event;
+			Event.Tag = FEventTag::CanvasViewFlagsTag;
+			Event.CanvasName = {};
+			Event.ViewFlags = ViewFlags;
+			Viewer->GetEventSystem().Publish(Event);
+		}
+	}
+	return bVisible;
 }
 
 void FAppSprite::Import_JSON(const std::filesystem::path& FilePath)

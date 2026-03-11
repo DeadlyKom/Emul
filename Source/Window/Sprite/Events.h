@@ -5,6 +5,7 @@
 
 #include "Palette.h"
 #include "ToolBar.h"
+#include "AppSprite.h"
 
 struct FSprite;
 
@@ -13,6 +14,9 @@ namespace FEventTag
 	static const FName ChangeToolModeTag = TEXT("ChangeToolMode");
 	static const FName RequestToolModeTag = TEXT("RequestToolMode");
 	static const FName CanvasOptionsFlagsTag = TEXT("CanvasOptionsFlags");
+	static const FName CanvasViewFlagsTag = TEXT("CanvasViewFlags");
+	static const FName CanvasViewScaleTag = TEXT("CanvasViewScale");
+	static const FName CanvasViewPositionTag = TEXT("CanvasViewPosition");
 	static const FName ChangeColorTag = TEXT("ChangeColor");
 	static const FName CanvasSizeTag = TEXT("CanvasSize");;
 	static const FName MousePositionTag = TEXT("MouseState");
@@ -20,9 +24,11 @@ namespace FEventTag
 	static const FName AddedSpriteTag = TEXT("AddedSprite");
 	static const FName RenamedSpriteTag = TEXT("RenamedSprite");
 	static const FName UpdateSpriteTag = TEXT("UpdateSprite");
+	static const FName SelectedSpritesChangedTag = TEXT("SelectedSpritesChanged");
+
+	static const FName RequestCanvasViewFlagsTag = TEXT("RequestCanvasViewFlags");
 	static const FName RequestAllSpritesTag = TEXT("RequestAllSprites");
 	static const FName ResponseAllSpritesTag = TEXT("ResponseAllSprites");
-	static const FName SelectedSpritesChangedTag = TEXT("SelectedSpritesChanged");
 }
 
 struct FChangeToolMode
@@ -32,8 +38,19 @@ struct FChangeToolMode
 
 struct FEvent_Canvas : public IEvent
 {
-	uint32_t OptionsFlags{};
+	std::wstring CanvasName;
+	uint32_t OptionsFlags;
 	FChangeToolMode ChangeToolMode;
+
+	int32_t CanvasWidth;
+	int32_t CanvasHeight;
+
+	float MouseWheel;
+	ImVec2 ImagePosition;
+
+	FViewFlags ViewFlags;
+
+	using IEvent::IEvent;
 };
 
 struct FEvent_StatusBar : public IEvent
