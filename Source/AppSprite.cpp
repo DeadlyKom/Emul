@@ -162,7 +162,7 @@ EImageFormat FAppSprite::SupportImageFormat(const std::filesystem::path& FilePat
 	}
 }
 
-void FAppSprite::Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const std::filesystem::path& FilePath, EImageFormat ImageFormat)
+bool FAppSprite::Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const std::filesystem::path& FilePath, EImageFormat ImageFormat)
 {
 	std::shared_ptr<SWindow> FoundWindow;
 	for (std::shared_ptr<SWindow>& Window : Viewer->GetWindows(NAME_Canvas))
@@ -191,7 +191,7 @@ void FAppSprite::Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const 
 			if (!AsepriteFormat::Load(FilePath, Sprite))
 			{
 				LOG_ERROR("[{}]\t Failed to parse the Aseprite format.", (__FUNCTION__));
-				return;
+				return false;
 			}
 
 			std::filesystem::path Path = FilePath.parent_path();
@@ -216,12 +216,15 @@ void FAppSprite::Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const 
 		else
 		{
 			LOG_ERROR("[{}]\t Unsupported format : {}", (__FUNCTION__), (int32_t)ImageFormat);
+			return false;
 		}
 	}
 	else
 	{
 		FoundWindow->SetOpen(true);
 	}
+
+	return true;
 }
 
 void FAppSprite::Shutdown()
@@ -280,12 +283,8 @@ void FAppSprite::DragAndDropFile(const std::filesystem::path& FilePath)
 	}
 	else
 	{
-		EImageFormat ImageFormat = SupportImageFormat(FilePath);
-		switch (ImageFormat)
-		{
-		case EImageFormat::PNG:			return Import_Image(Viewer, FilePath, EImageFormat::PNG);
-		case EImageFormat::Aseprite:	return Import_Image(Viewer, FilePath, EImageFormat::Aseprite);
-		}
+		OpenFile(FilePath);
+		return;
 	}
 	LOG_ERROR("[{}]\t Format not supported.", (__FUNCTION__));
 }
@@ -319,23 +318,25 @@ void FAppSprite::Show_MenuBar()
 		}
 		if (ImGui::MenuItem("Open", "Ctrl+O"))
 		{
-			std::vector<std::filesystem::directory_entry> Files;
-			const std::string OldPath = Files.empty() ? "" : Files.back().path().parent_path().string();
+			const std::string OldPath = RecentFiles.empty() ? "" : RecentFiles.back().parent_path().string();
 			SFileDialog::OpenWindow(Viewer, "Select File", EDialogMode::Select,
 				[this](std::filesystem::path FilePath, EDialogStage Selected) -> void
 				{
-					Callback_OpenFile(FilePath);
+					if (Callback_OpenFile(FilePath))
+					{
+						RecentFiles.push_back(FilePath);
+					}
 					SFileDialog::CloseWindow();
-				}, OldPath, "*.*, *.png, *.scr");
+				}, OldPath, "*.*, *.aseprite, *.png, *.scr");
 		}
 
 		if (!RecentFiles.empty())
 		{
 			if (ImGui::BeginMenu("Open Recent"))
 			{
-				for (const FRecentFiles& RecentFile : RecentFiles)
+				for (const std::filesystem::path& RecentFile : RecentFiles)
 				{
-					ImGui::MenuItem(RecentFile.VisibleName.c_str());
+					ImGui::MenuItem(RecentFile.filename().string().c_str());
 				}
 
 				ImGui::Separator();
@@ -760,6 +761,19 @@ void FAppSprite::Imput_CloseAll()
 	}
 }
 
+bool FAppSprite::OpenFile(const std::filesystem::path& FilePath)
+{
+	const EImageFormat ImageFormat = SupportImageFormat(FilePath);
+	switch (ImageFormat)
+	{
+	case EImageFormat::PNG:			return Import_Image(Viewer, FilePath, EImageFormat::PNG);
+	case EImageFormat::Aseprite:	return Import_Image(Viewer, FilePath, EImageFormat::Aseprite);
+	}
+
+	LOG_ERROR("[{}]\t Format not supported.", (__FUNCTION__));
+	return false;
+}
+
 void FAppSprite::Import_JSON(const std::filesystem::path& FilePath)
 {
 	if (Viewer->GetWindows(NAME_SpriteList).empty())
@@ -787,6 +801,7 @@ void FAppSprite::Import_JSON(const std::filesystem::path& FilePath)
 	}
 }
 
-void FAppSprite::Callback_OpenFile(std::filesystem::path FilePath)
+bool FAppSprite::Callback_OpenFile(const std::filesystem::path& FilePath)
 {
+	return OpenFile(FilePath);
 }

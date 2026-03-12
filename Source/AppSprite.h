@@ -13,11 +13,6 @@ enum class EImageFormat
 	Aseprite_Frame
 };
 
-struct FRecentFiles
-{
-	std::string VisibleName;
-};
-
 struct FViewFlags
 {
 	bool bGrid = false;
@@ -48,7 +43,7 @@ public:
 	virtual void LoadSettings() override;
 
 	static EImageFormat SupportImageFormat(const std::filesystem::path& FilePath);
-	static void Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const std::filesystem::path& FilePath, EImageFormat ImageFormat);
+	static bool Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const std::filesystem::path& FilePath, EImageFormat ImageFormat);
 
 private:
 	void SetupHotKeys();
@@ -64,8 +59,9 @@ private:
 	void Imput_CloseAll();
 
 	void Quit() { bOpen = false; }
+	bool OpenFile(const std::filesystem::path& FilePath);
 	void Import_JSON(const std::filesystem::path& FilePath);
-	void Callback_OpenFile(std::filesystem::path FilePath);
+	bool Callback_OpenFile(const std::filesystem::path& FilePath);
 
 	bool bOpen;
 	FViewFlags ViewFlags;
@@ -91,7 +87,7 @@ private:
 	ImVec2 TmpGridSettingOffset;
 
 	std::shared_ptr<SViewerBase> Viewer;
-	std::vector<FRecentFiles> RecentFiles;
+	std::vector<std::filesystem::path> RecentFiles;
 	std::map<std::string, std::string> ScriptFiles;
 
 	std::vector<FHotKey> Hotkeys;

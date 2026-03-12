@@ -576,8 +576,13 @@ namespace AsepriteFormat
                         {
                             const size_t Index = (_y * Header.Width + _x) * sizeof(uint32_t);
                             uint32_t& Value = reinterpret_cast<uint32_t&>(OutputRGBA[Index]);
-                            const uint32_t rgba = Header.TransparentIndex == Value ? 0x00000000 : Palette.RGBA[Value];
-                            Value = rgba;
+
+                            uint8_t PaletteIndex = Value & 0xFF;
+                            if (Palette.RGBA.size() > PaletteIndex)
+                            {
+                                const uint32_t rgba = Header.TransparentIndex == PaletteIndex ? 0x00000000 : Palette.RGBA[PaletteIndex];
+                                Value = rgba;
+                            }
                         }
                     }
                 }

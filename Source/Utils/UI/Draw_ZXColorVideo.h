@@ -109,7 +109,7 @@ namespace UI
 		float PixelAspectRatio = 1.0f;								// values other than 1 not supported yet
 		float MinimumGridSize = 4.0f;								// don't draw the grid if lines would be closer than MinimumGridSize pixels
 		ImVec2 Scale = ImVec2(2.0f, 2.0f);							// 1 pixel is 1 texel
-		ImVec2 ScaleMin = ImVec2(1.0f, 1.0f);
+		ImVec2 ScaleMin = ImVec2(0.125f, 0.125f);
 		ImVec2 ScaleMax = ImVec2(32.0f, 32.0f);
 
 		// view state
