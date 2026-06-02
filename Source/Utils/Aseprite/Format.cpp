@@ -164,13 +164,20 @@ namespace AsepriteFormat
         }
     }
 
-    static bool ReadCompressedImage(std::ifstream& File, EPixelFormat PixelFormat, std::vector<uint8_t>& OutputRGBA, const FAsepriteHeader& Header, size_t ChunkEnd, uint16_t X, uint16_t Y, uint16_t W, uint16_t H)
+    static bool ReadCompressedImage(std::ifstream& File, EPixelFormat PixelFormat, std::vector<uint8_t>& OutputRGBA, const FAsepriteHeader& Header, size_t ChunkEnd, int16_t X, int16_t Y, uint16_t W, uint16_t H)
     {
         z_stream zstream{};
         int32_t err = inflateInit(&zstream);
         
         std::vector<uint8_t> Compressed(4096);
         std::vector<uint8_t> Uncompressed(4096);
+
+        uint16_t OffsetX = 0;
+        if (X < 0)
+        {
+            OffsetX = abs(X);
+            X = 0;
+        }
 
         switch (PixelFormat)
         {
@@ -216,19 +223,34 @@ namespace AsepriteFormat
 
                         if (ScanlineOffset == WidthBytes)
                         {
-                            const size_t Index = ((Y + y) * Header.Width + X) * sizeof(uint32_t);
-                            uint32_t* Address = reinterpret_cast<uint32_t*>(&OutputRGBA[Index]);
-                            uint8_t* Buffer = &Scanline[0];
-                            for (int x = 0; x < Header.Width; ++x, ++Address)
+                            if (y < Header.Height)
                             {
-                                const uint8_t R = *(Buffer++);
-                                const uint8_t G = *(Buffer++);
-                                const uint8_t B = *(Buffer++);
-                                const uint8_t A = *(Buffer++);
-                                *Address = RGBA(R, G, B, A);
+                                const size_t Index = ((Y + y) * Header.Width + X) * sizeof(uint32_t);
+                                uint32_t* Address = reinterpret_cast<uint32_t*>(&OutputRGBA[Index]);
+                                uint8_t* Buffer = &Scanline[OffsetX * sizeof(uint32_t)];
+                                for (int x = 0; x < Header.Width; ++x, ++Address)
+                                {
+                                    if ((OffsetX + x) * sizeof(uint32_t) >= ScanlineOffset)
+                                    {
+                                        break;
+                                    }
+                                    const uint8_t R = *(Buffer++);
+                                    const uint8_t G = *(Buffer++);
+                                    const uint8_t B = *(Buffer++);
+                                    const uint8_t A = *(Buffer++);
+                                    if (A != 0)
+                                    {
+                                        *Address = RGBA(R, G, B, A);
+                                    }
+                                }
                             }
                             ++y;
                             ScanlineOffset = 0;
+
+                            if (y >= Header.Height)
+                            {
+                                break;
+                            }
                         }
                     }
                 } while (zstream.avail_in > 0 && zstream.avail_out == 0);
@@ -500,10 +522,125 @@ namespace AsepriteFormat
         }
     }
 
+    static FLayer ReadLayerChunk(std::ifstream& File)
+    {
+        // Read chunk data
+        uint16_t Flags = Read_u16(File);
+        uint16_t LayerType = Read_u16(File);
+        uint16_t ChildLevel = Read_u16(File);
+        uint16_t DefaultWidth = Read_u16(File);
+        uint16_t DefaultHeight = Read_u16(File);
+        uint16_t Blendmode = Read_u16(File);
+        uint8_t Opacity = Read_u8(File);
+        ReadPadding(File, 3);
+        std::string Name = ReadString(File);
+
+        FLayer NewLayer
+        {
+            .Flags = Flags,
+            .LayerType = LayerType,
+            .ChildLevel = ChildLevel,
+            .DefaultWidth = DefaultWidth,
+            .DefaultHeight = DefaultHeight,
+            .Blendmode = Blendmode,
+            .Opacity = Opacity,
+            .Name = Name
+        };
+        return NewLayer;
+
+        //doc::Layer* layer = nullptr;
+        //switch (layer_type)
+        //{
+        //case ASE_FILE_LAYER_IMAGE:
+        //    layer = new doc::LayerImage(sprite);
+        //    break;
+        //case ASE_FILE_LAYER_GROUP:
+        //    layer = new doc::LayerGroup(sprite);
+        //    break;
+        //case ASE_FILE_LAYER_TILEMAP:
+        //{
+        //    doc::tileset_index tsi = read32();
+        //    if (!sprite->tilesets()->get(tsi))
+        //    {
+        //        delegate()->error(fmt::format("Error: tileset {0} not found", tsi));
+        //        return nullptr;
+        //    }
+        //    layer = new doc::LayerTilemap(sprite, tsi);
+        //    break;
+        //}
+        //default:
+        //    delegate()->incompatibilityError(fmt::format("Unknown layer type found: {0}", layer_type));
+        //    break;
+        //}
+        //
+        //if (!layer)
+        //{
+        //    return nullptr;
+        //}
+        //
+        //// Read UUID if usage is enabled
+        //if (sprite->useLayerUuids())
+        //{
+        //    layer->setUuid(readUuid());
+        //}
+        //
+        //const bool composeGroups = (header->flags & ASE_FILE_FLAG_COMPOSITE_GROUPS);
+        //
+        //if ((layer->isImage() || (layer->isGroup() && composeGroups)) &&
+        //// Only transparent layers can have blend mode and opacity
+        //!(flags & int(doc::LayerFlags::Background)))
+        //{
+        //    layer->setBlendMode((doc::BlendMode)blendmode);
+        //    if (header->flags & ASE_FILE_FLAG_LAYER_WITH_OPACITY)
+        //    {
+        //        layer->setOpacity(opacity);
+        //    }
+        //}
+        //
+        //// flags
+        //layer->setFlags(
+        //static_cast<doc::LayerFlags>(flags & static_cast<int>(doc::LayerFlags::PersistentFlagsMask)));
+        //
+        //// name
+        //layer->setName(name.c_str());
+        //
+        //// Child level
+        //if (child_level == *current_level)
+        //{
+        //    (*previous_layer)->parent()->addLayer(layer);
+        //}
+        //else if (child_level > *current_level)
+        //{
+        //    static_cast<doc::LayerGroup*>(*previous_layer)->addLayer(layer);
+        //}
+        //else if (child_level < *current_level)
+        //{
+        //    doc::LayerGroup* parent = (*previous_layer)->parent();
+        //    ASSERT(parent);
+        //    if (parent)
+        //    {
+        //        int levels = (*current_level - child_level);
+        //        while (levels--)
+        //        {
+        //            ASSERT(parent->parent());
+        //            if (!parent->parent())
+        //                break;
+        //            parent = parent->parent();
+        //        }
+        //        parent->addLayer(layer);
+        //    }
+        //}
+        //
+        //*previous_layer = layer;
+        //*current_level = child_level;
+        //return layer;
+    }
+
     static uint16_t ReadCelChunk(
         std::ifstream& File,
         EPixelFormat PixelFormat,
         std::vector<uint8_t>& OutputRGBA,
+        const std::vector<FLayer>& Layers,
         const FPalette& Palette,
         const FAsepriteHeader& Header,
         size_t ChunkEnd)
@@ -516,6 +653,17 @@ namespace AsepriteFormat
         uint16_t CelType    = Read_u16(File);
         int16_t zIndex      = ((int16_t)Read_u16(File));
         ReadPadding(File, 5);
+
+        if (Layers.size() < LayerIndex)
+        {
+            return uint16_t(-1);
+        }
+
+        const FLayer& Layer = Layers[LayerIndex];
+        if (!(Layer.Flags & ELayerFlags::Visible))
+        {
+            return uint16_t(-1);
+        }
 
         switch (CelType)
         {
@@ -800,7 +948,9 @@ namespace AsepriteFormat
                         //    m_allLayers.push_back(nullptr);
                         //    last_object_with_user_data = nullptr;
                         //}
-                        LOG_WARNING("[{}]\t Warning: chunk type is not parsed {} (skipping).", (__FUNCTION__), ChunkType);
+                        
+                        const FLayer ReadLayer = ReadLayerChunk(File);
+                        OutputSprite.Layers.push_back(ReadLayer);
                         break;
                     }
 
@@ -810,12 +960,26 @@ namespace AsepriteFormat
                             File,
                             PixelFormat(OutputSprite.ColorMode),
                             OutputSprite.Frames[Frame],
+                            OutputSprite.Layers,
                             Palette,
                             Header,
                             ChunkPos + ChunkSize);
                         if (LinkFrame != uint16_t(-1))
                         {
-                            memcpy(OutputSprite.Frames[Frame].data(), OutputSprite.Frames[LinkFrame].data(), Size);
+                            //memcpy(OutputSprite.Frames[Frame].data(), OutputSprite.Frames[LinkFrame].data(), OutputSprite.Width * OutputSprite.Height * Size);
+                            uint8_t* Buffer = OutputSprite.Frames[LinkFrame].data();
+                            uint32_t* Address = reinterpret_cast<uint32_t*>(OutputSprite.Frames[Frame].data());
+                            for (int i = 0; i < OutputSprite.Width * OutputSprite.Height; ++i)
+                            {
+                                const uint8_t R = *(Buffer++);
+                                const uint8_t G = *(Buffer++);
+                                const uint8_t B = *(Buffer++);
+                                const uint8_t A = *(Buffer++);
+                                if (A != 0)
+                                {
+                                    *Address = RGBA(R, G, B, A);
+                                }
+                            }
                         }
 
                         break;
