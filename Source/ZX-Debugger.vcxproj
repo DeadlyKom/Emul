@@ -252,6 +252,7 @@ powershell -Command "(Get-Content %file%) -replace 'VER_BUILD \d+','VER_BUILD %b
     <ClCompile Include="Motherboard\Motherboard_ClockGenerator.cpp" />
     <ClCompile Include="Motherboard\Motherboard_Thread.cpp" />
     <ClCompile Include="Settings\SpriteSettings.cpp" />
+    <ClCompile Include="Utils\6912\CodeGenerator.cpp" />
     <ClCompile Include="Utils\Aseprite\Format.cpp" />
     <ClCompile Include="Utils\Delegate.cpp" />
     <ClCompile Include="Utils\IO.cpp" />
@@ -311,6 +312,7 @@ powershell -Command "(Get-Content %file%) -replace 'VER_BUILD \d+','VER_BUILD %b
     <ClInclude Include="Motherboard\Motherboard_Thread.h" />
     <ClInclude Include="resource.h" />
     <ClInclude Include="Settings\SpriteSettings.h" />
+    <ClInclude Include="Utils\6912\CodeGenerator.h" />
     <ClInclude Include="Utils\Array.h" />
     <ClInclude Include="Utils\Aseprite\Definition.h" />
     <ClInclude Include="Utils\Aseprite\Format.h" />

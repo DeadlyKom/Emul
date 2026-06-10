@@ -91,6 +91,9 @@ private:
 	bool SplitSpriteName(const std::string& Name, std::string& Base, int32_t& Number);
 	std::string GetNextSpriteName(const std::map<int32_t, std::string>& Sprites);
 
+	// 6912
+	void CodeGeneration(std::vector<uint8_t>& ScreenData);
+
 	bool bDirty;
 	bool bDragging;
 	bool bRefreshCanvas;

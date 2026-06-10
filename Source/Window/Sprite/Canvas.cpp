@@ -5,6 +5,7 @@
 #include <Window/Sprite/Events.h>
 #include <Utils/IO.h>
 #include <Utils/Aseprite/Format.h>
+#include <Utils/6912/CodeGenerator.h>
 
 #include "stb/stb_image_write.h"
 
@@ -188,6 +189,18 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 			else if (Event.Tag == FEventTag::ResponseAllSpritesTag)
 			{
 				SpriteNames[Event.UniqueID] = Event.SpriteName;
+			}
+		});
+
+	SubscribeEvent<FEvent_6912>(
+		[this](const FEvent_6912& Event)
+		{
+			if (Event.Tag == FEventTag::CodeGenerationTag)
+			{
+				std::vector<uint8_t> ScreenData;
+				ScreenData = ZXColorView->InkData;
+				ScreenData.insert(ScreenData.end(), ZXColorView->AttributeData.begin(), ZXColorView->AttributeData.end());
+				CodeGeneration(ScreenData);
 			}
 		});
 }
@@ -1604,4 +1617,54 @@ std::string SCanvas::GetNextSpriteName(const std::map<int32_t, std::string>& Spr
 	}
 
 	return BestBase + std::to_string(MaxIndex + 1);
+}
+
+void SCanvas::CodeGeneration(std::vector<uint8_t>& ScreenData)
+{
+	CodeGenerator::FOptions Options;
+
+	// Приоритет скорости.
+	/*
+	Так генератор будет выбирать почти всегда самый быстрый вариант.
+		Options.cycleWeight = 1000;
+		Options.byteWeight = 1;
+
+	Если захочешь более компактный код:
+		Options.cycleWeight = 10;
+		Options.byteWeight = 1;
+
+	или совсем в сторону размера:
+		Options.cycleWeight = 1;
+		Options.byteWeight = 20;
+	*/
+	Options.CycleWeight = 1000;
+	Options.ByteWeight = 1;
+
+	// Больше значение — больше вариантов для DP,
+	// но медленнее анализ.
+	Options.MaxStackPairsToEnumerate = 16;
+
+	/*
+	DirtyMask — это дифф-маска, то есть карта байтов, которые надо реально перезаписать.
+		DirtyMask[i] = 1; // этот байт надо записать
+		DirtyMask[i] = 0; // этот байт пропускаем
+	*/
+	// Пока прозрачности нет — DirtyMask пустой.
+	std::vector<uint8_t> DirtyMask;
+
+	CodeGenerator::FAnalysis Analysis = BuildAnalysis(ScreenData, DirtyMask, Options);
+	CodeGenerator::FPlan Plan = OptimizePlan(Analysis, Options);
+
+	PrintPlanSummary(Analysis, Plan);
+
+	std::string AsmCode = EmitAsm(Analysis, Plan, Options, "test");
+	if (AsmCode.size() > 0)
+	{
+		std::filesystem::path SavePath = SourcePathFile.parent_path();
+		std::filesystem::path SaveName = SourcePathFile.stem();
+		std::filesystem::path AsmDataFilePath = IO::NormalizePath(std::filesystem::absolute(SavePath / std::format("{}.asm", SaveName.string())));
+		std::vector<uint8_t> AsmBytes(AsmCode.begin(), AsmCode.end()); 
+		IO::SaveBinaryData(AsmBytes, AsmDataFilePath, false);
+		IO::OpenFolder(AsmDataFilePath);
+	}
 }

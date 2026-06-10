@@ -29,6 +29,8 @@ namespace FEventTag
 	static const FName RequestCanvasViewFlagsTag = TEXT("RequestCanvasViewFlags");
 	static const FName RequestAllSpritesTag = TEXT("RequestAllSprites");
 	static const FName ResponseAllSpritesTag = TEXT("ResponseAllSprites");
+
+	static const FName CodeGenerationTag = TEXT("CodeGeneration");
 }
 
 struct FChangeToolMode
@@ -109,4 +111,9 @@ struct FEvent_SelectedSprite : public IEvent
 struct FEvent_ImportJSON : public IEvent
 {
 	std::filesystem::path FilePath;
+};
+
+struct FEvent_6912 : public IEvent
+{
+	using IEvent::IEvent;
 };

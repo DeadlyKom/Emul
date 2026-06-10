@@ -158,6 +158,9 @@
     <ClCompile Include="Utils\Aseprite\Format.cpp">
       <Filter>Source\Utils\Aseprite</Filter>
     </ClCompile>
+    <ClCompile Include="Utils\6912\CodeGenerator.cpp">
+      <Filter>Source\Utils\6912</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Filter Include="Source">
@@ -222,6 +225,9 @@
     </Filter>
     <Filter Include="Source\Utils\Aseprite">
       <UniqueIdentifier>{ad5c2120-7e4c-4710-92a0-a81c209b8225}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Source\Utils\6912">
+      <UniqueIdentifier>{f8e09f29-a9b0-4bd8-9cf9-542cef8a8faa}</UniqueIdentifier>
     </Filter>
   </ItemGroup>
   <ItemGroup>
@@ -445,6 +451,9 @@
       <Filter>Source\Utils\Aseprite</Filter>
     </ClInclude>
     <ClInclude Include="Version.h" />
+    <ClInclude Include="Utils\6912\CodeGenerator.h">
+      <Filter>Source\Utils\6912</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <Image Include="..\Resource\Icons\ICONE.ico">

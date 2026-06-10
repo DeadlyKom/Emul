@@ -25,6 +25,8 @@ namespace
 	static const char* MenuQuitName = "Quit";
 	static const char* GridSettingsName = "Grid Settings";
 	static const char* MenuMetadataName = "Metadata";
+	static const char* Menu6912Name = "6912";
+	static const char* MenuCodeGenerationName = "Code generation";
 
 	int32_t TextEditNumberCallback(ImGuiInputTextCallbackData* Data)
 	{
@@ -457,6 +459,16 @@ void FAppSprite::Show_MenuBar()
 			}
 		}
 
+		ImGui::EndMenu();
+	}
+
+	if (Viewer && ImGui::BeginMenu(Menu6912Name))
+	{
+		if (ImGui::MenuItem(MenuCodeGenerationName, nullptr, false))
+		{
+			FEvent_6912 Event_6912(FEventTag::CodeGenerationTag);
+			Viewer->GetEventSystem().Publish(Event_6912);
+		}
 		ImGui::EndMenu();
 	}
 
