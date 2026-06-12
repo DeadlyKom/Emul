@@ -648,7 +648,6 @@ std::string CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan,
     for (int32_t ID : Plan.CandidateIds)
     {
         const FCandidate& Candidate = Analysis.Candidates[ID];
-
         Out << "                ; "
             << ToString(Candidate.Kind)
             << " addr=" << Hex16(Candidate.StartAddr)

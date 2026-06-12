@@ -17,6 +17,22 @@ struct IEvent
 	{}
 };
 
+template<typename... CallbackArgs>
+struct TEvent : public IEvent
+{
+	using IEvent::IEvent;
+	using FCallback = std::function<void(CallbackArgs...)>;
+
+	FCallback Callback;
+	void ExecuteCallback(CallbackArgs... Args) const
+	{
+		if (Callback)
+		{
+			Callback(Args...);
+		}
+	}
+};
+
 using EventHandler = std::function<void(const IEvent&)>;
 
 class FEventSystem

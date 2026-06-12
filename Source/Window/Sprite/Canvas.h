@@ -4,6 +4,7 @@
 #include <Core/ViewerBase.h>
 #include <Core/Image.h>
 #include <Utils/UndoQueue.h>
+#include <Utils/Aseprite/Format.h>
 #include <Utils/UI/Draw_ZXColorVideo.h>
 #include "Palette.h"
 #include "ToolBar.h"
@@ -22,8 +23,10 @@ namespace FCanvasOptionsFlags
 	};
 }
 
+enum class EFrameMode;
 enum class EImageFormat;
 struct FSprite;
+struct FKeyframes;
 
 class SCanvas : public SViewerChildBase
 {
@@ -42,6 +45,7 @@ public:
 	virtual void Destroy() override;
 
 	const std::filesystem::path& GetSourcePathFile() const { return SourcePathFile; }
+	EImageFormat GetImageFormat() const { return ImageFormat; }
 
 private:
 	void Draw_PopupMenu();
@@ -71,6 +75,11 @@ private:
 	void Imput_Redo();
 	void Imput_Save();
 
+	// timeline
+	void Imput_PreviousFrame();
+	void Imput_Play();
+	void Imput_NextFrame();
+
 	void Reset_RectangleMarquee();
 	void Handler_RectangleMarquee();
 	void Handler_Pencil();
@@ -85,6 +94,11 @@ private:
 
 	void UpdateCursorColor(bool bButton = false);
 
+	void ChangeFrameMode(EFrameMode NewFrameMode);
+
+	// update canvas
+	void RebuildCanvasFromAseprite(int32_t Frame = 0);
+
 	// undo/redo
 	void UndoSwapPixel(FPixelToCanvas& Param);
 
@@ -94,6 +108,7 @@ private:
 	// 6912
 	void CodeGeneration(std::vector<uint8_t>& ScreenData);
 
+	bool bPlay;
 	bool bDirty;
 	bool bDragging;
 	bool bRefreshCanvas;
@@ -120,11 +135,17 @@ private:
 	uint8_t LastSetPixelColorIndex;
 	ImVec2 LastSetPixelPosition;
 
+	float PlayDuration;
 	int32_t Width;
 	int32_t Height;
 	ImColor TransparentColor;
 	uint32_t OptionsFlags[2];
 	uint32_t LastOptionsFlags;
+	int32_t SelectedSpritesFrame;
+	int32_t MaxFramesInSprites;
+
+	std::shared_ptr<AsepriteFormat::FSprite> AsepriteSprite;
+	std::shared_ptr<FKeyframes> Keyframes;
 
 	ImVec2 CreateSpriteSize;
 	ImVec2 Log2SpriteSize;
@@ -140,6 +161,7 @@ private:
 	std::shared_ptr<UI::FZXColorView> ZXColorView;
 	UI::FConversationSettings ConversationSettings;
 	EToolMode::Type ToolMode[2];
+	EFrameMode FrameMode;
 	EImageFormat ImageFormat;
 	int32_t ImageFrameIndex;
 	std::filesystem::path SourcePathFile;

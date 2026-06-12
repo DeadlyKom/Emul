@@ -257,6 +257,7 @@ powershell -Command "(Get-Content %file%) -replace 'VER_BUILD \d+','VER_BUILD %b
     <ClCompile Include="Utils\Delegate.cpp" />
     <ClCompile Include="Utils\IO.cpp" />
     <ClCompile Include="Utils\Name.cpp" />
+    <ClCompile Include="Utils\PropertyBag.cpp" />
     <ClCompile Include="Utils\Signal\Bus.cpp" />
     <ClCompile Include="Utils\Signal\OscillogramManager.cpp" />
     <ClCompile Include="Utils\UI\Draw_Oscillogram.cpp" />
@@ -278,6 +279,7 @@ powershell -Command "(Get-Content %file%) -replace 'VER_BUILD \d+','VER_BUILD %b
     <ClCompile Include="Window\Sprite\SpriteList.cpp" />
     <ClCompile Include="Window\Sprite\SpriteMetadata.cpp" />
     <ClCompile Include="Window\Sprite\StatusBar.cpp" />
+    <ClCompile Include="Window\Sprite\Timeline.cpp" />
     <ClCompile Include="Window\Sprite\ToolBar.cpp" />
   </ItemGroup>
   <ItemGroup>
@@ -320,6 +322,7 @@ powershell -Command "(Get-Content %file%) -replace 'VER_BUILD \d+','VER_BUILD %b
     <ClInclude Include="Utils\Pipeline.h" />
     <ClInclude Include="Utils\Memory.h" />
     <ClInclude Include="Utils\ProfilerScope.h" />
+    <ClInclude Include="Utils\PropertyBag.h" />
     <ClInclude Include="Utils\Resource.h" />
     <ClInclude Include="Utils\ScopeExit.h" />
     <ClInclude Include="Utils\Shader.h" />
@@ -350,10 +353,12 @@ powershell -Command "(Get-Content %file%) -replace 'VER_BUILD \d+','VER_BUILD %b
     <ClInclude Include="Window\Sprite\Canvas.h" />
     <ClInclude Include="Window\Sprite\Definition.h" />
     <ClInclude Include="Window\Sprite\Events.h" />
+    <ClInclude Include="Window\Sprite\Keyframes.h" />
     <ClInclude Include="Window\Sprite\Palette.h" />
     <ClInclude Include="Window\Sprite\SpriteList.h" />
     <ClInclude Include="Window\Sprite\SpriteMetadata.h" />
     <ClInclude Include="Window\Sprite\StatusBar.h" />
+    <ClInclude Include="Window\Sprite\Timeline.h" />
     <ClInclude Include="Window\Sprite\ToolBar.h" />
     <ClInclude Include="Window\Sprite\UndoAction.h" />
   </ItemGroup>

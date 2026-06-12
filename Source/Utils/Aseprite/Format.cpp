@@ -244,10 +244,8 @@ namespace AsepriteFormat
                                     }
                                 }
                             }
-                            ++y;
                             ScanlineOffset = 0;
-
-                            if (y >= Header.Height)
+                            if (++y >= Header.Height)
                             {
                                 break;
                             }
@@ -300,17 +298,30 @@ namespace AsepriteFormat
 
                         if (ScanlineOffset == WidthBytes)
                         {
-                            const size_t Index = ((Y + y) * Header.Width + X) * sizeof(uint32_t);
-                            uint32_t* Address = reinterpret_cast<uint32_t*>(&OutputRGBA[Index]);
-                            uint8_t* Buffer = &Scanline[0];
-                            for (int x = 0; x < W; ++x, ++Address)
+                            if (y < Header.Height)
                             {
-                                const uint8_t K = *(Buffer++);
-                                const uint8_t A = *(Buffer++);
-                                *Address = GrayA(K, A);
+                                const size_t Index = ((Y + y) * Header.Width + X) * sizeof(uint32_t);
+                                uint32_t* Address = reinterpret_cast<uint32_t*>(&OutputRGBA[Index]);
+                                uint8_t* Buffer = &Scanline[OffsetX * sizeof(uint16_t)];
+                                for (int x = 0; x < Header.Width; ++x, ++Address)
+                                {
+                                    if ((OffsetX + x) * sizeof(uint16_t) >= ScanlineOffset)
+                                    {
+                                        break;
+                                    }
+                                    const uint8_t K = *(Buffer++);
+                                    const uint8_t A = *(Buffer++);
+                                    if (A != 0)
+                                    {
+                                        *Address = GrayA(K, A);
+                                    }
+                                }
                             }
-                            ++y;
                             ScanlineOffset = 0;
+                            if (++y >= Header.Height)
+                            {
+                                break;
+                            }
                         }
                     }
                 } while (zstream.avail_in > 0 && zstream.avail_out == 0);
@@ -360,16 +371,29 @@ namespace AsepriteFormat
 
                         if (ScanlineOffset == WidthBytes)
                         {
-                            const size_t Index = ((Y + y) * Header.Width + X) * sizeof(uint32_t);
-                            uint32_t* Address = reinterpret_cast<uint32_t*>(&OutputRGBA[Index]);
-                            uint8_t* Buffer = &Scanline[0];
-                            for (int x = 0; x < W; ++x, ++Address)
+                            if (y < Header.Height)
                             {
-                                const uint8_t I = *(Buffer++);
-                                *Address = I;
+                                const size_t Index = ((Y + y) * Header.Width + X) * sizeof(uint32_t);
+                                uint32_t* Address = reinterpret_cast<uint32_t*>(&OutputRGBA[Index]);
+                                uint8_t* Buffer = &Scanline[OffsetX * sizeof(uint8_t)];
+                                for (int x = 0; x < Header.Width; ++x, ++Address)
+                                {
+                                    if ((OffsetX + x) * sizeof(uint8_t) >= ScanlineOffset)
+                                    {
+                                        break;
+                                    }
+                                    const uint8_t I = *(Buffer++);
+                                    if (I != Header.TransparentIndex)
+                                    {
+                                        *Address = I;
+                                    }
+                                }
                             }
-                            ++y;
                             ScanlineOffset = 0;
+                            if (++y >= Header.Height)
+                            {
+                                break;
+                            }
                         }
                     }
                 } while (zstream.avail_in > 0 && zstream.avail_out == 0);

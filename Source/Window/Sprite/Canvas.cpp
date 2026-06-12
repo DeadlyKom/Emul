@@ -1,4 +1,6 @@
 ﻿#include "Canvas.h"
+#include "Timeline.h"
+#include "Keyframes.h"
 #include "SpriteList.h"
 #include <AppSprite.h>
 #include <Utils/UI/Draw.h>
@@ -44,6 +46,7 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 		.SetFontName(_FontName)
 		.SetDockSlot("##Layout_Canvas")
 		.SetIncludeInWindows(true))
+	, bPlay(false)
 	, bDirty(false)
 	, bDragging(false)
 	, bRefreshCanvas(false)
@@ -56,8 +59,11 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	, LastOptionsFlags(FCanvasOptionsFlags::None)
 	, LastSetPixelColorIndex(EZXColor::None)
 	, LastSetPixelPosition(-1.0f, -1.0f)
+	, PlayDuration(0.0f)
 	, Width(0)
 	, Height(0)
+	, SelectedSpritesFrame(0)
+	, FrameMode(EFrameMode::None)
 	, ImageFormat(EImageFormat::None)
 	, ImageFrameIndex(INDEX_NONE)
 	, SourcePathFile(_SourcePathFile)
@@ -113,6 +119,8 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 				
 				ZXColorView->TransparentColor = Event.ViewFlags.TransparentColor;
 				bTransparentMask = Event.ViewFlags.bTransparentMask;
+
+				ChangeFrameMode(Event.ViewFlags.FrameMode);
 			}
 			else if (Event.Tag == FEventTag::CanvasViewScaleTag)
 			{
@@ -177,6 +185,11 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 				ZXColorView->RectangleMarqueeRect.Max = ImVec2((float)SelectedSprite->SpritePositionToImageX + (float)SelectedSprite->Width, (float)SelectedSprite->SpritePositionToImageY + (float)SelectedSprite->Height);
 				// ToDo: screen space rect
 			}
+			else if (Event.Tag == FEventTag::SelectedSpritesChangedFrameTag)
+			{
+				SelectedSpritesFrame = Event.Frame;
+				bRefreshCanvas = true;
+			}
 		});
 
 	SubscribeEvent<FEvent_Sprite>(
@@ -192,23 +205,21 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 			}
 		});
 
-	SubscribeEvent<FEvent_6912>(
-		[this](const FEvent_6912& Event)
+	SubscribeEvent<FEvent_Export>(
+		[this](const FEvent_Export& Event)
 		{
-			if (Event.Tag == FEventTag::CodeGenerationTag)
+			if (Event.Tag == FEventTag::NotificationCodeGenerationTag)
 			{
-				std::vector<uint8_t> ScreenData;
-				ScreenData = ZXColorView->InkData;
-				ScreenData.insert(ScreenData.end(), ZXColorView->AttributeData.begin(), ZXColorView->AttributeData.end());
-				CodeGeneration(ScreenData);
+				//std::vector<uint8_t> ScreenData;
+				//ScreenData = ZXColorView->InkData;
+				//ScreenData.insert(ScreenData.end(), ZXColorView->AttributeData.begin(), ZXColorView->AttributeData.end());
+				//CodeGeneration(ScreenData);
 			}
 		});
 }
 
 void SCanvas::Initialize(const std::vector<std::any>& Args)
 {
-	AsepriteFormat::FFrame Frame;
-
 	ZXColorView = std::make_shared<UI::FZXColorView>();
 	ZXColorView->Scale = ImVec2(2.5f, 2.5f);
 	ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
@@ -223,13 +234,9 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 		{
 			ImageFormat = std::any_cast<EImageFormat>(Arg);
 		}
-		else if (Arg.type() == typeid(AsepriteFormat::FFrame))
+		else if (Arg.type() == typeid(std::shared_ptr<AsepriteFormat::FSprite>))
 		{
-			Frame = std::any_cast<AsepriteFormat::FFrame>(Arg);
-		}
-		else if (ImageFormat == EImageFormat::Aseprite_Frame && Arg.type() == typeid(int32_t))
-		{
-			ImageFrameIndex = std::any_cast<int32_t>(Arg);
+			AsepriteSprite = std::any_cast<std::shared_ptr<AsepriteFormat::FSprite>>(Arg);
 		}
 		else if (Arg.type() == typeid(ImVec2))
 		{
@@ -242,7 +249,6 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 			ZXColorView->IndexedData.resize(Size, 0);
 
 			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
-
 			UI::FConversationSettings Settings
 			{
 				.InkAlways = EZXColor::Black_,
@@ -299,40 +305,82 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 
 	case EImageFormat::Aseprite:
 	{
-		LOG_WARNING("[{}]\t Should not be supported!", (__FUNCTION__));
-		break;
-	}
-
-	case EImageFormat::Aseprite_Frame:
-	{
-		Width = Frame.Width;
-		Height = Frame.Height;
+		Width = AsepriteSprite->Width;
+		Height = AsepriteSprite->Height;
+		Keyframes = std::make_shared<FKeyframes>();
+		Keyframes->Make((int32_t)AsepriteSprite->Frames.size(), (int32_t)AsepriteSprite->Layers.size());
 		TransparentColor = UI::ToU32(COLOR(0, 0, 0, 0));
 
-		UI::QuantizeToZX(Frame.Image.data(), Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
-		UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
-		ConversionToZX(ConversationSettings);
+		FEvent_Timeline Timeline_Event(FEventTag::TimelineInitializeTag);
+		{
+			Timeline_Event.Keyframes = Keyframes;
+			Timeline_Event.Sprite = AsepriteSprite;
+			Timeline_Event.Format = EImageFormat::Aseprite;
+			SendEvent(Timeline_Event);
+		}
+
+		FEvent_StatusBar Status_Event(FEventTag::CanvasSizeTag);
+		{
+			Status_Event.CanvasSize = ImVec2((float)Width, (float)Height);
+			SendEvent(Status_Event);
+		}
+
+		FEvent_AppSprite AppSprite_Event(FEventTag::NotificationAddCanvasTag);
+		{
+			AppSprite_Event.Canvas = shared_from_this();
+			SendEvent(AppSprite_Event);
+		}
+
+		if (AsepriteSprite->Frames.empty())
+		{
+			LOG_ERROR("[{}]\t *.aseprite file does not have frames.", (__FUNCTION__));
+			break;
+		}
 
 		ZXColorView->Device = Data.Device;
 		ZXColorView->DeviceContext = Data.DeviceContext;
 		Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Canvas);
 
-		{
-			std::filesystem::path LoadPath = Frame.Path;
-			std::filesystem::path LoadName = Frame.Name;
+		SelectedSpritesFrame = 0;
+		MaxFramesInSprites = (int32_t)AsepriteSprite->Frames.size() - 1;
 
-			Load(LoadPath, LoadName, false);
-		}
-
-		{
-			FEvent_StatusBar Event;
-			Event.Tag = FEventTag::CanvasSizeTag;
-			Event.CanvasSize = ImVec2((float)Width, (float)Height);
-			SendEvent(Event);
-		}
+		UI::QuantizeToZX(AsepriteSprite->Frames[0].data(), Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
+		UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
+		ConversionToZX(ConversationSettings);
 
 		break;
 	}
+
+	//case EImageFormat::Aseprite_Frame:
+	//{
+	//	Width = Frame.Width;
+	//	Height = Frame.Height;
+	//	TransparentColor = UI::ToU32(COLOR(0, 0, 0, 0));
+	//
+	//	UI::QuantizeToZX(Frame.Image.data(), Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
+	//	UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
+	//	ConversionToZX(ConversationSettings);
+	//
+	//	ZXColorView->Device = Data.Device;
+	//	ZXColorView->DeviceContext = Data.DeviceContext;
+	//	Draw_ZXColorView_Initialize(ZXColorView, UI::ERenderType::Canvas);
+	//
+	//	{
+	//		std::filesystem::path LoadPath = Frame.Path;
+	//		std::filesystem::path LoadName = Frame.Name;
+	//
+	//		Load(LoadPath, LoadName, false);
+	//	}
+	//
+	//	{
+	//		FEvent_StatusBar Event;
+	//		Event.Tag = FEventTag::CanvasSizeTag;
+	//		Event.CanvasSize = ImVec2((float)Width, (float)Height);
+	//		SendEvent(Event);
+	//	}
+	//
+	//	break;
+	//}
 
 	default:
 	{
@@ -380,6 +428,9 @@ void SCanvas::SetupHotKeys()
 
 		// global
 		{ ImGuiMod_Ctrl | ImGuiKey_S,					ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteFocused,	std::bind(&ThisClass::Imput_Save,							Self)	},	// (ctrl + S)
+		{ ImGuiKey_Comma,								ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteFocused,	std::bind(&ThisClass::Imput_PreviousFrame,					Self)	},	// (<)
+		{ ImGuiKey_Enter,								ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteFocused,	std::bind(&ThisClass::Imput_Play,							Self)	},	// (Enter)
+		{ ImGuiKey_Period,								ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteFocused,	std::bind(&ThisClass::Imput_NextFrame,						Self)	},	// (>)
 	};
 }
 
@@ -389,6 +440,15 @@ void SCanvas::Tick(float DeltaTime)
 	if (SelectedSprite)
 	{
 		SelectedSprite->ZXColorView->TimeCounter += DeltaTime;
+	}
+
+	if (bPlay)
+	{
+		PlayDuration -= DeltaTime;
+		if (PlayDuration < 0.0f)
+		{
+			Imput_NextFrame();
+		}
 	}
 }
 
@@ -414,21 +474,7 @@ void SCanvas::Render()
 
 	if (bRefreshCanvas)
 	{
-		if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
-		{
-			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
-		}
-		else
-		{
-			UI::ZXAttributeColorToImage(
-				ZXColorView->Image,
-				Width, Height,
-				(bTransparentMask || bInk) ? ZXColorView->InkData.data() : nullptr,
-				(bTransparentMask || bPaper) ? ZXColorView->AttributeData.data() : nullptr,
-				bMask ? ZXColorView->MaskData.data() : nullptr,
-				false, nullptr, true,
-				bTransparentMask);
-		}
+		RebuildCanvasFromAseprite(SelectedSpritesFrame);
 		bRefreshCanvas = false;
 	}
 
@@ -597,6 +643,12 @@ void SCanvas::Render()
 
 void SCanvas::Destroy()
 {
+	FEvent_AppSprite AppSprite_Event(FEventTag::NotificationRemoveCanvasTag);
+	{
+		AppSprite_Event.Canvas = shared_from_this();
+		SendEvent(AppSprite_Event);
+	}
+
 	UI::Draw_ZXColorView_Shutdown(ZXColorView);
 	UnsubscribeAll();
 }
@@ -662,9 +714,26 @@ void SCanvas::Draw_PopupMenu()
 		{
 			ImGui::OpenPopup(CreateSpriteID);
 		}
-		if (ImGui::MenuItem("Add Region"))
+		if (SelectedSprite && ImGui::MenuItem("Add Region"))
 		{
 			AddRegionLambda();
+		}
+		if (AsepriteSprite->IsValid() && ImGui::MenuItem("Limit Area"))
+		{
+			// request
+			FEvent_RequestTimelineState Event_Timeline;
+			{
+				Event_Timeline.Callback =
+					[=](const FTimelineState& TimelineState)
+					{
+						FPropertyBag* Property = Keyframes->GetMutableProperty(TimelineState.CurrentFrame, TimelineState.CurrentLayer);
+						if (Property != nullptr)
+						{
+							Property->AddStruct(FPropertyTag::LimitArea, FTilemapCellData_Rect(ZXColorView->RectangleMarqueeRect));
+						}
+					};
+				SendEvent(Event_Timeline);
+			};
 		}
 
 		ImGui::EndPopup();	
@@ -1102,6 +1171,111 @@ void SCanvas::Imput_Save()
 	}
 }
 
+void SCanvas::Imput_PreviousFrame()
+{
+	switch (ImageFormat)
+	{
+	case EImageFormat::None:
+	case EImageFormat::Create:
+	case EImageFormat::JSON:
+	case EImageFormat::PNG:
+	default:
+		return;
+	case EImageFormat::GIF:
+	case EImageFormat::Aseprite:
+		break;
+	}
+
+	if (SelectedSpritesFrame == 0)
+	{
+		SelectedSpritesFrame = MaxFramesInSprites;
+	}
+	else
+	{
+		SelectedSpritesFrame--;
+	}
+
+	PlayDuration = ImageFormat == EImageFormat::Aseprite ? float(AsepriteSprite->DurationPerFrame[SelectedSpritesFrame]) * 0.001f : 0.05f;
+
+	FEvent_Timeline Event(FEventTag::TimelineChangedFrameTag);
+	{
+		Event.Frame = SelectedSpritesFrame;
+		Event.Format = ImageFormat;
+		SendEvent(Event);
+	}
+
+	switch (ImageFormat)
+	{
+	case EImageFormat::GIF:
+		break;
+	case EImageFormat::Aseprite:
+		bRefreshCanvas = true;
+		break;
+	}
+}
+
+void SCanvas::Imput_Play()
+{
+	switch (ImageFormat)
+	{
+	case EImageFormat::None:
+	case EImageFormat::Create:
+	case EImageFormat::JSON:
+	case EImageFormat::PNG:
+	default:
+		bPlay = false;
+		return;
+	case EImageFormat::GIF:
+	case EImageFormat::Aseprite:
+		break;
+	}
+
+	bPlay = !bPlay;
+	PlayDuration = ImageFormat == EImageFormat::Aseprite ? float(AsepriteSprite->DurationPerFrame[SelectedSpritesFrame]) * 0.001f : 0.05f;
+}
+
+void SCanvas::Imput_NextFrame()
+{
+	switch (ImageFormat)
+	{
+	case EImageFormat::None:
+	case EImageFormat::Create:
+	case EImageFormat::JSON:
+	case EImageFormat::PNG:
+	default:
+		return;
+	case EImageFormat::GIF:
+	case EImageFormat::Aseprite:
+		break;
+	}
+
+	if (SelectedSpritesFrame >= MaxFramesInSprites)
+	{
+		SelectedSpritesFrame = 0;
+	}
+	else
+	{
+		SelectedSpritesFrame++;
+	}
+	PlayDuration = ImageFormat == EImageFormat::Aseprite ? float(AsepriteSprite->DurationPerFrame[SelectedSpritesFrame]) * 0.001f : 0.05f;
+
+	FEvent_Timeline Event(FEventTag::TimelineChangedFrameTag);
+	{
+		Event.Frame = SelectedSpritesFrame;
+		Event.Format = ImageFormat;
+		SendEvent(Event);
+	}
+
+	switch (ImageFormat)
+	{
+	case EImageFormat::GIF:
+		break;
+	case EImageFormat::Aseprite:
+		bRefreshCanvas = true;
+		break;
+	}
+}
+
 void SCanvas::Reset_RectangleMarquee()
 {
 	ZXColorView->RectangleMarqueeRect = ImRect(0.0f, 0.0f, 0.0f, 0.0f);
@@ -1293,10 +1467,10 @@ bool SCanvas::Save(const std::filesystem::path& SavePath, const std::filesystem:
 	UI::ZXIndexColorToRGBA(RGBA, ZXColorView->IndexedData, Width, Height);
 
 	std::filesystem::path NewSaveName = SaveName;
-	if (ImageFormat == EImageFormat::Aseprite_Frame && ImageFrameIndex != INDEX_NONE)
-	{
-		NewSaveName = std::format("{}_frame_{}", SaveName.string(), ImageFrameIndex);
-	}
+	//if (ImageFormat == EImageFormat::Aseprite_Frame && ImageFrameIndex != INDEX_NONE)
+	//{
+	//	NewSaveName = std::format("{}_frame_{}", SaveName.string(), ImageFrameIndex);
+	//}
 
 	std::filesystem::path PNGFilePath = IO::NormalizePath(SavePath / std::format("{0}.png", NewSaveName.string(), ImageFrameIndex));
 	constexpr int32_t Channels = 4;
@@ -1440,6 +1614,69 @@ void SCanvas::UpdateCursorColor(bool bButton /*= false*/)
 
 		ZXColorView->CursorColor = UI::ToVec4(UI::ZXSpectrumColorRGBA[InkColor]);
 	}
+}
+
+void SCanvas::ChangeFrameMode(EFrameMode NewFrameMode)
+{
+	if (FrameMode == NewFrameMode)
+	{
+		return;
+	}
+	FrameMode = NewFrameMode;
+	bRefreshCanvas = true;
+}
+
+void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
+{
+	const bool bInk = OptionsFlags[0] & FCanvasOptionsFlags::Ink;
+	const bool bMask = OptionsFlags[0] & FCanvasOptionsFlags::Mask;
+	const bool bPaper = OptionsFlags[0] & FCanvasOptionsFlags::Attribute;
+	const bool bSource = OptionsFlags[0] & FCanvasOptionsFlags::Source;
+
+	if (AsepriteSprite && AsepriteSprite->IsValid() && AsepriteSprite->Frames.size() > Frame)
+	{
+		UI::QuantizeToZX(AsepriteSprite->Frames[Frame].data(), Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
+
+		const bool bDifference = FrameMode == EFrameMode::Difference;
+		if (bDifference && Frame != 0)
+		{
+			std::vector<uint8_t> PreviousFrame_IndexedData;
+			UI::QuantizeToZX(AsepriteSprite->Frames[Frame - 1].data(), Width, Height, 4, PreviousFrame_IndexedData, TransparentColor);
+
+			std::vector<uint8_t> Difference_IndexedData(ZXColorView->IndexedData.size());
+			for (int32_t Index = 0; Index < ZXColorView->IndexedData.size(); ++Index)
+			{
+				const uint8_t CurrentColor = ZXColorView->IndexedData[Index];
+				const uint8_t PreviousColor = PreviousFrame_IndexedData[Index];
+				Difference_IndexedData[Index] = CurrentColor != PreviousColor ? CurrentColor : EZXColor::Transparent;
+			}
+
+			ZXColorView->IndexedData = Difference_IndexedData;
+		}
+	}
+
+	if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
+	{
+		UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
+	}
+	else
+	{
+		ConversionToZX(ConversationSettings);
+		UI::ZXAttributeColorToImage(
+			ZXColorView->Image,
+			Width, Height,
+			(bTransparentMask || bInk) ? ZXColorView->InkData.data() : nullptr,
+			(bTransparentMask || bPaper) ? ZXColorView->AttributeData.data() : nullptr,
+			bMask ? ZXColorView->MaskData.data() : nullptr,
+			false, nullptr, true,
+			bTransparentMask);
+	}
+	//	{
+	//		std::filesystem::path LoadPath = Frame.Path;
+	//		std::filesystem::path LoadName = Frame.Name;
+	//
+	//		Load(LoadPath, LoadName, false);
+	//	}
 }
 
 void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
@@ -1655,7 +1892,7 @@ void SCanvas::CodeGeneration(std::vector<uint8_t>& ScreenData)
 	CodeGenerator::FAnalysis Analysis = BuildAnalysis(ScreenData, DirtyMask, Options);
 	CodeGenerator::FPlan Plan = OptimizePlan(Analysis, Options);
 
-	PrintPlanSummary(Analysis, Plan);
+	//PrintPlanSummary(Analysis, Plan);
 
 	std::string AsmCode = EmitAsm(Analysis, Plan, Options, "test");
 	if (AsmCode.size() > 0)

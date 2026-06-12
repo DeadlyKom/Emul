@@ -1,7 +1,7 @@
 #pragma once
 
 #define INDEX_NONE (-1)
-#define BUFFER_SIZE_INPUT 32
+#define BUFFER_SIZE_INPUT 64
 
 #define WIN32_LEAN_AND_MEAN
 #define IMGUI_DEFINE_MATH_OPERATORS

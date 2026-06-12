@@ -26,17 +26,6 @@ namespace AsepriteFormat
 		return 0;
 	}
 
-	struct FFrame
-	{
-		int32_t Width;
-		int32_t Height;
-		std::vector<uint8_t> Image;
-		uint32_t TransparentColor;
-		std::filesystem::path Path;
-		std::filesystem::path Name;
-	};
-
-
 	namespace ELayerFlags
 	{
 		enum Type
@@ -83,6 +72,11 @@ namespace AsepriteFormat
 		std::vector<std::vector<uint8_t>> Frames;
 		std::vector<int32_t> DurationPerFrame;
 		std::vector<FLayer> Layers;
+
+		bool IsValid() const
+		{
+			return !Frames.empty() && !Layers.empty() && !DurationPerFrame.empty() && Width && Height;
+		}
 	};
 
 	bool Load(const std::filesystem::path& FilePath, FSprite& OutputSprite);

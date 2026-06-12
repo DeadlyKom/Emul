@@ -2,12 +2,14 @@
 
 #include <Core/Event.h>
 #include <Utils/UI/Draw_ZXColorVideo.h>
+#include <Utils/Aseprite/Format.h>
 
 #include "Palette.h"
 #include "ToolBar.h"
 #include "AppSprite.h"
 
 struct FSprite;
+class SWindow;
 
 namespace FEventTag
 {
@@ -24,14 +26,32 @@ namespace FEventTag
 	static const FName AddedSpriteTag = TEXT("AddedSprite");
 	static const FName RenamedSpriteTag = TEXT("RenamedSprite");
 	static const FName UpdateSpriteTag = TEXT("UpdateSprite");
-	static const FName SelectedSpritesChangedTag = TEXT("SelectedSpritesChanged");
 
+	static const FName SelectedSpritesChangedTag = TEXT("SelectedSpritesChanged");
+	static const FName SelectedSpritesChangedFrameTag = TEXT("SelectedSpritesChangedFrame");
+
+	// old request
 	static const FName RequestCanvasViewFlagsTag = TEXT("RequestCanvasViewFlags");
 	static const FName RequestAllSpritesTag = TEXT("RequestAllSprites");
 	static const FName ResponseAllSpritesTag = TEXT("ResponseAllSprites");
 
-	static const FName CodeGenerationTag = TEXT("CodeGeneration");
+	// callback request
+	static const FName RequestTimelineStateTag = TEXT("RequestTimelineState");
+
+	// notification
+	static const FName NotificationAddCanvasTag = TEXT("NotificationAddCanvas");
+	static const FName NotificationRemoveCanvasTag = TEXT("NotificationRemoveCanvas");
+	static const FName NotificationCodeGenerationTag = TEXT("NotificationCodeGeneration");
+
+	static const FName TimelineInitializeTag = TEXT("TimelineInitialize");
+	static const FName TimelineChangedFrameTag = TEXT("TimelineChangedFrame");
 }
+
+struct FEvent_AppSprite : public IEvent
+{
+	using IEvent::IEvent;
+	std::shared_ptr<SWindow> Canvas;
+};
 
 struct FChangeToolMode
 {
@@ -40,6 +60,8 @@ struct FChangeToolMode
 
 struct FEvent_Canvas : public IEvent
 {
+	using IEvent::IEvent;
+
 	std::wstring CanvasName;
 	uint32_t OptionsFlags;
 	FChangeToolMode ChangeToolMode;
@@ -51,14 +73,13 @@ struct FEvent_Canvas : public IEvent
 	ImVec2 ImagePosition;
 
 	FViewFlags ViewFlags;
-
-	using IEvent::IEvent;
 };
 
 struct FEvent_StatusBar : public IEvent
 {
 	ImVec2 CanvasSize{};
 	ImVec2 MousePosition{};
+	using IEvent::IEvent;
 };
 
 struct FEvent_ToolBar : public IEvent
@@ -105,6 +126,9 @@ struct FEvent_Sprite : public IEvent
 
 struct FEvent_SelectedSprite : public IEvent
 {
+	using IEvent::IEvent;
+	int32_t Frame;
+	EImageFormat Format;
 	std::shared_ptr<FSprite> Sprite;
 };
 
@@ -113,7 +137,24 @@ struct FEvent_ImportJSON : public IEvent
 	std::filesystem::path FilePath;
 };
 
-struct FEvent_6912 : public IEvent
+struct FEvent_Timeline : public IEvent
+{
+	using IEvent::IEvent;
+	int32_t Frame;
+	EImageFormat Format;
+
+	std::shared_ptr<struct FKeyframes> Keyframes;
+	std::shared_ptr<AsepriteFormat::FSprite> Sprite;
+};
+
+struct FEvent_RequestTimelineState : public TEvent<const struct FTimelineState&>
+{
+	FEvent_RequestTimelineState()
+		: TEvent(FEventTag::RequestTimelineStateTag)
+	{}
+};
+
+struct FEvent_Export : public IEvent
 {
 	using IEvent::IEvent;
 };

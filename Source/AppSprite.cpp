@@ -8,6 +8,7 @@
 #include <Window/Sprite/Canvas.h>
 #include <Window/Sprite/Palette.h>
 #include <Window/Sprite/ToolBar.h>
+#include <Window/Sprite/Timeline.h>
 #include <Window/Sprite/StatusBar.h>
 #include <Window/Sprite/SpriteList.h>
 #include <Window/Common/FileDialog.h>
@@ -19,14 +20,43 @@ namespace
 {
 	static const std::string SpriteName = std::format(TEXT("ZX-Sprite ver. {}.{}.{} ({})"), VER_MAJOR, VER_MINOR, VER_BUILD, VER_REVISION);
 
-	static const char* MenuFileName = "File";
-	static const char* NewCanvasName = "New canvas";
+	static const char* Menu_FileName = "File";
+	static const char* Menu_File_NewName = "New";
+	static const char* Menu_File_New_CanvasName = "Canvas";
+	static const char* Menu_File_OpenName = "Open";
+	static const char* Menu_File_OpenRecentName = "Open recent";
+	static const char* Menu_File_OpenRecent_ClearRecentFilesName = "Clear recent files";
+	static const char* Menu_File_SaveName = "Save";
+	static const char* Menu_File_SaveAsName = "Save as..";
+	static const char* Menu_File_CloseName = "Close";
+	static const char* Menu_File_CloseAllName = "Close all";
+	static const char* Menu_File_ExportName = "Export";
+	static const char* Menu_File_Export_CodeGenerationName = "Code generation";
+	static const char* Menu_File_QuitName = "Quit";
 	static const char* MenuEditName = "Edit";
-	static const char* MenuQuitName = "Quit";
-	static const char* GridSettingsName = "Grid Settings";
-	static const char* MenuMetadataName = "Metadata";
-	static const char* Menu6912Name = "6912";
-	static const char* MenuCodeGenerationName = "Code generation";
+
+	static const char* Menu_ViewName = "View";
+	static const char* Menu_View_ShowName = "Show";
+	static const char* Menu_View_GridSettingsName = "Grid settings";
+	static const char* Menu_View_Show_TransparentName = "Transparent";
+	static const char* Menu_View_Show_GridName = "Grid";
+	static const char* Menu_View_Show_PixelGridName = "Pixel grid";
+	static const char* Menu_View_Show_AttributeGridName = "Attribute grid";
+	static const char* Menu_View_Show_AlphaCheckerboardName = "Alpha checkerboard";
+	static const char* Menu_View_FrameModeName = "Frame mode";
+	static const char* Menu_View_FrameMode_NoneName = "None";
+	static const char* Menu_View_FrameMode_DifferenceName = "Difference";
+
+	static const char* Menu_FrameName = "Frame";
+
+	static const char* Menu_MetadataName = "Metadata";
+	static const char* Menu_Metadata_ShowWindowName = "Show window";
+
+
+	static const char* Modal_MenuQuitName = "Quit";
+	static const char* Modal_NewCanvasName = "New canvas";
+	static const char* Modal_GridSettingsName = "Grid settings";
+	static const char* Modal_CodeGenerationName = "Code generation";
 
 	int32_t TextEditNumberCallback(ImGuiInputTextCallbackData* Data)
 	{
@@ -49,11 +79,57 @@ namespace
 		}
 		return 0;
 	}
+
+	inline std::string WideToUtf8(const std::wstring& Text)
+	{
+		if (Text.empty())
+		{
+			return {};
+		}
+
+		const int Size = WideCharToMultiByte(
+			CP_UTF8,
+			0,
+			Text.data(),
+			(int)Text.size(),
+			nullptr,
+			0,
+			nullptr,
+			nullptr
+		);
+
+		std::string Result;
+		Result.resize(Size);
+
+		WideCharToMultiByte(
+			CP_UTF8,
+			0,
+			Text.data(),
+			(int)Text.size(),
+			Result.data(),
+			Size,
+			nullptr,
+			nullptr
+		);
+
+		return Result;
+	}
+
+	inline void CopyToBuffer(char* Buffer, size_t BufferSize, const std::string& Text)
+	{
+		if (Buffer == nullptr || BufferSize == 0)
+		{
+			return;
+		}
+
+		snprintf(Buffer, BufferSize, "%s", Text.c_str());
+	}
 }
 
 FAppSprite::FAppSprite()
 	: bOpen(true)
 	, CanvasCounter(0)
+	, ExportCounter(0)
 {
 	WindowName = SpriteName.c_str();
 }
@@ -77,29 +153,22 @@ void FAppSprite::Initialize()
 			.DeviceContext = DeviceContext
 		};
 
-		FDockSlot Layout =
-		{	"##Root", 1.0f, ImGuiDir_None,
-			{
-				{	"##Layout_SpriteList", 0.2f, ImGuiDir_Left,
-					{
+		const FDockSlot Layout =
+			{"##Root", 1.0f, ImGuiDir_None, {
+				{"##Layout_StatusBar", 0.05f, ImGuiDir_Down, {
+					{"##Layout_SpriteList", 0.2f, ImGuiDir_Left, {
 						{},
-						{	"##Layout_Palette",  0.1f, ImGuiDir_Up,
-							{
-								{},
-								{	"##Layout_StatusBar", 0.08f, ImGuiDir_Down, 
-									{
-										{	"##Layout_ToolBar", 0.06f, ImGuiDir_Right,
-											{
-												{	"##Layout_Canvas", 1.0f, ImGuiDir_None, {} },
-												{}
-											}
-										},
-										{}
-									}
-								}
-							}
-						}
+						{"##Layout_Timeline", 0.3f, ImGuiDir_Down, {
+							{"##Layout_ToolBar", 0.06f, ImGuiDir_Right, {
+								{"##Layout_Palette",  0.1f, ImGuiDir_Up, {
+									{},
+									{"##Layout_Canvas", 1.0f, ImGuiDir_None, {
+									}}
+								}}
+							}}
+						}}
 					}}
+				}}
 			}};
 
 		Viewer->NativeInitialize(Data);
@@ -112,6 +181,7 @@ void FAppSprite::Initialize()
 			{ NAME_Palette,			std::make_shared<SPalette>(NAME_DOS_12, "##Layout_Palette")},
 			{ NAME_ToolBar,			std::make_shared<SToolBar>(NAME_DOS_12, "##Layout_ToolBar")},
 			{ NAME_StatusBar,		std::make_shared<SStatusBar>(NAME_DOS_12, "##Layout_StatusBar")},
+			{ NAME_Timeline,		std::make_shared<STimeline>(NAME_DOS_12, "##Layout_Timeline")},
 			{ NAME_SpriteList,		std::make_shared<SSpriteList>(NAME_DOS_12, "##Layout_SpriteList")},
 			{ NAME_SpriteMetadata,	std::make_shared<SSpriteMetadata>(NAME_DOS_12)},
 			}, Data, {});	
@@ -131,6 +201,29 @@ void FAppSprite::Initialize()
 				Event.ViewFlags = ViewFlags;
 				Viewer->GetEventSystem().Publish(Event);
 			}
+		});
+	Viewer->GetEventSystem().Subscribe<FEvent_AppSprite>(
+		this,
+		[this](const FEvent_AppSprite& Event)
+		{
+			std::shared_ptr<SCanvas> Event_Canvas = std::dynamic_pointer_cast<SCanvas>(Event.Canvas);
+			if (Event.Tag == FEventTag::NotificationAddCanvasTag)
+			{
+				auto It = std::find(ActiveCanvas.begin(), ActiveCanvas.end(), Event_Canvas);
+				if (It == ActiveCanvas.end())
+				{
+					ActiveCanvas.push_back(Event_Canvas);
+				}
+			}
+			else if (Event.Tag == FEventTag::NotificationRemoveCanvasTag)
+			{
+				auto It = std::find(ActiveCanvas.begin(), ActiveCanvas.end(), Event_Canvas);
+				if (It != ActiveCanvas.end())
+				{
+					ActiveCanvas.erase(It);
+				}
+			}
+			Viewer->SetWindowVisibility(EName::Timeline, HasCanvasWithTimeline());
 		});
 }
 
@@ -189,31 +282,16 @@ bool FAppSprite::Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const 
 		}
 		else if (ImageFormat == EImageFormat::Aseprite)
 		{
-			AsepriteFormat::FSprite Sprite;
-			if (!AsepriteFormat::Load(FilePath, Sprite))
+			std::shared_ptr<AsepriteFormat::FSprite> Sprite = std::make_shared<AsepriteFormat::FSprite>();
+			if (!AsepriteFormat::Load(FilePath, *Sprite.get()))
 			{
 				LOG_ERROR("[{}]\t Failed to parse the Aseprite format.", (__FUNCTION__));
 				return false;
 			}
 
-			std::filesystem::path Path = FilePath.parent_path();
 			std::filesystem::path Filename = FilePath.stem();
-			for (int32_t Index = 0; Index < Sprite.Frames.size(); ++Index)
-			{
-				const std::vector<uint8_t>& ImageData = Sprite.Frames[Index];
-
-				std::wstring FrameFilename = std::format(L"{}_frame_{}", Filename.wstring(), Index);
-				AsepriteFormat::FFrame Frame;
-				Frame.Width = Sprite.Width;
-				Frame.Height = Sprite.Height;
-				Frame.TransparentColor = Sprite.TransparentColor;
-				Frame.Image = ImageData;
-				Frame.Name = FrameFilename;
-				Frame.Path = Path;
-
-				std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, FrameFilename, FilePath);
-				Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { Frame, EImageFormat::Aseprite_Frame, Index});
-			}
+			std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, FilePath);
+			Viewer->AddWindow(EName::Canvas, NewCanvas, Data, { EImageFormat::Aseprite, Sprite });
 		}
 		else
 		{
@@ -304,21 +382,22 @@ void FAppSprite::SetupHotKeys()
 
 void FAppSprite::Show_MenuBar()
 {
-	const ImGuiID NewCanvaseID = ImGui::GetCurrentWindow()->GetID(NewCanvasName);
-	const ImGuiID QuitID = ImGui::GetCurrentWindow()->GetID(MenuQuitName);
-	const ImGuiID GridSettingsID = ImGui::GetCurrentWindow()->GetID(GridSettingsName);
+	const ImGuiID QuitID = ImGui::GetCurrentWindow()->GetID(Modal_MenuQuitName);
+	const ImGuiID NewCanvaseID = ImGui::GetCurrentWindow()->GetID(Modal_NewCanvasName);
+	const ImGuiID GridSettingsID = ImGui::GetCurrentWindow()->GetID(Modal_GridSettingsName);
+	const ImGuiID CodeGenerationID = ImGui::GetCurrentWindow()->GetID(Modal_CodeGenerationName);
 
-	if (ImGui::BeginMenu(MenuFileName))
+	if (ImGui::BeginMenu(Menu_FileName))
 	{
-		if (ImGui::BeginMenu("New"))
+		if (ImGui::BeginMenu(Menu_File_NewName))
 		{
-			if (ImGui::MenuItem("Canvas", "Ctrl+N"))
+			if (ImGui::MenuItem(Menu_File_New_CanvasName, "Ctrl+N"))
 			{
 				ImGui::OpenPopup(NewCanvaseID);
 			}
 			ImGui::EndMenu();
 		}
-		if (ImGui::MenuItem("Open", "Ctrl+O"))
+		if (ImGui::MenuItem(Menu_File_OpenName, "Ctrl+O"))
 		{
 			const std::string OldPath = RecentFiles.empty() ? "" : RecentFiles.back().parent_path().string();
 			SFileDialog::OpenWindow(Viewer, "Select File", EDialogMode::Select,
@@ -331,10 +410,9 @@ void FAppSprite::Show_MenuBar()
 					SFileDialog::CloseWindow();
 				}, OldPath, "*.*, *.aseprite, *.png, *.scr");
 		}
-
 		if (!RecentFiles.empty())
 		{
-			if (ImGui::BeginMenu("Open Recent"))
+			if (ImGui::BeginMenu(Menu_File_OpenRecentName))
 			{
 				for (const std::filesystem::path& RecentFile : RecentFiles)
 				{
@@ -342,7 +420,7 @@ void FAppSprite::Show_MenuBar()
 				}
 
 				ImGui::Separator();
-				if (ImGui::MenuItem("Clear Recent Files"))
+				if (ImGui::MenuItem(Menu_File_OpenRecent_ClearRecentFilesName))
 				{
 					RecentFiles.clear();
 				}
@@ -353,20 +431,38 @@ void FAppSprite::Show_MenuBar()
 
 		ImGui::Separator();
 
-		if (ImGui::MenuItem("Save", "Ctrl+S")) {}
-		if (ImGui::MenuItem("Save As..", "Ctrl+Shift+S")) {}
-		if (ImGui::MenuItem("Close", "Ctrl+W"))
+		if (ImGui::MenuItem(Menu_File_SaveName, "Ctrl+S")) {}
+		if (ImGui::MenuItem(Menu_File_SaveAsName, "Ctrl+Shift+S")) {}
+		if (ImGui::MenuItem(Menu_File_CloseName, "Ctrl+W"))
 		{
 			Imput_Close();
 		}
-		if (ImGui::MenuItem("Close All", "Ctrl+Shift+W"))
+		if (ImGui::MenuItem(Menu_File_CloseAllName, "Ctrl+Shift+W"))
 		{
 			Imput_CloseAll();
 		}
 
 		ImGui::Separator();
 
-		if (ImGui::MenuItem(MenuQuitName, "Alt+F4"))
+		// export
+		{
+			const bool bHasExport = ActiveCanvas.size() > 0;
+			if (bHasExport && ImGui::BeginMenu(Menu_File_ExportName))
+			{
+				if (ImGui::MenuItem(Menu_File_Export_CodeGenerationName))
+				{
+					ImGui::OpenPopup(CodeGenerationID);
+				}
+				ImGui::EndMenu();
+			}
+
+			if (bHasExport)
+			{
+				ImGui::Separator();
+			}
+		}
+
+		if (ImGui::MenuItem(Menu_File_QuitName, "Alt+F4"))
 		{
 			if (FrameworkConfig.bDontAskMeNextTime_Quit)
 			{
@@ -380,34 +476,33 @@ void FAppSprite::Show_MenuBar()
 	
 		ImGui::EndMenu();
 	}
-
-	if (ImGui::BeginMenu("View"))
+	if (ImGui::BeginMenu(Menu_ViewName))
 	{
-		if (ImGui::BeginMenu("Show"))
+		if (ImGui::BeginMenu(Menu_View_ShowName))
 		{
 			bool bUpdateOptions = false;
-			if (ImGui::MenuItem("Transparent", NULL, ViewFlags.bTransparentMask))
+			if (ImGui::MenuItem(Menu_View_Show_TransparentName, NULL, ViewFlags.bTransparentMask))
 			{
 				ViewFlags.bTransparentMask = !ViewFlags.bTransparentMask;
 				bUpdateOptions = true;
 			}
 			ImGui::Separator();
-			if (ImGui::MenuItem("Grid", NULL, ViewFlags.bGrid))
+			if (ImGui::MenuItem(Menu_View_Show_GridName, NULL, ViewFlags.bGrid))
 			{
 				ViewFlags.bGrid = !ViewFlags.bGrid;
 				bUpdateOptions = true;
 			}
-			if (ImGui::MenuItem("Pixel Grid", NULL, ViewFlags.bPixelGrid))
+			if (ImGui::MenuItem(Menu_View_Show_PixelGridName, NULL, ViewFlags.bPixelGrid))
 			{
 				ViewFlags.bPixelGrid = !ViewFlags.bPixelGrid;
 				bUpdateOptions = true;
 			}
-			if (ImGui::MenuItem("Attribute Grid", NULL, ViewFlags.bAttributeGrid))
+			if (ImGui::MenuItem(Menu_View_Show_AttributeGridName, NULL, ViewFlags.bAttributeGrid))
 			{
 				ViewFlags.bAttributeGrid = !ViewFlags.bAttributeGrid;
 				bUpdateOptions = true;
 			}
-			if (ImGui::MenuItem("Alpha Checkerboard", NULL, ViewFlags.bAlphaCheckerboardGrid))
+			if (ImGui::MenuItem(Menu_View_Show_AlphaCheckerboardName, NULL, ViewFlags.bAlphaCheckerboardGrid))
 			{
 				ViewFlags.bAlphaCheckerboardGrid = !ViewFlags.bAlphaCheckerboardGrid;
 				bUpdateOptions = true;
@@ -430,19 +525,43 @@ void FAppSprite::Show_MenuBar()
 				Viewer->GetEventSystem().Publish(Event);
 			}
 		}
+		if (ImGui::BeginMenu(Menu_View_FrameModeName, HasCanvasWithTimeline()))
+		{
+			bool bUpdateOptions = false;
+			if (ImGui::MenuItem(Menu_View_FrameMode_NoneName, NULL, ViewFlags.FrameMode == EFrameMode::None))
+			{
+				ViewFlags.FrameMode = EFrameMode::None;
+				bUpdateOptions = true;
+			}
+			if (ImGui::MenuItem(Menu_View_FrameMode_DifferenceName, NULL, ViewFlags.FrameMode == EFrameMode::Difference))
+			{
+				ViewFlags.FrameMode = EFrameMode::Difference;
+				bUpdateOptions = true;
+			}
+			ImGui::EndMenu();
+
+			if (bUpdateOptions)
+			{
+				FEvent_Canvas Event;
+				Event.Tag = FEventTag::CanvasViewFlagsTag;
+				Event.CanvasName = {};
+				Event.ViewFlags = ViewFlags;
+				Viewer->GetEventSystem().Publish(Event);
+			}
+		}
+
 		ImGui::Separator();
 
-		if (ImGui::MenuItem("Grid Settings"))
+		if (ImGui::MenuItem(Menu_View_GridSettingsName))
 		{
 			ImGui::OpenPopup(GridSettingsID);
 		}
 
 		ImGui::EndMenu();
 	}
-
-	if (Viewer && ImGui::BeginMenu(MenuMetadataName))
+	if (Viewer && ImGui::BeginMenu(Menu_MetadataName))
 	{
-		if (ImGui::MenuItem("Show window", nullptr, false, !Viewer->IsWindowVisibility(NAME_SpriteMetadata)))
+		if (ImGui::MenuItem(Menu_Metadata_ShowWindowName, nullptr, false, !Viewer->IsWindowVisibility(NAME_SpriteMetadata)))
 		{
 			if (Viewer->GetWindows(NAME_SpriteMetadata).empty())
 			{
@@ -462,19 +581,10 @@ void FAppSprite::Show_MenuBar()
 		ImGui::EndMenu();
 	}
 
-	if (Viewer && ImGui::BeginMenu(Menu6912Name))
-	{
-		if (ImGui::MenuItem(MenuCodeGenerationName, nullptr, false))
-		{
-			FEvent_6912 Event_6912(FEventTag::CodeGenerationTag);
-			Viewer->GetEventSystem().Publish(Event_6912);
-		}
-		ImGui::EndMenu();
-	}
-
 	if (ShowModal_WindowQuit()) {}
 	else if (ShowModal_WindowNewCanvas()) {}
 	else if (ShowModal_WindowgGridSettings()) {}
+	else if (ShowModal_WindowgCodeGeneration()) {}
 }
 
 bool FAppSprite::ShowModal_WindowQuit()
@@ -485,7 +595,7 @@ bool FAppSprite::ShowModal_WindowQuit()
 		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 	}
 
-	const bool bVisible = ImGui::BeginPopupModal(MenuQuitName, NULL, ImGuiWindowFlags_AlwaysAutoResize);
+	const bool bVisible = ImGui::BeginPopupModal(Modal_MenuQuitName, NULL, ImGuiWindowFlags_AlwaysAutoResize);
 	if (bVisible)
 	{
 		ImGui::Text("All those beautiful files will be deleted.\nThis operation cannot be undone!\n\n");
@@ -527,7 +637,7 @@ bool FAppSprite::ShowModal_WindowNewCanvas()
 		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 	}
 
-	const bool bVisible = ImGui::BeginPopupModal(NewCanvasName, NULL, ImGuiWindowFlags_AlwaysAutoResize);
+	const bool bVisible = ImGui::BeginPopupModal(Modal_NewCanvasName, NULL, ImGuiWindowFlags_AlwaysAutoResize);
 	if (bVisible)
 	{
 		if (ImGui::IsWindowAppearing())
@@ -677,7 +787,7 @@ bool FAppSprite::ShowModal_WindowgGridSettings()
 		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 	}
 
-	const bool bVisible = ImGui::BeginPopupModal(GridSettingsName, NULL, ImGuiWindowFlags_AlwaysAutoResize);
+	const bool bVisible = ImGui::BeginPopupModal(Modal_GridSettingsName, NULL, ImGuiWindowFlags_AlwaysAutoResize);
 	if (bVisible)
 	{
 		bool bUpdateOptions = false;
@@ -744,6 +854,53 @@ bool FAppSprite::ShowModal_WindowgGridSettings()
 			Event.ViewFlags = ViewFlags;
 			Viewer->GetEventSystem().Publish(Event);
 		}
+	}
+	return bVisible;
+}
+
+bool FAppSprite::ShowModal_WindowgCodeGeneration()
+{
+	// always center this window when appearing
+	if (ImGui::IsWindowAppearing())
+	{
+		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+	}
+
+	const bool bVisible = ImGui::BeginPopupModal(Modal_CodeGenerationName, NULL, ImGuiWindowFlags_AlwaysAutoResize);
+	if (bVisible)
+	{
+		if (ImGui::IsWindowAppearing())
+		{
+			std::shared_ptr<SCanvas> Canvas = GetActiveCanvas();
+			std::wstring CanvasName = Canvas ? Canvas->GetWindowWName() : std::format(L"Export-{:04}", ++ExportCounter);
+			std::wstring OutputFileNameW = std::format(L"{}.asm", CanvasName);
+			std::string OutputFileNameUtf8 = WideToUtf8(OutputFileNameW);
+			CopyToBuffer(NewOutputFileNameBuffer, sizeof(NewOutputFileNameBuffer), OutputFileNameUtf8);
+		}
+
+		const float TextWidth = ImGui::CalcTextSize("A").x;
+		const float TextHeight = ImGui::GetTextLineHeightWithSpacing();
+
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
+		ImGui::SeparatorText("Output file : ");
+		ImGui::InputTextEx("##Name", NULL, NewOutputFileNameBuffer, IM_ARRAYSIZE(NewOutputFileNameBuffer), ImVec2(TextWidth * 64.0f, TextHeight), ImGuiInputTextFlags_None);
+
+		if (ImGui::ButtonEx("Export", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
+		{
+			FEvent_Export Export_Event(FEventTag::NotificationCodeGenerationTag);
+			{
+				//Export_Event.
+				Viewer->GetEventSystem().Publish(Export_Event);
+			}
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SetItemDefaultFocus();
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
+		{
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
 	}
 	return bVisible;
 }
@@ -816,4 +973,30 @@ void FAppSprite::Import_JSON(const std::filesystem::path& FilePath)
 bool FAppSprite::Callback_OpenFile(const std::filesystem::path& FilePath)
 {
 	return OpenFile(FilePath);
+}
+
+bool FAppSprite::HasCanvasWithTimeline() const
+{
+	for (std::shared_ptr<SCanvas> Canvas : ActiveCanvas)
+	{
+		const EImageFormat ImageFormat = Canvas->GetImageFormat();
+		if (ImageFormat == EImageFormat::GIF ||
+			ImageFormat == EImageFormat::Aseprite)
+		{
+			return true;
+		}
+	}
+	return false;
+}
+
+std::shared_ptr<SCanvas> FAppSprite::GetActiveCanvas()
+{
+	for (std::shared_ptr<SCanvas> Canvas : ActiveCanvas)
+	{
+		if (Canvas->IsOpen() && Canvas->IsFocus())
+		{
+			return Canvas;
+		}
+	}
+	return nullptr;
 }

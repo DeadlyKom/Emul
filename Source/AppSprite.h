@@ -3,14 +3,22 @@
 #include <Core/AppFramework.h>
 #include <Core/ViewerBase.h>
 
+class SCanvas;
+
 enum class EImageFormat
 {
 	None,
 	Create,
 	JSON,
 	PNG,
+	GIF,
 	Aseprite,
-	Aseprite_Frame
+};
+
+enum class EFrameMode
+{
+	None,
+	Difference
 };
 
 struct FViewFlags
@@ -20,7 +28,8 @@ struct FViewFlags
 	bool bAttributeGrid = false;
 	bool bAlphaCheckerboardGrid = true;
 	bool bTransparentMask = false;
-	ImVec2 GridSettingSize = ImVec2(16.0f, 16.0f);
+	EFrameMode FrameMode = EFrameMode::None;
+	ImVec2 GridSettingSize = ImVec2(8.0f, 8.0f);
 	ImVec2 GridSettingOffset = ImVec2(0.0f, 0.0f);
 	ImVec4 TransparentColor = ImVec4(0.169f, 0.396f, 0.925f, 0.0f);
 };
@@ -53,6 +62,7 @@ private:
 	bool ShowModal_WindowQuit();
 	bool ShowModal_WindowNewCanvas();
 	bool ShowModal_WindowgGridSettings();
+	bool ShowModal_WindowgCodeGeneration();
 
 	void Input_HotKeys();
 	void Imput_Close();
@@ -62,6 +72,9 @@ private:
 	bool OpenFile(const std::filesystem::path& FilePath);
 	void Import_JSON(const std::filesystem::path& FilePath);
 	bool Callback_OpenFile(const std::filesystem::path& FilePath);
+	bool HasCanvasWithTimeline() const;
+
+	std::shared_ptr<SCanvas> GetActiveCanvas();
 
 	bool bOpen;
 	FViewFlags ViewFlags;
@@ -86,9 +99,14 @@ private:
 	ImVec2 TmpGridSettingSize;
 	ImVec2 TmpGridSettingOffset;
 
+	//popup menu 'Export'
+	int32_t ExportCounter;
+	char NewOutputFileNameBuffer[BUFFER_SIZE_INPUT] = "";
+
 	std::shared_ptr<SViewerBase> Viewer;
 	std::vector<std::filesystem::path> RecentFiles;
 	std::map<std::string, std::string> ScriptFiles;
 
 	std::vector<FHotKey> Hotkeys;
+	std::vector<std::shared_ptr<SCanvas>> ActiveCanvas;
 };
