@@ -86,7 +86,8 @@ private:
 	bool ShowModal_WindowQuit();
 	bool ShowModal_WindowNewCanvas();
 	bool ShowModal_WindowgGridSettings();
-	bool ShowModal_WindowgCodeGeneration();
+
+	bool Show_WindowgCodeGeneration();
 
 	void Input_HotKeys();
 	void Imput_Close();
@@ -98,6 +99,8 @@ private:
 	void Import_JSON(const std::filesystem::path& FilePath);
 	bool Callback_OpenFile(const std::filesystem::path& FilePath);
 	bool HasCanvasWithTimeline() const;
+	void RefreshCodeGenerationPreview();
+	bool ExportCodeGenerationPreview();
 
 	std::shared_ptr<SCanvas> GetActiveCanvas();
 
@@ -127,6 +130,28 @@ private:
 	//popup menu 'Export'
 	int32_t ExportCounter;
 	char NewOutputFileNameBuffer[BUFFER_SIZE_INPUT] = "";
+	char CodeGenerationLabelNameBuffer[BUFFER_SIZE_INPUT] = "DrawGeneratedScreen";
+	int32_t CodeGenerationMaxStackPairsToEnumerate = 16;
+	int32_t CodeGenerationCycleWeight = 1000;
+	int32_t CodeGenerationByteWeight = 1;
+	bool bCodeGenerationPreserveSP = true;
+	bool bCodeGenerationDisableInterruptsForStack = true;
+	bool bCodeGenerationGenerateOpcode = false;
+	bool bCodeGenerationOpen = false;
+	bool bCodeGenerationEnableByteCandidates = true;
+	bool bCodeGenerationEnableWordCandidates = true;
+	bool bCodeGenerationEnableStackBlocks = true;
+	bool bCodeGenerationEnableRepeatWords = true;
+	bool bCodeGenerationEnableHorizontalSameByteIncL = true;
+	bool bCodeGenerationShowCode = false;
+	bool bCodeGenerationApplyWindowSize = false;
+	bool bCodeGenerationPreviewValid = false;
+	ImVec2 CodeGenerationBaseWindowSize = ImVec2(0.0f, 0.0f);
+	ImVec2 CodeGenerationCodeWindowSize = ImVec2(0.0f, 0.0f);
+	bool bCodeGenerationCodeWindowSizeInitialized = false;
+	float CodeGenerationWindowHeight = 0.0f;
+	std::string CodeGenerationPreviewText;
+	std::string CodeGenerationLogText;
 
 	std::shared_ptr<SViewerBase> Viewer;
 	std::vector<std::filesystem::path> RecentFiles;

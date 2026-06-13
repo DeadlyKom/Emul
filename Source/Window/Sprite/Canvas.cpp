@@ -206,18 +206,6 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 				SpriteNames[Event.UniqueID] = Event.SpriteName;
 			}
 		});
-
-	SubscribeEvent<FEvent_Export>(
-		[this](const FEvent_Export& Event)
-		{
-			if (Event.Tag == FEventTag::NotificationCodeGenerationTag)
-			{
-				//std::vector<uint8_t> ScreenData;
-				//ScreenData = ZXColorView->InkData;
-				//ScreenData.insert(ScreenData.end(), ZXColorView->AttributeData.begin(), ZXColorView->AttributeData.end());
-				//CodeGeneration(ScreenData);
-			}
-		});
 }
 
 void SCanvas::Initialize(const std::vector<std::any>& Args)
@@ -1668,55 +1656,19 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 			}
 
 			// pixel diff
+			std::vector<uint8_t> Difference_InkData(ZXColorView->InkData.size());
+			std::vector<uint8_t> Difference_AttributeData(ZXColorView->AttributeData.size());
+			std::vector<uint8_t> Difference_MaskData(ZXColorView->MaskData.size());
+			if (!bSource && FrameDifferenceZXColor(Frame, Difference_InkData, Difference_AttributeData, Difference_MaskData))
 			{
-				UI::ZXIndexColorToZXAttributeColor(ZXColorView->IndexedData, Width, Height, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData, ConversationSettings);
-
-				std::vector<uint8_t> PreviousFrame_InkData;
-				std::vector<uint8_t> PreviousFrame_AttributeData;
-				std::vector<uint8_t> PreviousFrame_MaskData;
-				UI::ZXIndexColorToZXAttributeColor(PreviousFrame_IndexedData, Width, Height, PreviousFrame_InkData, PreviousFrame_AttributeData, PreviousFrame_MaskData, ConversationSettings);
-
-				std::vector<uint8_t> Difference_InkData(PreviousFrame_InkData.size());
-				std::vector<uint8_t> Difference_AttributeData(PreviousFrame_AttributeData.size());
-				std::vector<uint8_t> Difference_MaskData(PreviousFrame_MaskData.size());
-
-				const int32_t Boundary_X = Width >> 3;
-				//const int32_t Boundary_Y = Height >> 3;
-
-				const int32_t Size_6912 = Boundary_X * Height;
-				for (int32_t Index = 0; Index < Size_6912; ++Index)
-				{
-
-					// ink
-					const uint8_t Current_InkData = ZXColorView->InkData[Index];
-					const uint8_t Previous_InkData = PreviousFrame_InkData[Index];
-					const bool bDifference_Ink = Current_InkData ^ Previous_InkData;
-
-					Difference_InkData[Index] = bDifference_Ink ? Current_InkData : EZXColor::Transparent;
-					Difference_MaskData[Index] = bDifference_Ink ? 0xFF : 0x00;
-
-					// attribute
-					const int32_t bx = Index % Boundary_X;
-					const int32_t by = (Index / Boundary_X) / 8;
-					const int32_t Index_Attribute = by * Boundary_X + bx;
-					const uint8_t Current_AttributeData = ZXColorView->AttributeData[Index_Attribute];
-					const uint8_t Previous_AttributeData = PreviousFrame_AttributeData[Index_Attribute];
-					const bool bDifference_Attribute = Current_AttributeData ^ Previous_AttributeData;
-
-					Difference_AttributeData[Index_Attribute] = bDifference_Attribute ? Current_AttributeData : 0xFF;
-				}
-
-				if (!bSource)
-				{
-					UI::ZXAttributeColorToImage(
-						ZXColorView->Image,
-						Width, Height,
-						(bTransparentMask || bInk) ? Difference_InkData.data() : nullptr,
-						(bTransparentMask || bPaper) ? Difference_AttributeData.data() : nullptr,
-						bMask ? Difference_MaskData.data() : nullptr,
-						false, nullptr, true,
-						bTransparentMask);
-				}
+				UI::ZXAttributeColorToImage(
+					ZXColorView->Image,
+					Width, Height,
+					(bTransparentMask || bInk) ? Difference_InkData.data() : nullptr,
+					(bTransparentMask || bPaper) ? Difference_AttributeData.data() : nullptr,
+					bMask ? Difference_MaskData.data() : nullptr,
+					false, nullptr, true,
+					bTransparentMask);
 			}
 		}
 	}
@@ -1758,6 +1710,71 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 	//	}
 
 	bFroceRebuiltSpriteFrame = false;
+}
+
+bool SCanvas::FrameDifferenceZXColor(
+	int32_t Frame,
+	std::vector<uint8_t>& OutputDifference_InkData,
+	std::vector<uint8_t>& OutputDifference_AttributeData,
+	std::vector<uint8_t>& OutputDifference_MaskData)
+{
+	const bool bInk = OptionsFlags[0] & FCanvasOptionsFlags::Ink;
+	const bool bMask = OptionsFlags[0] & FCanvasOptionsFlags::Mask;
+	const bool bPaper = OptionsFlags[0] & FCanvasOptionsFlags::Attribute;
+	const bool bSource = OptionsFlags[0] & FCanvasOptionsFlags::Source;
+	const bool bRebuildFrame = LastRebuiltSpriteFrame != Frame;
+
+	// current frame
+	std::vector<uint8_t> CurrentFrame_IndexedData;
+	UI::QuantizeToZX(AsepriteSprite->Frames[Frame].data(), Width, Height, 4, CurrentFrame_IndexedData, TransparentColor);
+	
+	std::vector<uint8_t> CurrentFrame_InkData;
+	std::vector<uint8_t> CurrentFrame_AttributeData;
+	std::vector<uint8_t> CurrentFrame_MaskData;
+	UI::ZXIndexColorToZXAttributeColor(CurrentFrame_IndexedData, Width, Height, CurrentFrame_InkData, CurrentFrame_AttributeData, CurrentFrame_MaskData, ConversationSettings);
+
+	if (Frame == 0)
+	{
+		OutputDifference_InkData = CurrentFrame_InkData;
+		OutputDifference_AttributeData = CurrentFrame_AttributeData;
+		OutputDifference_MaskData = CurrentFrame_MaskData;
+		return true;
+	}
+
+	// previous frame
+	std::vector<uint8_t> PreviousFrame_IndexedData;
+	UI::QuantizeToZX(AsepriteSprite->Frames[Frame - 1].data(), Width, Height, 4, PreviousFrame_IndexedData, TransparentColor);
+
+	std::vector<uint8_t> PreviousFrame_InkData;
+	std::vector<uint8_t> PreviousFrame_AttributeData;
+	std::vector<uint8_t> PreviousFrame_MaskData;
+	UI::ZXIndexColorToZXAttributeColor(PreviousFrame_IndexedData, Width, Height, PreviousFrame_InkData, PreviousFrame_AttributeData, PreviousFrame_MaskData, ConversationSettings);
+
+	const int32_t Boundary_X = Width >> 3;
+
+	const int32_t Size_6912 = Boundary_X * Height;
+	for (int32_t Index = 0; Index < Size_6912; ++Index)
+	{
+		// ink
+		const uint8_t Current_InkData = CurrentFrame_InkData[Index];
+		const uint8_t Previous_InkData = PreviousFrame_InkData[Index];
+		const bool bDifference_Ink = Current_InkData ^ Previous_InkData;
+
+		OutputDifference_InkData[Index] = bDifference_Ink ? Current_InkData : EZXColor::Transparent;
+		OutputDifference_MaskData[Index] = bDifference_Ink ? 0xFF : 0x00;
+
+		// attribute
+		const int32_t bx = Index % Boundary_X;
+		const int32_t by = (Index / Boundary_X) / 8;
+		const int32_t Index_Attribute = by * Boundary_X + bx;
+		const uint8_t Current_AttributeData = CurrentFrame_AttributeData[Index_Attribute];
+		const uint8_t Previous_AttributeData = PreviousFrame_AttributeData[Index_Attribute];
+		const bool bDifference_Attribute = Current_AttributeData ^ Previous_AttributeData;
+
+		OutputDifference_AttributeData[Index_Attribute] = bDifference_Attribute ? Current_AttributeData : 0xFF;
+	}
+
+	return true;
 }
 
 void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
@@ -1937,30 +1954,27 @@ std::string SCanvas::GetNextSpriteName(const std::map<int32_t, std::string>& Spr
 	return BestBase + std::to_string(MaxIndex + 1);
 }
 
-void SCanvas::CodeGeneration(std::vector<uint8_t>& ScreenData)
+FCodeGenerationResult SCanvas::BuildCodeGenerationResult(const CodeGenerator::FOptions& Options, const std::string& LabelName)
 {
-	CodeGenerator::FOptions Options;
+	FCodeGenerationResult Result;
+	std::vector<uint8_t> Difference_InkData(CodeGenerator::ZX_PIXEL_SIZE);
+	std::vector<uint8_t> Difference_AttributeData(CodeGenerator::ZX_ATTRIBUTE_SIZE);
+	std::vector<uint8_t> Difference_MaskData(CodeGenerator::ZX_PIXEL_SIZE);
+	if (!FrameDifferenceZXColor(SelectedSpritesFrame, Difference_InkData, Difference_AttributeData, Difference_MaskData))
+	{
+		Result.Error = std::format("Error: getting difference in ZX frame Color");
+		return Result;
+	}
+	return CodeGeneration(Difference_InkData, Difference_AttributeData, Difference_MaskData, Options, LabelName);
+}
 
-	// Приоритет скорости.
-	/*
-	Так генератор будет выбирать почти всегда самый быстрый вариант.
-		Options.cycleWeight = 1000;
-		Options.byteWeight = 1;
-
-	Если захочешь более компактный код:
-		Options.cycleWeight = 10;
-		Options.byteWeight = 1;
-
-	или совсем в сторону размера:
-		Options.cycleWeight = 1;
-		Options.byteWeight = 20;
-	*/
-	Options.CycleWeight = 1000;
-	Options.ByteWeight = 1;
-
-	// Больше значение — больше вариантов для DP,
-	// но медленнее анализ.
-	Options.MaxStackPairsToEnumerate = 16;
+FCodeGenerationResult SCanvas::CodeGeneration(
+	const std::vector<uint8_t>& InkData,
+	const std::vector<uint8_t>& AttributeData,
+	const std::vector<uint8_t>& MaskData,
+	const CodeGenerator::FOptions& Options, const std::string& LabelName)
+{
+	FCodeGenerationResult Result;
 
 	/*
 	DirtyMask — это дифф-маска, то есть карта байтов, которые надо реально перезаписать.
@@ -1968,21 +1982,60 @@ void SCanvas::CodeGeneration(std::vector<uint8_t>& ScreenData)
 		DirtyMask[i] = 0; // этот байт пропускаем
 	*/
 	// Пока прозрачности нет — DirtyMask пустой.
-	std::vector<uint8_t> DirtyMask;
+	std::vector<uint8_t> ScreenData(CodeGenerator::ZX_SCREEN_SIZE);
+	std::vector<uint8_t> DirtyMask(CodeGenerator::ZX_SCREEN_SIZE);
 
-	CodeGenerator::FAnalysis Analysis = BuildAnalysis(ScreenData, DirtyMask, Options);
-	CodeGenerator::FPlan Plan = OptimizePlan(Analysis, Options);
-
-	//PrintPlanSummary(Analysis, Plan);
-
-	std::string AsmCode = EmitAsm(Analysis, Plan, Options, "test");
-	if (AsmCode.size() > 0)
+	// fill pixels
+	for (int32_t PixelIndex = 0; PixelIndex < CodeGenerator::ZX_PIXEL_SIZE; ++PixelIndex)
 	{
-		std::filesystem::path SavePath = SourcePathFile.parent_path();
-		std::filesystem::path SaveName = SourcePathFile.stem();
-		std::filesystem::path AsmDataFilePath = IO::NormalizePath(std::filesystem::absolute(SavePath / std::format("{}.asm", SaveName.string())));
-		std::vector<uint8_t> AsmBytes(AsmCode.begin(), AsmCode.end()); 
-		IO::SaveBinaryData(AsmBytes, AsmDataFilePath, false);
-		IO::OpenFolder(AsmDataFilePath);
+		const uint8_t& Mask = MaskData[PixelIndex];
+		DirtyMask[PixelIndex] = Mask == 0x00 ? 0 : 1;
+
+		const uint8_t& Pixels = InkData[PixelIndex];
+		ScreenData[PixelIndex] = Mask == 0x00 ? 0 : Pixels;
 	}
+
+	// fill attribute
+	for (int32_t AttrIndex = 0; AttrIndex < CodeGenerator::ZX_ATTRIBUTE_SIZE; ++AttrIndex)
+	{
+		const uint8_t& Attribute = AttributeData[AttrIndex];
+		DirtyMask[CodeGenerator::ZX_PIXEL_SIZE + AttrIndex] = Attribute == 0xFF ? 0 : 1;
+		ScreenData[CodeGenerator::ZX_PIXEL_SIZE + AttrIndex] = Attribute == 0xFF ? 0 : Attribute;
+	}
+
+	CodeGenerator::FAnalysis Analysis;
+	if (!BuildAnalysis(ScreenData, DirtyMask, Options, Analysis, Result.Error))
+	{
+		return Result;
+	}
+
+	CodeGenerator::FPlan Plan;
+	if (!OptimizePlan(Analysis, Options, Plan, Result.Error))
+	{
+		return Result;
+	}
+
+	if (!EmitAsm(Analysis, Plan, Options, Result.AsmCode, Result.Error, LabelName.empty() ? "DrawGeneratedScreen" : LabelName))
+	{
+		return Result;
+	}
+
+	Result.OperationCount = (int32_t)Plan.CandidateIds.size();
+	Result.Cycles = Plan.TotalCycles;
+	Result.CodeBytes = Plan.TotalCodeBytes;
+	Result.DirtyBytes = 0;
+
+	for (uint8_t Dirty : Analysis.Dirty)
+	{
+		Result.DirtyBytes += Dirty ? 1 : 0;
+	}
+
+	Result.bSuccess = true;
+	if (Result.AsmCode.empty())
+	{
+		Result.bSuccess = false;
+		Result.Error = "Code generation produced empty output.";
+	}
+
+	return Result;
 }

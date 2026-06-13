@@ -222,11 +222,12 @@ CodeGenerator::FCandidate CodeGenerator::MakeHorizontalSameByteIncL(const std::v
     return C;
 }
 
-CodeGenerator::FAnalysis CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::vector<uint8_t>& DirtyMask, const FOptions& Options)
+bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::vector<uint8_t>& DirtyMask, const FOptions& Options, FAnalysis& OutAnalysis, std::string& OutError)
 {
     if (Data.size() != ZX_SCREEN_SIZE)
     {
-        throw std::runtime_error("BuildAnalysis: data must contain exactly 6912 bytes");
+        OutError = "BuildAnalysis: data must contain exactly 6912 bytes";
+        return false;
     }
 
     FAnalysis Analysis;
@@ -240,7 +241,8 @@ CodeGenerator::FAnalysis CodeGenerator::BuildAnalysis(const std::vector<uint8_t>
     {
         if (DirtyMask.size() != ZX_SCREEN_SIZE)
         {
-            throw std::runtime_error("BuildAnalysis: dirtyMask must contain exactly 6912 bytes");
+            OutError = "BuildAnalysis: dirtyMask must contain exactly 6912 bytes";
+            return false;
         }
 
         Analysis.Dirty = DirtyMask;
@@ -258,8 +260,11 @@ CodeGenerator::FAnalysis CodeGenerator::BuildAnalysis(const std::vector<uint8_t>
             continue;
         }
 
-        AddCandidate(Analysis, MakeByteAbsA(Data, i));
-        AddCandidate(Analysis, MakeByteHLImm(Data, i));
+        if (Options.EnableByteCandidates)
+        {
+            AddCandidate(Analysis, MakeByteAbsA(Data, i));
+            AddCandidate(Analysis, MakeByteHLImm(Data, i));
+        }
     }
 
     // ------------------------------------------------------------
@@ -272,7 +277,10 @@ CodeGenerator::FAnalysis CodeGenerator::BuildAnalysis(const std::vector<uint8_t>
             continue;
         }
 
-        AddCandidate(Analysis, MakeWordAbsHL(Data, i));
+        if (Options.EnableWordCandidates)
+        {
+            AddCandidate(Analysis, MakeWordAbsHL(Data, i));
+        }
     }
 
     // ------------------------------------------------------------
@@ -308,12 +316,17 @@ CodeGenerator::FAnalysis CodeGenerator::BuildAnalysis(const std::vector<uint8_t>
             // Стек имеет смысл примерно с 2 PUSH, то есть с 4 байт.
             for (int32_t Pairs = 2; Pairs <= MaxPairs; ++Pairs)
             {
-                AddCandidate(Analysis, MakeStackBlock(Data, Start, Pairs * 2));
+                if (Options.EnableStackBlocks)
+                {
+                    AddCandidate(Analysis, MakeStackBlock(Data, Start, Pairs * 2));
+                }
             }
         }
 
         // Большой блок на весь непрерывный участок.
-        if ((RangeLength & 1) == 0 && RangeLength / 2 > Options.MaxStackPairsToEnumerate)
+        if (Options.EnableStackBlocks &&
+            (RangeLength & 1) == 0 &&
+            RangeLength / 2 > Options.MaxStackPairsToEnumerate)
         {
             AddCandidate(Analysis, MakeStackBlock(Data, RangeStart, RangeLength));
         }
@@ -352,8 +365,11 @@ CodeGenerator::FAnalysis CodeGenerator::BuildAnalysis(const std::vector<uint8_t>
 
         if (PairCount >= 2)
         {
-            AddCandidate(Analysis, MakeRepeatWordAbsHL(Data, Start, PairCount));
-            AddCandidate(Analysis, MakeRepeatWordStack(Data, Start, PairCount));
+            if (Options.EnableRepeatWords)
+            {
+                AddCandidate(Analysis, MakeRepeatWordAbsHL(Data, Start, PairCount));
+                AddCandidate(Analysis, MakeRepeatWordStack(Data, Start, PairCount));
+            }
         }
     }
 
@@ -395,14 +411,18 @@ CodeGenerator::FAnalysis CodeGenerator::BuildAnalysis(const std::vector<uint8_t>
 
         if (Length >= 3)
         {
-            AddCandidate(Analysis, MakeHorizontalSameByteIncL(Data, Start, Length));
+            if (Options.EnableHorizontalSameByteIncL)
+            {
+                AddCandidate(Analysis, MakeHorizontalSameByteIncL(Data, Start, Length));
+            }
         }
     }
 
-    return Analysis;
+    OutAnalysis = std::move(Analysis);
+    return true;
 }
 
-CodeGenerator::FPlan CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Options)
+bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Options, FPlan& OutPlan, std::string& OutError)
 {
     const int32_t N = ZX_SCREEN_SIZE;
     const int64_t INF = (std::numeric_limits<int64_t>::max)() / 4;
@@ -452,22 +472,8 @@ CodeGenerator::FPlan CodeGenerator::OptimizePlan(const FAnalysis& Analysis, cons
             }
         }
 
-        // На всякий случай: если кандидатов не нашлось, пишем байт.
-        if (Choice[i] == -1 && Analysis.Dirty[i])
-        {
-            FCandidate Fallback = MakeByteAbsA(Analysis.Data, i);
-            const int64_t Cost = ScoreCandidate(Fallback, Options) + DP[i + 1];
-
-            if (Cost < DP[i])
-            {
-                // Dallback не добавлен в Analysis, поэтому в норме сюда не попадём.
-                // Оставлено как защита.
-                DP[i] = Cost;
-            }
-        }
     }
 
-    FPlan Plan;
     int32_t Pos = 0;
 
     while (Pos < N)
@@ -481,19 +487,20 @@ CodeGenerator::FPlan CodeGenerator::OptimizePlan(const FAnalysis& Analysis, cons
         const int32_t ID = Choice[Pos];
         if (ID < 0)
         {
-            throw std::runtime_error("OptimizePlan: failed to cover dirty byte");
+            OutError = "OptimizePlan: failed to cover dirty byte";
+            return false;
         }
 
         const FCandidate& Candidate = Analysis.Candidates[ID];
 
-        Plan.CandidateIds.push_back(ID);
-        Plan.TotalCycles += Candidate.Cycles;
-        Plan.TotalCodeBytes += Candidate.CodeBytes;
+        OutPlan.CandidateIds.push_back(ID);
+        OutPlan.TotalCycles += Candidate.Cycles;
+        OutPlan.TotalCodeBytes += Candidate.CodeBytes;
 
         Pos = Candidate.EndOffset;
     }
 
-    return Plan;
+    return true;
 }
 
 void CodeGenerator::EmitLdA(std::ostringstream& Out, FEmitState& State, uint8_t Value)
@@ -526,7 +533,7 @@ void CodeGenerator::EmitLdSP(std::ostringstream& Out, FEmitState& State, uint16_
     }
 }
 
-void CodeGenerator::EmitCandidate(std::ostringstream& Out, const FCandidate& Candidate, const std::vector<uint8_t>& Data, FEmitState& State)
+bool CodeGenerator::EmitCandidate(std::ostringstream& Out, const FCandidate& Candidate, const std::vector<uint8_t>& Data, FEmitState& State, std::string& OutError)
 {
     switch (Candidate.Kind)
     {
@@ -622,11 +629,14 @@ void CodeGenerator::EmitCandidate(std::ostringstream& Out, const FCandidate& Can
     }
 
     default:
-        throw std::runtime_error("EmitCandidate: unknown candidate kind");
+        OutError = "EmitCandidate: unknown candidate kind";
+        return false;
     }
+
+    return true;
 }
 
-std::string CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, const std::string& LabelName)
+bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::string& OutError, const std::string& LabelName)
 {
     std::ostringstream Out;
     FEmitState State;
@@ -656,7 +666,10 @@ std::string CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan,
             << " code=" << Candidate.CodeBytes
             << "\n";
 
-        EmitCandidate(Out, Candidate, Analysis.Data, State);
+        if (!EmitCandidate(Out, Candidate, Analysis.Data, State, OutError))
+        {
+            return false;
+        }
         Out << "\n";
     }
 
@@ -673,7 +686,14 @@ std::string CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan,
 
     Out << "                RET\n";
 
-    return Out.str();
+    OutAsm = Out.str();
+    if (OutAsm.empty())
+    {
+        OutError = "EmitAsm: produced empty output";
+        return false;
+    }
+
+    return true;
 }
 
 void CodeGenerator::PrintPlanSummary(const FAnalysis& Analysis, const FPlan& Plan)

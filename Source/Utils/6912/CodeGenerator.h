@@ -5,6 +5,8 @@
 namespace CodeGenerator
 {
     static constexpr uint16_t ZX_SCREEN_BASE = 0x4000;
+    static constexpr int32_t ZX_PIXEL_SIZE = 0x1800;
+    static constexpr int32_t ZX_ATTRIBUTE_SIZE = 0x0300;
     static constexpr int32_t ZX_SCREEN_SIZE = 0x1B00;
     static constexpr uint16_t ZX_SCREEN_END = ZX_SCREEN_BASE + ZX_SCREEN_SIZE; // #5B00
 
@@ -46,7 +48,6 @@ namespace CodeGenerator
     {
         std::vector<uint8_t> Data;
         std::vector<uint8_t> Dirty;
-
         std::vector<FCandidate> Candidates;
 
         // StartsAt[Offset] -> ID кандидатов, которые могут начаться с Offset.
@@ -80,6 +81,12 @@ namespace CodeGenerator
 
         bool PreserveSP = true;
         bool DisableInterruptsForStack = true;
+
+        bool EnableByteCandidates = true;
+        bool EnableWordCandidates = true;
+        bool EnableStackBlocks = true;
+        bool EnableRepeatWords = true;
+        bool EnableHorizontalSameByteIncL = true;
     };
 
     struct FEmitState
@@ -130,14 +137,14 @@ namespace CodeGenerator
     FCandidate MakeRepeatWordStack(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t PairCount);
     FCandidate MakeHorizontalSameByteIncL(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Length);
 
-    FAnalysis BuildAnalysis(const std::vector<uint8_t>& Data, const std::vector<uint8_t>& DirtyMask, const FOptions& Options);
-    FPlan OptimizePlan(const FAnalysis& Analysis, const FOptions& Options);
+    bool BuildAnalysis(const std::vector<uint8_t>& Data, const std::vector<uint8_t>& DirtyMask, const FOptions& Options, FAnalysis& OutAnalysis, std::string& OutError);
+    bool OptimizePlan(const FAnalysis& Analysis, const FOptions& Options, FPlan& OutPlan, std::string& OutError);
 
     void EmitLdA(std::ostringstream& Out, FEmitState& State, uint8_t Value);
     void EmitLdHL(std::ostringstream& Out, FEmitState& State, uint16_t Value);
     void EmitLdSP(std::ostringstream& Out, FEmitState& State, uint16_t Value);
-    void EmitCandidate(std::ostringstream& Out, const FCandidate& Candidate, const std::vector<uint8_t>& Data, FEmitState& State);
-    std::string EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, const std::string& LabelName = "DrawGeneratedScreen");
+    bool EmitCandidate(std::ostringstream& Out, const FCandidate& Candidate, const std::vector<uint8_t>& Data, FEmitState& State, std::string& OutError);
+    bool EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::string& OutError, const std::string& LabelName = "DrawGeneratedScreen");
 
     void PrintPlanSummary(const FAnalysis& Analysis, const FPlan& Plan);
 }

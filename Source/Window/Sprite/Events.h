@@ -153,8 +153,3 @@ struct FEvent_RequestTimelineState : public TEvent<const struct FTimelineState&>
 		: TEvent(FEventTag::RequestTimelineStateTag)
 	{}
 };
-
-struct FEvent_Export : public IEvent
-{
-	using IEvent::IEvent;
-};

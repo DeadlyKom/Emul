@@ -5,6 +5,7 @@
 #include <Core/Image.h>
 #include <Utils/UndoQueue.h>
 #include <Utils/Aseprite/Format.h>
+#include <Utils/6912/CodeGenerator.h>
 #include <Utils/UI/Draw_ZXColorVideo.h>
 #include "Palette.h"
 #include "ToolBar.h"
@@ -28,6 +29,17 @@ enum class EImageFormat;
 struct FSprite;
 struct FKeyframes;
 
+struct FCodeGenerationResult
+{
+	bool bSuccess = false;
+	std::string Error;
+	std::string AsmCode;
+	int32_t OperationCount = 0;
+	int32_t Cycles = 0;
+	int32_t CodeBytes = 0;
+	int32_t DirtyBytes = 0;
+};
+
 class SCanvas : public SViewerChildBase
 {
 	using Super = SViewerChildBase;
@@ -46,6 +58,7 @@ public:
 
 	const std::filesystem::path& GetSourcePathFile() const { return SourcePathFile; }
 	EImageFormat GetImageFormat() const { return ImageFormat; }
+	FCodeGenerationResult BuildCodeGenerationResult(const CodeGenerator::FOptions& Options, const std::string& LabelName);
 
 private:
 	void Draw_PopupMenu();
@@ -98,6 +111,7 @@ private:
 
 	// update canvas
 	void RebuildCanvasFromAseprite(int32_t Frame = 0);
+	bool FrameDifferenceZXColor(int32_t Frame, std::vector<uint8_t>& OutputDifference_InkData, std::vector<uint8_t>& OutputDifference_AttributeData, std::vector<uint8_t>& OutputDifference_MaskData);
 
 	// undo/redo
 	void UndoSwapPixel(FPixelToCanvas& Param);
@@ -106,7 +120,12 @@ private:
 	std::string GetNextSpriteName(const std::map<int32_t, std::string>& Sprites);
 
 	// 6912
-	void CodeGeneration(std::vector<uint8_t>& ScreenData);
+	FCodeGenerationResult CodeGeneration(
+		const std::vector<uint8_t>& InkData,
+		const std::vector<uint8_t>& AttributeData,
+		const std::vector<uint8_t>& MaskData,
+		const CodeGenerator::FOptions& Options,
+		const std::string& LabelName);
 
 	bool bPlay;
 	bool bDirty;

@@ -115,6 +115,37 @@ namespace
 		return Result;
 	}
 
+	inline std::wstring Utf8ToWide(const std::string& Text)
+	{
+		if (Text.empty())
+		{
+			return {};
+		}
+
+		const int Size = MultiByteToWideChar(
+			CP_UTF8,
+			0,
+			Text.data(),
+			(int)Text.size(),
+			nullptr,
+			0
+		);
+
+		std::wstring Result;
+		Result.resize(Size);
+
+		MultiByteToWideChar(
+			CP_UTF8,
+			0,
+			Text.data(),
+			(int)Text.size(),
+			Result.data(),
+			Size
+		);
+
+		return Result;
+	}
+
 	inline void CopyToBuffer(char* Buffer, size_t BufferSize, const std::string& Text)
 	{
 		if (Buffer == nullptr || BufferSize == 0)
@@ -158,7 +189,7 @@ void FAppSprite::Initialize()
 				{"##Layout_StatusBar", 0.05f, ImGuiDir_Down, {
 					{"##Layout_SpriteList", 0.2f, ImGuiDir_Left, {
 						{},
-						{"##Layout_Timeline", 0.3f, ImGuiDir_Down, {
+						{"##Layout_Timeline", 0.1f, ImGuiDir_Down, {
 							{"##Layout_ToolBar", 0.06f, ImGuiDir_Right, {
 								{"##Layout_Palette",  0.15f, ImGuiDir_Up, {
 									{},
@@ -451,7 +482,7 @@ void FAppSprite::Show_MenuBar()
 			{
 				if (ImGui::MenuItem(Menu_File_Export_CodeGenerationName))
 				{
-					ImGui::OpenPopup(CodeGenerationID);
+					bCodeGenerationOpen = true;
 				}
 				ImGui::EndMenu();
 			}
@@ -585,7 +616,7 @@ void FAppSprite::Show_MenuBar()
 	if (ShowModal_WindowQuit()) {}
 	else if (ShowModal_WindowNewCanvas()) {}
 	else if (ShowModal_WindowgGridSettings()) {}
-	else if (ShowModal_WindowgCodeGeneration()) {}
+	else if (bCodeGenerationOpen) { Show_WindowgCodeGeneration(); }
 }
 
 bool FAppSprite::ShowModal_WindowQuit()
@@ -859,7 +890,7 @@ bool FAppSprite::ShowModal_WindowgGridSettings()
 	return bVisible;
 }
 
-bool FAppSprite::ShowModal_WindowgCodeGeneration()
+bool FAppSprite::Show_WindowgCodeGeneration()
 {
 	// always center this window when appearing
 	if (ImGui::IsWindowAppearing())
@@ -867,9 +898,52 @@ bool FAppSprite::ShowModal_WindowgCodeGeneration()
 		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
 	}
 
-	const bool bVisible = ImGui::BeginPopupModal(Modal_CodeGenerationName, NULL, ImGuiWindowFlags_AlwaysAutoResize);
+	{
+		ImGuiViewport* Viewport = ImGui::GetMainViewport();
+		const ImGuiStyle& Style = ImGui::GetStyle();
+		const float PreTextWidth = ImGui::CalcTextSize("A").x;
+		const float PreTextHeight = ImGui::GetTextLineHeightWithSpacing();
+		const float PreLeftWidth = PreTextWidth * 72.0f;
+		const float PreCodeWidth = PreTextWidth * 80.0f;
+		const ImVec2 BaseMinSize(PreLeftWidth + Style.WindowPadding.x * 2.0f, PreTextHeight * 48.0f);
+		const ImVec2 CodeMinSize(BaseMinSize.x + Style.ItemSpacing.x + PreCodeWidth, BaseMinSize.y);
+
+		if (CodeGenerationBaseWindowSize.x <= 0.0f || CodeGenerationBaseWindowSize.y <= 0.0f)
+		{
+			CodeGenerationBaseWindowSize = ImVec2(BaseMinSize.x, Viewport->WorkSize.y * 0.9f);
+		}
+		if (CodeGenerationWindowHeight <= 0.0f)
+		{
+			CodeGenerationWindowHeight = CodeGenerationBaseWindowSize.y;
+		}
+		if (CodeGenerationCodeWindowSize.x <= 0.0f || CodeGenerationCodeWindowSize.y <= 0.0f)
+		{
+			CodeGenerationCodeWindowSize = ImVec2(CodeGenerationBaseWindowSize.x + Style.ItemSpacing.x + PreCodeWidth, CodeGenerationBaseWindowSize.y);
+		}
+		CodeGenerationBaseWindowSize.y = CodeGenerationWindowHeight;
+		CodeGenerationCodeWindowSize.y = CodeGenerationWindowHeight;
+
+		ImGui::SetNextWindowSizeConstraints(
+			bCodeGenerationShowCode ? CodeMinSize : ImVec2(BaseMinSize.x, BaseMinSize.y),
+			bCodeGenerationShowCode ? ImVec2(FLT_MAX, FLT_MAX) : ImVec2(BaseMinSize.x, FLT_MAX));
+		ImGui::SetNextWindowSize(
+			bCodeGenerationShowCode ? CodeGenerationCodeWindowSize : CodeGenerationBaseWindowSize,
+			bCodeGenerationApplyWindowSize ? ImGuiCond_Always : ImGuiCond_Appearing);
+		bCodeGenerationApplyWindowSize = false;
+	}
+
+	const bool bVisible = ImGui::Begin(Modal_CodeGenerationName, &bCodeGenerationOpen, ImGuiWindowFlags_NoCollapse);
 	if (bVisible)
 	{
+		if (ImGui::IsKeyPressed(ImGuiKey_Escape))
+		{
+			bCodeGenerationOpen = false;
+			//ImGui::CloseCurrentPopup();
+			ImGui::End();
+			return false;
+		}
+
+		const bool bShowCodeThisFrame = bCodeGenerationShowCode;
 		if (ImGui::IsWindowAppearing())
 		{
 			std::shared_ptr<SCanvas> Canvas = GetActiveCanvas();
@@ -877,33 +951,354 @@ bool FAppSprite::ShowModal_WindowgCodeGeneration()
 			std::wstring OutputFileNameW = std::format(L"{}.asm", CanvasName);
 			std::string OutputFileNameUtf8 = WideToUtf8(OutputFileNameW);
 			CopyToBuffer(NewOutputFileNameBuffer, sizeof(NewOutputFileNameBuffer), OutputFileNameUtf8);
+			RefreshCodeGenerationPreview();
+			CodeGenerationBaseWindowSize = ImVec2(0.0f, 0.0f);
+			CodeGenerationCodeWindowSize = ImVec2(0.0f, 0.0f);
+			CodeGenerationWindowHeight = 0.0f;
+			bCodeGenerationCodeWindowSizeInitialized = false;
 		}
 
 		const float TextWidth = ImGui::CalcTextSize("A").x;
 		const float TextHeight = ImGui::GetTextLineHeightWithSpacing();
+		const ImVec2 AvailableSize = ImGui::GetContentRegionAvail();
+		const float LeftWidth = TextWidth * 72.0f;
+		const float PanelHeight = AvailableSize.y;
+		const float BottomButtonsHeight = TextHeight * 2.0f;
+		const float OptionsHeight = ImMax(TextHeight * 8.0f, PanelHeight - BottomButtonsHeight - ImGui::GetStyle().ItemSpacing.y);
+		const float ViewCodeButtonWidth = TextWidth * 14.0f;
+		const float RefreshButtonWidth = TextWidth * 11.0f;
+		const float InputNumberWidth = TextWidth * 14.0f;
+		const float OutputFileWidth = TextWidth * 56.0f;
+		auto CheckboxWithTooltip = [&](const char* Label, bool* Value, const char* Tooltip)
+		{
+			ImGui::Checkbox(Label, Value);
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::BeginTooltip();
+				ImGui::TextUnformatted(Tooltip);
+				ImGui::EndTooltip();
+			}
+		};
+
+		ImGui::BeginChild("##CodeGenerationOptionsPanel", ImVec2(LeftWidth, PanelHeight), false);
+		ImGui::BeginChild("##CodeGenerationOptionsContent", ImVec2(0.0f, OptionsHeight), false);
 
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
 		ImGui::SeparatorText("Output file : ");
-		ImGui::InputTextEx("##Name", NULL, NewOutputFileNameBuffer, IM_ARRAYSIZE(NewOutputFileNameBuffer), ImVec2(TextWidth * 64.0f, TextHeight), ImGuiInputTextFlags_None);
+		ImGui::InputTextEx("##Name", NULL, NewOutputFileNameBuffer, IM_ARRAYSIZE(NewOutputFileNameBuffer), ImVec2(OutputFileWidth, TextHeight), ImGuiInputTextFlags_None);
+
+		bool bOptionsChanged = false;
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
+		ImGui::SeparatorText("Code generation options : ");
+		bOptionsChanged |= ImGui::InputTextEx("Label", NULL, CodeGenerationLabelNameBuffer, IM_ARRAYSIZE(CodeGenerationLabelNameBuffer), ImVec2(TextWidth * 32.0f, TextHeight), ImGuiInputTextFlags_None);
+
+		if (ImGui::Button("Speed", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
+		{
+			CodeGenerationCycleWeight = 1000;
+			CodeGenerationByteWeight = 1;
+			bOptionsChanged = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Balanced", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
+		{
+			CodeGenerationCycleWeight = 10;
+			CodeGenerationByteWeight = 1;
+			bOptionsChanged = true;
+		}
+		ImGui::SameLine();
+		if (ImGui::Button("Small", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
+		{
+			CodeGenerationCycleWeight = 1;
+			CodeGenerationByteWeight = 20;
+			bOptionsChanged = true;
+		}
+
+		CodeGenerationMaxStackPairsToEnumerate = ImMax(CodeGenerationMaxStackPairsToEnumerate, 2);
+		CodeGenerationCycleWeight = ImMax(CodeGenerationCycleWeight, 1);
+		CodeGenerationByteWeight = ImMax(CodeGenerationByteWeight, 1);
+		ImGui::SetNextItemWidth(InputNumberWidth);
+		bOptionsChanged |= ImGui::InputInt("Max stack pairs", &CodeGenerationMaxStackPairsToEnumerate);
+		ImGui::SetNextItemWidth(InputNumberWidth);
+		bOptionsChanged |= ImGui::InputInt("Cycle weight", &CodeGenerationCycleWeight);
+		ImGui::SetNextItemWidth(InputNumberWidth);
+		bOptionsChanged |= ImGui::InputInt("Code byte weight", &CodeGenerationByteWeight);
+		CheckboxWithTooltip(
+			"Preserve SP",
+			&bCodeGenerationPreserveSP,
+			"Keeps SP stable around stack-based candidates when possible.\nThis changes the emitted sequence, not the scoring formula.");
+		CheckboxWithTooltip(
+			"Disable interrupts for stack writes",
+			&bCodeGenerationDisableInterruptsForStack,
+			"Adds DI/EI protection around stack write sequences.\nUseful when the generated block must not be interrupted.");
+		CheckboxWithTooltip(
+			"Generate opcode instead of text file",
+			&bCodeGenerationGenerateOpcode,
+			"Changes export mode to binary opcode output instead of a .txt/.asm preview file.\nThe preview in the log stays readable assembly text.");
+
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.35f));
+		ImGui::SeparatorText("Code generation approaches : ");
+		CheckboxWithTooltip(
+			"Byte candidates",
+			&bCodeGenerationEnableByteCandidates,
+			"Enables section 1: single-byte writes through:\n LD A, n\n LD (nn), A\n and\n LD HL, nn\n LD (HL), n\n Cost is still chosen by Cycle weight and Code byte weight.");
+		CheckboxWithTooltip(
+			"Word candidates",
+			&bCodeGenerationEnableWordCandidates,
+			"Enables section 2: 2-byte writes through:\n LD HL, word\n LD (nn), HL\n Useful when consecutive bytes share the same 16-bit word.");
+		CheckboxWithTooltip(
+			"Stack blocks",
+			&bCodeGenerationEnableStackBlocks,
+			"Enables section 3: stack-based blocks using:\n LD SP, end\n LD HL, word\n PUSH HL\n ...\n Usually fewer code bytes, often better cycle/code tradeoff.");
+		CheckboxWithTooltip(
+			"Repeat words",
+			&bCodeGenerationEnableRepeatWords,
+			"Enables section 4: repeated 16-bit values with:\n LD (addr), HL\n ...\n or\n PUSH HL\n...\n Used for repeated WORD patterns in the dirty range.");
+		CheckboxWithTooltip(
+			"Horizontal same byte: INC L",
+			&bCodeGenerationEnableHorizontalSameByteIncL,
+			"Enables section 5: horizontal runs of the same byte using INC L\n This keeps the row on one page and is scored by the same cost formula.");
+
+		CodeGenerationMaxStackPairsToEnumerate = ImClamp(CodeGenerationMaxStackPairsToEnumerate, 2, 256);
+		CodeGenerationCycleWeight = ImMax(CodeGenerationCycleWeight, 1);
+		CodeGenerationByteWeight = ImMax(CodeGenerationByteWeight, 1);
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.35f));
+		if (ImGui::Button("Refresh", ImVec2(RefreshButtonWidth, TextHeight * 1.5f)))
+		{
+			RefreshCodeGenerationPreview();
+		}
+
+		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
+		ImGui::SeparatorText("Compilation log : ");
+		if (ImGui::SmallButton("Clear log"))
+		{
+			CodeGenerationLogText.clear();
+		}
+		ImGui::BeginChild("##CodeGenerationLog", ImVec2(0.0f, ImGui::GetContentRegionAvail().y), true, ImGuiWindowFlags_HorizontalScrollbar);
+		ImGui::TextUnformatted(CodeGenerationLogText.c_str());
+		ImGui::EndChild();
+
+		ImGui::EndChild();
+		ImGui::SetCursorPosY(ImMax(ImGui::GetCursorPosY(), PanelHeight - BottomButtonsHeight));
+
+		if (!bCodeGenerationPreviewValid)
+		{
+			ImGui::BeginDisabled();
+		}
 
 		if (ImGui::ButtonEx("Export", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
-			FEvent_Export Export_Event(FEventTag::NotificationCodeGenerationTag);
+			if (ExportCodeGenerationPreview())
 			{
-				//Export_Event.
-				Viewer->GetEventSystem().Publish(Export_Event);
+				bCodeGenerationOpen = false;
+				ImGui::CloseCurrentPopup();
 			}
-			ImGui::CloseCurrentPopup();
+		}
+
+		if (!bCodeGenerationPreviewValid)
+		{
+			ImGui::EndDisabled();
 		}
 		ImGui::SetItemDefaultFocus();
 		ImGui::SameLine();
 		if (ImGui::Button("Cancel", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
+			bCodeGenerationOpen = false;
 			ImGui::CloseCurrentPopup();
 		}
-		ImGui::EndPopup();
+		ImGui::SameLine();
+		ImGui::SetCursorPosX(ImMax(ImGui::GetCursorPosX(), ImGui::GetCursorPosX() + ImGui::GetContentRegionAvail().x - ViewCodeButtonWidth));
+		if (ImGui::Button(bShowCodeThisFrame ? "<<< Hide Code" : "View Code >>>", ImVec2(ViewCodeButtonWidth, TextHeight * 1.5f)))
+		{
+			const ImGuiStyle& Style = ImGui::GetStyle();
+			ImGuiWindow* RootWindow = ImGui::GetCurrentWindow()->RootWindow;
+			const ImVec2 CurrentWindowSize = RootWindow ? RootWindow->SizeFull : ImGui::GetWindowSize();
+			if (bShowCodeThisFrame)
+			{
+				CodeGenerationBaseWindowSize = CurrentWindowSize;
+				CodeGenerationWindowHeight = CurrentWindowSize.y;
+				CodeGenerationBaseWindowSize.y = CodeGenerationWindowHeight;
+			}
+			else
+			{
+				const float CodeExtraWidth = TextWidth * 80.0f;
+				CodeGenerationCodeWindowSize = CurrentWindowSize;
+				CodeGenerationWindowHeight = CurrentWindowSize.y;
+				CodeGenerationBaseWindowSize.y = CodeGenerationWindowHeight;
+				if (!bCodeGenerationCodeWindowSizeInitialized)
+				{
+					CodeGenerationCodeWindowSize = ImVec2(CurrentWindowSize.x + Style.ItemSpacing.x + CodeExtraWidth, CodeGenerationWindowHeight);
+					bCodeGenerationCodeWindowSizeInitialized = true;
+				}
+				else
+				{
+					CodeGenerationCodeWindowSize.y = CodeGenerationWindowHeight;
+				}
+			}
+			bCodeGenerationShowCode = !bCodeGenerationShowCode;
+			bCodeGenerationApplyWindowSize = true;
+		}
+
+		ImGui::EndChild();
+
+		if (bShowCodeThisFrame)
+		{
+			ImGui::SameLine();
+			ImGui::BeginChild("##CodeGenerationCodePanel", ImVec2(0.0f, PanelHeight), false);
+			ImGui::TextUnformatted("Code :");
+			ImGui::Separator();
+			ImGui::BeginChild("##CodeGenerationPreview", ImVec2(0.0f, 0.0f), true, ImGuiWindowFlags_HorizontalScrollbar);
+			if (CodeGenerationPreviewText.empty())
+			{
+				ImGui::TextDisabled("No generated code.");
+			}
+			else
+			{
+				ImGui::TextUnformatted(CodeGenerationPreviewText.c_str());
+			}
+			ImGui::EndChild();
+			ImGui::EndChild();
+		}
+
+		if (bShowCodeThisFrame)
+		{
+			ImGuiWindow* RootWindow = ImGui::GetCurrentWindow()->RootWindow;
+			const ImVec2 CurrentWindowSize = RootWindow ? RootWindow->SizeFull : ImGui::GetWindowSize();
+			const bool bUserResizing = ImGui::IsMouseDown(ImGuiMouseButton_Left) &&
+				ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows) &&
+				(ImAbs(CurrentWindowSize.x - CodeGenerationCodeWindowSize.x) > 1.0f ||
+				 ImAbs(CurrentWindowSize.y - CodeGenerationCodeWindowSize.y) > 1.0f);
+			if (bUserResizing)
+			{
+				CodeGenerationCodeWindowSize = CurrentWindowSize;
+				CodeGenerationWindowHeight = CurrentWindowSize.y;
+			}
+		}
+		else
+		{
+			ImGuiWindow* RootWindow = ImGui::GetCurrentWindow()->RootWindow;
+			const ImVec2 CurrentWindowSize = RootWindow ? RootWindow->SizeFull : ImGui::GetWindowSize();
+			const bool bUserResizing = ImGui::IsMouseDown(ImGuiMouseButton_Left) &&
+				ImGui::IsWindowHovered(ImGuiHoveredFlags_RootAndChildWindows) &&
+				ImAbs(CurrentWindowSize.y - CodeGenerationWindowHeight) > 1.0f;
+			if (bUserResizing)
+			{
+				CodeGenerationWindowHeight = CurrentWindowSize.y;
+			}
+		}
+		ImGui::End();
 	}
 	return bVisible;
+}
+
+void FAppSprite::RefreshCodeGenerationPreview()
+{
+	bCodeGenerationPreviewValid = false;
+	CodeGenerationPreviewText.clear();
+
+	auto AppendLogLine = [this](const std::string& Line)
+	{
+		if (!CodeGenerationLogText.empty())
+		{
+			CodeGenerationLogText.push_back('\n');
+		}
+		CodeGenerationLogText += Line;
+	};
+
+	AppendLogLine("Generating source code...");
+
+	std::shared_ptr<SCanvas> Canvas = GetActiveCanvas();
+	if (!Canvas)
+	{
+		AppendLogLine("No active canvas.");
+		return;
+	}
+
+	CodeGenerator::FOptions Options;
+	Options.MaxStackPairsToEnumerate = CodeGenerationMaxStackPairsToEnumerate;
+	Options.CycleWeight = CodeGenerationCycleWeight;
+	Options.ByteWeight = CodeGenerationByteWeight;
+	Options.PreserveSP = bCodeGenerationPreserveSP;
+	Options.DisableInterruptsForStack = bCodeGenerationDisableInterruptsForStack;
+	Options.EnableByteCandidates = bCodeGenerationEnableByteCandidates;
+	Options.EnableWordCandidates = bCodeGenerationEnableWordCandidates;
+	Options.EnableStackBlocks = bCodeGenerationEnableStackBlocks;
+	Options.EnableRepeatWords = bCodeGenerationEnableRepeatWords;
+	Options.EnableHorizontalSameByteIncL = bCodeGenerationEnableHorizontalSameByteIncL;
+
+	FCodeGenerationResult Result = Canvas->BuildCodeGenerationResult(Options, CodeGenerationLabelNameBuffer);
+	if (!Result.bSuccess)
+	{
+		AppendLogLine(std::format("Failed: {}", Result.Error));
+		return;
+	}
+
+	bCodeGenerationPreviewValid = true;
+	CodeGenerationPreviewText = std::move(Result.AsmCode);
+	AppendLogLine(std::format("Source code size: {} bytes", CodeGenerationPreviewText.size()));
+	AppendLogLine(std::format("Dirty bytes: {}", Result.DirtyBytes));
+	AppendLogLine(std::format("Operations: {}", Result.OperationCount));
+	AppendLogLine(std::format("Estimated cycles: {}", Result.Cycles));
+	AppendLogLine(std::format("Code bytes: {}", Result.CodeBytes));
+	if (bCodeGenerationGenerateOpcode)
+	{
+		AppendLogLine("Opcode generation: enabled.");
+		AppendLogLine("Preview remains readable assembly text.");
+	}
+	AppendLogLine("OK");
+}
+
+bool FAppSprite::ExportCodeGenerationPreview()
+{
+	auto AppendLogLine = [this](const std::string& Line)
+	{
+		if (!CodeGenerationLogText.empty())
+		{
+			CodeGenerationLogText.push_back('\n');
+		}
+		CodeGenerationLogText += Line;
+	};
+
+	if (!bCodeGenerationPreviewValid || CodeGenerationPreviewText.empty())
+	{
+		AppendLogLine("Nothing to export.");
+		return false;
+	}
+
+	std::filesystem::path OutputPath(Utf8ToWide(NewOutputFileNameBuffer));
+	if (OutputPath.empty())
+	{
+		AppendLogLine("Output filename is empty.");
+		return false;
+	}
+
+	if (!OutputPath.has_extension())
+	{
+		OutputPath.replace_extension(".asm");
+	}
+
+	if (OutputPath.is_relative())
+	{
+		std::shared_ptr<SCanvas> Canvas = GetActiveCanvas();
+		std::filesystem::path BasePath = FAppFramework::GetPath(EPathType::Export);
+		if (Canvas && !Canvas->GetSourcePathFile().empty())
+		{
+			BasePath = Canvas->GetSourcePathFile().parent_path();
+		}
+
+		OutputPath = BasePath / OutputPath;
+	}
+
+	OutputPath = IO::NormalizePath(std::filesystem::absolute(OutputPath));
+	std::vector<uint8_t> AsmBytes(CodeGenerationPreviewText.begin(), CodeGenerationPreviewText.end());
+	std::error_code Error = IO::SaveBinaryData(AsmBytes, OutputPath, false);
+	if (Error)
+	{
+		AppendLogLine(std::format("Export failed: {}", Error.message()));
+		return false;
+	}
+
+	IO::OpenFolder(OutputPath.parent_path());
+	return true;
 }
 
 void  FAppSprite::Input_HotKeys()
