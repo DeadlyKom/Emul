@@ -773,7 +773,7 @@ void UI::ZXIndexColorToZXAttributeColor(
 
 			uint8_t PaperColor, InkColor;
 			GetInkPaper(Boundary, PaperColor, InkColor, Settings);
-			if (Settings.InkAlways == PaperColor)
+			if (Settings.InkAlways != EZXSpectrumColor::None && Settings.InkAlways == PaperColor)
 			{
 				std::swap(PaperColor, InkColor);
 			}

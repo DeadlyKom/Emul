@@ -23,7 +23,7 @@ namespace FCanvasOptionsFlags
 	};
 }
 
-enum class EFrameMode;
+namespace EFrameMode { enum Type; }
 enum class EImageFormat;
 struct FSprite;
 struct FKeyframes;
@@ -94,7 +94,7 @@ private:
 
 	void UpdateCursorColor(bool bButton = false);
 
-	void ChangeFrameMode(EFrameMode NewFrameMode);
+	void ChangeFrameMode(EFrameMode::Type NewFrameMode);
 
 	// update canvas
 	void RebuildCanvasFromAseprite(int32_t Frame = 0);
@@ -118,6 +118,7 @@ private:
 	bool bNeedConvertZXToCanvas;
 	bool bOpenPopupMenu;
 	bool bMouseInsideMarquee;
+	bool bFroceRebuiltSpriteFrame;
 
 	// popup menu 'New Sprite'
 	bool bRoundingToMultipleEight;
@@ -142,6 +143,7 @@ private:
 	uint32_t OptionsFlags[2];
 	uint32_t LastOptionsFlags;
 	int32_t SelectedSpritesFrame;
+	int32_t LastRebuiltSpriteFrame;
 	int32_t MaxFramesInSprites;
 
 	std::shared_ptr<AsepriteFormat::FSprite> AsepriteSprite;
@@ -161,7 +163,7 @@ private:
 	std::shared_ptr<UI::FZXColorView> ZXColorView;
 	UI::FConversationSettings ConversationSettings;
 	EToolMode::Type ToolMode[2];
-	EFrameMode FrameMode;
+	EFrameMode::Type FrameMode;
 	EImageFormat ImageFormat;
 	int32_t ImageFrameIndex;
 	std::filesystem::path SourcePathFile;

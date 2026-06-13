@@ -15,11 +15,35 @@ enum class EImageFormat
 	Aseprite,
 };
 
-enum class EFrameMode
+namespace EFrameMode
 {
-	None,
-	Difference
-};
+	enum Type
+	{
+		None,
+		Difference,
+
+		MAX
+	};
+
+	inline Type& operator++(Type& Value)
+	{
+		int32_t Next = (int)Value + 1;
+		if (Next >= (int32_t)MAX)
+		{
+			Next = 0;
+		}
+
+		Value = (Type)Next;
+		return Value;
+	}
+
+	inline Type operator++(Type& Value, int32_t)
+	{
+		Type OldValue = Value;
+		++Value;
+		return OldValue;
+	}
+}
 
 struct FViewFlags
 {
@@ -28,7 +52,7 @@ struct FViewFlags
 	bool bAttributeGrid = false;
 	bool bAlphaCheckerboardGrid = true;
 	bool bTransparentMask = false;
-	EFrameMode FrameMode = EFrameMode::None;
+	EFrameMode::Type FrameMode = EFrameMode::None;
 	ImVec2 GridSettingSize = ImVec2(8.0f, 8.0f);
 	ImVec2 GridSettingOffset = ImVec2(0.0f, 0.0f);
 	ImVec4 TransparentColor = ImVec4(0.169f, 0.396f, 0.925f, 0.0f);
@@ -67,6 +91,7 @@ private:
 	void Input_HotKeys();
 	void Imput_Close();
 	void Imput_CloseAll();
+	void Imput_ToggleFrameMode();
 
 	void Quit() { bOpen = false; }
 	bool OpenFile(const std::filesystem::path& FilePath);

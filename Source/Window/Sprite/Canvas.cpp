@@ -56,6 +56,7 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	, bNeedConvertZXToCanvas(false)
 	, bOpenPopupMenu(false)
 	, bMouseInsideMarquee(false)
+	, bFroceRebuiltSpriteFrame(false)
 	, LastOptionsFlags(FCanvasOptionsFlags::None)
 	, LastSetPixelColorIndex(EZXColor::None)
 	, LastSetPixelPosition(-1.0f, -1.0f)
@@ -63,6 +64,7 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	, Width(0)
 	, Height(0)
 	, SelectedSpritesFrame(0)
+	, LastRebuiltSpriteFrame(INDEX_NONE)
 	, FrameMode(EFrameMode::None)
 	, ImageFormat(EImageFormat::None)
 	, ImageFrameIndex(INDEX_NONE)
@@ -427,10 +429,10 @@ void SCanvas::SetupHotKeys()
 		{ ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_Z,	ImGuiInputFlags_Repeat,	std::bind(&ThisClass::Imput_Redo,							Self)	},	// (ctrl + shift + Z)
 
 		// global
-		{ ImGuiMod_Ctrl | ImGuiKey_S,					ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteFocused,	std::bind(&ThisClass::Imput_Save,							Self)	},	// (ctrl + S)
-		{ ImGuiKey_Comma,								ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteFocused,	std::bind(&ThisClass::Imput_PreviousFrame,					Self)	},	// (<)
-		{ ImGuiKey_Enter,								ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteFocused,	std::bind(&ThisClass::Imput_Play,							Self)	},	// (Enter)
-		{ ImGuiKey_Period,								ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteFocused,	std::bind(&ThisClass::Imput_NextFrame,						Self)	},	// (>)
+		{ ImGuiMod_Ctrl | ImGuiKey_S,					ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_Save,							Self)	},	// (ctrl + S)
+		{ ImGuiKey_Comma,								ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_PreviousFrame,					Self)	},	// (<)
+		{ ImGuiKey_Enter,								ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_Play,							Self)	},	// (Enter)
+		{ ImGuiKey_Period,								ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_NextFrame,						Self)	},	// (>)
 	};
 }
 
@@ -1616,14 +1618,16 @@ void SCanvas::UpdateCursorColor(bool bButton /*= false*/)
 	}
 }
 
-void SCanvas::ChangeFrameMode(EFrameMode NewFrameMode)
+void SCanvas::ChangeFrameMode(EFrameMode::Type NewFrameMode)
 {
 	if (FrameMode == NewFrameMode)
 	{
 		return;
 	}
 	FrameMode = NewFrameMode;
+
 	bRefreshCanvas = true;
+	bFroceRebuiltSpriteFrame = true;
 }
 
 void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
@@ -1632,44 +1636,119 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 	const bool bMask = OptionsFlags[0] & FCanvasOptionsFlags::Mask;
 	const bool bPaper = OptionsFlags[0] & FCanvasOptionsFlags::Attribute;
 	const bool bSource = OptionsFlags[0] & FCanvasOptionsFlags::Source;
+	const bool bRebuildFrame = LastRebuiltSpriteFrame != Frame;
 
+	LastRebuiltSpriteFrame = Frame;
+
+	const bool bDifference = FrameMode == EFrameMode::Difference;/*(bFroceRebuiltSpriteFrame || bRebuildFrame)*/
 	if (AsepriteSprite && AsepriteSprite->IsValid() && AsepriteSprite->Frames.size() > Frame)
 	{
 		UI::QuantizeToZX(AsepriteSprite->Frames[Frame].data(), Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
 
-		const bool bDifference = FrameMode == EFrameMode::Difference;
 		if (bDifference && Frame != 0)
 		{
 			std::vector<uint8_t> PreviousFrame_IndexedData;
 			UI::QuantizeToZX(AsepriteSprite->Frames[Frame - 1].data(), Width, Height, 4, PreviousFrame_IndexedData, TransparentColor);
 
-			std::vector<uint8_t> Difference_IndexedData(ZXColorView->IndexedData.size());
-			for (int32_t Index = 0; Index < ZXColorView->IndexedData.size(); ++Index)
+			int32_t Size = (int32_t)ZXColorView->IndexedData.size();
+			// index diff
 			{
-				const uint8_t CurrentColor = ZXColorView->IndexedData[Index];
-				const uint8_t PreviousColor = PreviousFrame_IndexedData[Index];
-				Difference_IndexedData[Index] = CurrentColor != PreviousColor ? CurrentColor : EZXColor::Transparent;
+				std::vector<uint8_t> Difference_IndexedData(Size);
+				for (int32_t Index = 0; Index < Size; ++Index)
+				{
+					const uint8_t CurrentColor = ZXColorView->IndexedData[Index];
+					const uint8_t PreviousColor = PreviousFrame_IndexedData[Index];
+					Difference_IndexedData[Index] = CurrentColor != PreviousColor ? CurrentColor : EZXColor::Transparent;
+				}
+
+				if (bSource)
+				{
+					UI::ZXIndexColorToImage(ZXColorView->Image, Difference_IndexedData, Width, Height);
+				}
 			}
 
-			ZXColorView->IndexedData = Difference_IndexedData;
+			// pixel diff
+			{
+				UI::ZXIndexColorToZXAttributeColor(ZXColorView->IndexedData, Width, Height, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData, ConversationSettings);
+
+				std::vector<uint8_t> PreviousFrame_InkData;
+				std::vector<uint8_t> PreviousFrame_AttributeData;
+				std::vector<uint8_t> PreviousFrame_MaskData;
+				UI::ZXIndexColorToZXAttributeColor(PreviousFrame_IndexedData, Width, Height, PreviousFrame_InkData, PreviousFrame_AttributeData, PreviousFrame_MaskData, ConversationSettings);
+
+				std::vector<uint8_t> Difference_InkData(PreviousFrame_InkData.size());
+				std::vector<uint8_t> Difference_AttributeData(PreviousFrame_AttributeData.size());
+				std::vector<uint8_t> Difference_MaskData(PreviousFrame_MaskData.size());
+
+				const int32_t Boundary_X = Width >> 3;
+				//const int32_t Boundary_Y = Height >> 3;
+
+				const int32_t Size_6912 = Boundary_X * Height;
+				for (int32_t Index = 0; Index < Size_6912; ++Index)
+				{
+
+					// ink
+					const uint8_t Current_InkData = ZXColorView->InkData[Index];
+					const uint8_t Previous_InkData = PreviousFrame_InkData[Index];
+					const bool bDifference_Ink = Current_InkData ^ Previous_InkData;
+
+					Difference_InkData[Index] = bDifference_Ink ? Current_InkData : EZXColor::Transparent;
+					Difference_MaskData[Index] = bDifference_Ink ? 0xFF : 0x00;
+
+					// attribute
+					const int32_t bx = Index % Boundary_X;
+					const int32_t by = (Index / Boundary_X) / 8;
+					const int32_t Index_Attribute = by * Boundary_X + bx;
+					const uint8_t Current_AttributeData = ZXColorView->AttributeData[Index_Attribute];
+					const uint8_t Previous_AttributeData = PreviousFrame_AttributeData[Index_Attribute];
+					const bool bDifference_Attribute = Current_AttributeData ^ Previous_AttributeData;
+
+					Difference_AttributeData[Index_Attribute] = bDifference_Attribute ? Current_AttributeData : 0xFF;
+				}
+
+				if (!bSource)
+				{
+					UI::ZXAttributeColorToImage(
+						ZXColorView->Image,
+						Width, Height,
+						(bTransparentMask || bInk) ? Difference_InkData.data() : nullptr,
+						(bTransparentMask || bPaper) ? Difference_AttributeData.data() : nullptr,
+						bMask ? Difference_MaskData.data() : nullptr,
+						false, nullptr, true,
+						bTransparentMask);
+				}
+			}
 		}
 	}
 
-	if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
+	if (!bDifference || Frame == 0)
 	{
-		UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
-	}
-	else
-	{
-		ConversionToZX(ConversationSettings);
-		UI::ZXAttributeColorToImage(
-			ZXColorView->Image,
-			Width, Height,
-			(bTransparentMask || bInk) ? ZXColorView->InkData.data() : nullptr,
-			(bTransparentMask || bPaper) ? ZXColorView->AttributeData.data() : nullptr,
-			bMask ? ZXColorView->MaskData.data() : nullptr,
-			false, nullptr, true,
-			bTransparentMask);
+		if (bFroceRebuiltSpriteFrame || bRebuildFrame)
+		{
+			UI::ZXIndexColorToZXAttributeColor(
+				ZXColorView->IndexedData,
+				Width, Height,
+				ZXColorView->InkData,
+				ZXColorView->AttributeData,
+				ZXColorView->MaskData,
+				ConversationSettings);
+		}
+
+		if (bSource)
+		{
+			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
+		}
+		else
+		{
+			UI::ZXAttributeColorToImage(
+				ZXColorView->Image,
+				Width, Height,
+				(bTransparentMask || bInk) ? ZXColorView->InkData.data() : nullptr,
+				(bTransparentMask || bPaper) ? ZXColorView->AttributeData.data() : nullptr,
+				bMask ? ZXColorView->MaskData.data() : nullptr,
+				false, nullptr, true,
+				bTransparentMask);
+		}
 	}
 	//	{
 	//		std::filesystem::path LoadPath = Frame.Path;
@@ -1677,6 +1756,8 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 	//
 	//		Load(LoadPath, LoadName, false);
 	//	}
+
+	bFroceRebuiltSpriteFrame = false;
 }
 
 void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)

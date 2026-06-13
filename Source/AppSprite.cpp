@@ -160,7 +160,7 @@ void FAppSprite::Initialize()
 						{},
 						{"##Layout_Timeline", 0.3f, ImGuiDir_Down, {
 							{"##Layout_ToolBar", 0.06f, ImGuiDir_Right, {
-								{"##Layout_Palette",  0.1f, ImGuiDir_Up, {
+								{"##Layout_Palette",  0.15f, ImGuiDir_Up, {
 									{},
 									{"##Layout_Canvas", 1.0f, ImGuiDir_None, {
 									}}
@@ -374,10 +374,10 @@ void FAppSprite::SetupHotKeys()
 	Hotkeys =
 	{
 		// global
-		{ ImGuiMod_Ctrl | ImGuiKey_W,					ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteAlways,	std::bind(&ThisClass::Imput_Close,	this)	},	// (ctrl + S)
-		{ ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_W,	ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteAlways,	std::bind(&ThisClass::Imput_CloseAll,	this)},	// (ctrl + S)
+		{ ImGuiMod_Ctrl | ImGuiKey_W,					ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_Close,							this)	},	// (ctrl + S)
+		{ ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_W,	ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_CloseAll,						this)	},	// (ctrl + S)
+		{ ImGuiKey_KeypadDivide,						ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_ToggleFrameMode,				this)	},	// (Num /)
 	};
-
 }
 
 void FAppSprite::Show_MenuBar()
@@ -533,7 +533,7 @@ void FAppSprite::Show_MenuBar()
 				ViewFlags.FrameMode = EFrameMode::None;
 				bUpdateOptions = true;
 			}
-			if (ImGui::MenuItem(Menu_View_FrameMode_DifferenceName, NULL, ViewFlags.FrameMode == EFrameMode::Difference))
+			if (ImGui::MenuItem(Menu_View_FrameMode_DifferenceName, "Num /", ViewFlags.FrameMode == EFrameMode::Difference))
 			{
 				ViewFlags.FrameMode = EFrameMode::Difference;
 				bUpdateOptions = true;
@@ -542,11 +542,12 @@ void FAppSprite::Show_MenuBar()
 
 			if (bUpdateOptions)
 			{
-				FEvent_Canvas Event;
-				Event.Tag = FEventTag::CanvasViewFlagsTag;
-				Event.CanvasName = {};
-				Event.ViewFlags = ViewFlags;
-				Viewer->GetEventSystem().Publish(Event);
+				FEvent_Canvas Canvas_Event(FEventTag::CanvasViewFlagsTag);
+				{
+					Canvas_Event.CanvasName = {};
+					Canvas_Event.ViewFlags = ViewFlags;
+					Viewer->GetEventSystem().Publish(Canvas_Event);
+				}
 			}
 		}
 
@@ -927,6 +928,17 @@ void FAppSprite::Imput_CloseAll()
 	for (std::shared_ptr<SWindow>& Window : Viewer->GetWindows(NAME_Canvas))
 	{
 		Viewer->RemoveWindow(NAME_Canvas, Window);
+	}
+}
+
+void FAppSprite::Imput_ToggleFrameMode()
+{
+	++ViewFlags.FrameMode;
+	FEvent_Canvas Canvas_Event(FEventTag::CanvasViewFlagsTag);
+	{
+		Canvas_Event.CanvasName = {};
+		Canvas_Event.ViewFlags = ViewFlags;
+		Viewer->GetEventSystem().Publish(Canvas_Event);
 	}
 }
 

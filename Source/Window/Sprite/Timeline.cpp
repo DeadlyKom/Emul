@@ -211,6 +211,24 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
     ImVec2 RootScreen = ImGui::GetCursorScreenPos();
     ImVec2 RootAvail = ImGui::GetContentRegionAvail();
 
+    ImGuiIO& IO = ImGui::GetIO();
+    ImVec2 Mouse = IO.MousePos;
+
+    ImVec2 RootWindowMin = ImGui::GetWindowPos();
+    ImVec2 RootWindowMax(
+        RootWindowMin.x + ImGui::GetWindowSize().x,
+        RootWindowMin.y + ImGui::GetWindowSize().y
+    );
+
+    bool bMouseInsideTimeline = IsPointInsideRect(
+        Mouse,
+        RootWindowMin,
+        RootWindowMax
+    );
+
+    bool bTimelineHovered = ImGui::IsWindowHovered(ImGuiHoveredFlags_ChildWindows);
+    bool bCanAcceptMouse = bMouseInsideTimeline && bTimelineHovered;
+
     float RootW = max(1.0f, RootAvail.x);
     float RootH = max(HeaderH + CellH, RootAvail.y);
 
@@ -246,9 +264,6 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
     BodyViewW = max(1.0f, BodyViewW);
     BodyViewH = max(1.0f, BodyViewH);
 
-    ImGuiIO& IO = ImGui::GetIO();
-    ImVec2 Mouse = IO.MousePos;
-
     ImVec2 CornerMin(
         RootScreen.x,
         RootScreen.y
@@ -279,19 +294,41 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
         RootScreen.y + HeaderH + BodyViewH
     );
 
+    auto SendSelectedFrameEvent = [&](int32_t Frame)
+        {
+            FEvent_SelectedSprite Event(FEventTag::SelectedSpritesChangedFrameTag);
+            Event.Format = Format;
+            Event.Frame = Frame;
+            SendEvent(Event);
+        };
+
+    auto SetCurrentFrame = [&](int32_t Frame)
+        {
+            Frame = ClampInt(Frame, 0, FrameCount - 1);
+
+            if (State.CurrentFrame != Frame)
+            {
+                State.CurrentFrame = Frame;
+                SendSelectedFrameEvent(Frame);
+            }
+            else
+            {
+                State.CurrentFrame = Frame;
+            }
+        };
+
+    auto SetCurrentLayer = [&](int32_t Layer)
+        {
+            Layer = ClampInt(Layer, 0, LayerCount - 1);
+            State.CurrentLayer = Layer;
+        };
+
     auto GetFrameFromHeaderMouse = [&]()
         {
             float LocalX = Mouse.x - FrameHeaderMin.x + State.ScrollX;
 
             int32_t Frame = (int32_t)(LocalX / CellW);
             Frame = ClampInt(Frame, 0, FrameCount - 1);
-
-            FEvent_SelectedSprite Event(FEventTag::SelectedSpritesChangedFrameTag);
-            {
-                Event.Format = Format;
-                Event.Frame = Frame;
-                SendEvent(Event);
-            }
 
             return Frame;
         };
@@ -306,7 +343,12 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
             return Layer;
         };
 
-    if (!State.bDragging &&
+    // ----------------------------------------------------
+    // header input
+    // ----------------------------------------------------
+
+    if (bCanAcceptMouse &&
+        !State.bDragging &&
         IsPointInsideRect(Mouse, CornerMin, CornerMax) &&
         ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
@@ -316,7 +358,8 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
         State.SelMaxLayer = LayerCount - 1;
     }
 
-    if (!State.bDragging &&
+    if (bCanAcceptMouse &&
+        !State.bDragging &&
         IsPointInsideRect(Mouse, FrameHeaderMin, FrameHeaderMax) &&
         ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
@@ -326,7 +369,8 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
         State.DragMode = TimelineDrag_FramesHeader;
 
         State.DragStartFrame = Frame;
-        State.CurrentFrame = Frame;
+
+        SetCurrentFrame(Frame);
 
         State.SelMinFrame = Frame;
         State.SelMaxFrame = Frame;
@@ -334,7 +378,8 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
         State.SelMaxLayer = LayerCount - 1;
     }
 
-    if (!State.bDragging &&
+    if (bCanAcceptMouse &&
+        !State.bDragging &&
         IsPointInsideRect(Mouse, LayerNamesMin, LayerNamesMax) &&
         ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
@@ -344,7 +389,8 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
         State.DragMode = TimelineDrag_LayersHeader;
 
         State.DragStartLayer = Layer;
-        State.CurrentLayer = Layer;
+
+        SetCurrentLayer(Layer);
 
         State.SelMinFrame = 0;
         State.SelMaxFrame = FrameCount - 1;
@@ -358,7 +404,7 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
     {
         int32_t Frame = GetFrameFromHeaderMouse();
 
-        State.CurrentFrame = Frame;
+        SetCurrentFrame(Frame);
 
         State.SelMinFrame = min(State.DragStartFrame, Frame);
         State.SelMaxFrame = max(State.DragStartFrame, Frame);
@@ -372,7 +418,7 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
     {
         int32_t Layer = GetLayerFromHeaderMouse();
 
-        State.CurrentLayer = Layer;
+        SetCurrentLayer(Layer);
 
         State.SelMinFrame = 0;
         State.SelMaxFrame = FrameCount - 1;
@@ -388,9 +434,9 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
         State.DragMode = TimelineDrag_None;
     }
 
-    // ============================================================
-    // BODY
-    // ============================================================
+    // ----------------------------------------------------
+    // body
+    // ----------------------------------------------------
 
     ImGui::SetCursorPos(
         ImVec2(
@@ -437,13 +483,6 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
                 int32_t Frame = (int32_t)(LocalX / CellW);
                 Frame = ClampInt(Frame, 0, FrameCount - 1);
 
-                FEvent_SelectedSprite Event(FEventTag::SelectedSpritesChangedFrameTag);
-                {
-                    Event.Format = Format;
-                    Event.Frame = Frame;
-                    SendEvent(Event);
-                }
-
                 return Frame;
             };
 
@@ -476,8 +515,8 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
             State.SelMinLayer = Layer;
             State.SelMaxLayer = Layer;
 
-            State.CurrentFrame = Frame;
-            State.CurrentLayer = Layer;
+            SetCurrentFrame(Frame);
+            SetCurrentLayer(Layer);
         }
 
         if (State.bDragging &&
@@ -495,8 +534,8 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
             State.SelMinLayer = min(State.DragStartLayer, Layer);
             State.SelMaxLayer = max(State.DragStartLayer, Layer);
 
-            State.CurrentFrame = Frame;
-            State.CurrentLayer = Layer;
+            SetCurrentFrame(Frame);
+            SetCurrentLayer(Layer);
         }
 
         if (State.bDragging &&
@@ -574,10 +613,6 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
                     DrawList->AddRectFilled(P0, P1, ColSelected);
                 }
 
-                // ----------------------------------------------------
-                // draw the cell contents
-                // ----------------------------------------------------
-
                 if (DrawCellContent != nullptr)
                 {
                     DrawCellContent(
@@ -593,7 +628,6 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
                     );
                 }
 
-                // Сетка поверх содержимого
                 DrawList->AddRect(P0, P1, ColGrid);
             }
         }
@@ -842,6 +876,8 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
             LayerCount - 1
         );
 
+        std::shared_ptr<AsepriteFormat::FSprite> Sprite = AsepriteSprite.lock();
+
         for (int32_t Layer = FirstVisibleLayer; Layer <= LastVisibleLayer; ++Layer)
         {
             float Y = CanvasPos.y - State.ScrollY + Layer * CellH;
@@ -859,11 +895,19 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
             DrawList->AddRectFilled(P0, P1, FillCol);
             DrawList->AddRect(P0, P1, ColGrid);
 
-            std::shared_ptr<AsepriteFormat::FSprite> Sprite = AsepriteSprite.lock();
             if (Sprite)
             {
-                DrawList->AddText(ImVec2(P0.x + 6.0f, P0.y + 3.0f), ColText,
-                    Sprite->Layers[Sprite->Layers.size() - Layer - 1].Name.c_str());
+                int32_t SpriteLayerIndex = (int32_t)Sprite->Layers.size() - Layer - 1;
+
+                if (SpriteLayerIndex >= 0 &&
+                    SpriteLayerIndex < (int32_t)Sprite->Layers.size())
+                {
+                    DrawList->AddText(
+                        ImVec2(P0.x + 6.0f, P0.y + 3.0f),
+                        ColText,
+                        Sprite->Layers[SpriteLayerIndex].Name.c_str()
+                    );
+                }
             }
 
             if (Layer == State.CurrentLayer)
@@ -889,7 +933,6 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
     ImGui::PopStyleVar(2);
     ImGui::PopID();
 }
-
 void STimeline::InitializeFromAseprite(std::weak_ptr<AsepriteFormat::FSprite> NewSprite, std::weak_ptr<FKeyframes> SpriteKeyframes)
 {
     AsepriteSprite = NewSprite;

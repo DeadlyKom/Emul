@@ -85,7 +85,7 @@ namespace UI
 
 	struct FConversationSettings
 	{
-		uint8_t InkAlways = EZXSpectrumColor::Black_;
+		uint8_t InkAlways = EZXSpectrumColor::None;
 		uint8_t TransparentIndex = EZXSpectrumColor::Transparent;
 		uint8_t ReplaceTransparent = EZXSpectrumColor::White;
 	};
