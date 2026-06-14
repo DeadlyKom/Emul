@@ -12,6 +12,11 @@
 #include "Definition.h"
 #include "UndoAction.h"
 
+namespace EFrameMode { enum Type; }
+enum class EImageFormat;
+struct FSprite;
+struct FKeyframes;
+
 namespace FCanvasOptionsFlags
 {
 	enum Type
@@ -23,31 +28,6 @@ namespace FCanvasOptionsFlags
 		Mask		= 1 << 3,
 	};
 }
-
-namespace EFrameMode { enum Type; }
-enum class EImageFormat;
-struct FSprite;
-struct FKeyframes;
-
-struct FCodeGenerationResult
-{
-	bool bSuccess;
-	std::string Error;
-	std::string AsmCode;
-	std::vector<uint8_t> ByteCode;
-	int32_t OperationCount;
-	int32_t Cycles;
-	int32_t CodeBytes;
-	int32_t DirtyBytes;
-
-	FCodeGenerationResult()
-		: bSuccess(false)
-		, OperationCount(0)
-		, Cycles(0)
-		, CodeBytes(0)
-		, DirtyBytes(0)
-	{}
-};
 
 class SCanvas : public SViewerChildBase
 {
@@ -68,7 +48,7 @@ public:
 	const std::filesystem::path& GetSourcePathFile() const { return SourcePathFile; }
 	EImageFormat GetImageFormat() const { return ImageFormat; }
 	int32_t GetSelectedFrameIndex() const { return SelectedSpritesFrame; }
-	FCodeGenerationResult BuildCodeGenerationResult(const CodeGenerator::FOptions& Options, const std::string& LabelName);
+	CodeGenerator::FResult BuildCodeGenerationResult(const CodeGenerator::FOptions& Options, const std::string& LabelName, const CodeGenerator::FProgressInfo* Progress = nullptr);
 
 private:
 	void Draw_PopupMenu();
@@ -130,12 +110,13 @@ private:
 	std::string GetNextSpriteName(const std::map<int32_t, std::string>& Sprites);
 
 	// 6912
-	FCodeGenerationResult CodeGeneration(
+	CodeGenerator::FResult CodeGeneration(
 		const std::vector<uint8_t>& InkData,
 		const std::vector<uint8_t>& AttributeData,
 		const std::vector<uint8_t>& MaskData,
 		const CodeGenerator::FOptions& Options,
-		const std::string& LabelName);
+		const std::string& LabelName,
+		const CodeGenerator::FProgressInfo* Progress = nullptr);
 
 	bool bPlay;
 	bool bDirty;

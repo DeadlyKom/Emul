@@ -3,6 +3,33 @@
 #include <algorithm>
 #include <cstring>
 
+namespace
+{
+    inline bool ProgressCancelled(const CodeGenerator::FProgressInfo* Progress)
+    {
+        return Progress && Progress->CancelRequested && Progress->CancelRequested->load(std::memory_order_relaxed);
+    }
+
+    inline void ProgressSet(const CodeGenerator::FProgressInfo* Progress, int32_t Current, int32_t Total)
+    {
+        if (!Progress)
+        {
+            return;
+        }
+
+        const int32_t SafeTotal = Total > 0 ? Total : 1;
+
+        if (Progress->Current)
+        {
+            Progress->Current->store(Current, std::memory_order_relaxed);
+        }
+        if (Progress->Total)
+        {
+            Progress->Total->store(SafeTotal, std::memory_order_relaxed);
+        }
+    }
+}
+
 const char* CodeGenerator::ToString(EOpKind Kind)
 {
     switch (Kind)
@@ -499,7 +526,7 @@ CodeGenerator::FCandidate CodeGenerator::MakeVerticalSameByteRegDecH(const std::
     return C;
 }
 
-bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::vector<uint8_t>& DirtyMask, const FOptions& Options, FAnalysis& OutAnalysis, std::string& OutError)
+bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::vector<uint8_t>& DirtyMask, const FOptions& Options, FAnalysis& OutAnalysis, std::string& OutError, const FProgressInfo* Progress)
 {
     if (Data.size() != ZX_SCREEN_SIZE)
     {
@@ -527,6 +554,13 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
 
     Analysis.StartsAt.resize(ZX_SCREEN_SIZE);
 
+    ProgressSet(Progress, 0, 100);
+    if (ProgressCancelled(Progress))
+    {
+        OutError = "BuildAnalysis: cancelled";
+        return false;
+    }
+
     if (Options.EnableRegisterConstants)
     {
         int32_t Counts[256] = {};
@@ -535,6 +569,12 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
             if (Analysis.Dirty[Offset])
             {
                 ++Counts[Data[Offset]];
+            }
+
+            if ((Offset & 0x3FF) == 0 && ProgressCancelled(Progress))
+            {
+                OutError = "BuildAnalysis: cancelled";
+                return false;
             }
         }
 
@@ -561,6 +601,13 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
         }
     }
 
+    ProgressSet(Progress, 10, 100);
+    if (ProgressCancelled(Progress))
+    {
+        OutError = "BuildAnalysis: cancelled";
+        return false;
+    }
+
     // ------------------------------------------------------------
     // 1. Одиночные байты.
     // ------------------------------------------------------------
@@ -576,7 +623,15 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
             AddCandidate(Analysis, MakeByteAbsA(Data, i));
             AddCandidate(Analysis, MakeByteHLImm(Data, i));
         }
+
+        if ((i & 0x1FF) == 0 && ProgressCancelled(Progress))
+        {
+            OutError = "BuildAnalysis: cancelled";
+            return false;
+        }
     }
+
+    ProgressSet(Progress, 25, 100);
 
     // ------------------------------------------------------------
     // 2. Обычные 2 байта через LD HL, Word / LD (nn), HL.
@@ -592,7 +647,15 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
         {
             AddCandidate(Analysis, MakeWordAbsHL(Data, i));
         }
+
+        if ((i & 0x1FF) == 0 && ProgressCancelled(Progress))
+        {
+            OutError = "BuildAnalysis: cancelled";
+            return false;
+        }
     }
+
+    ProgressSet(Progress, 40, 100);
 
     // ------------------------------------------------------------
     // 3. Stack-блоки внутри непрерывных Dirty-участков.
@@ -631,6 +694,12 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
                 {
                     AddCandidate(Analysis, MakeStackBlock(Data, Start, Pairs * 2));
                 }
+
+                if ((Pairs & 0x0F) == 0 && ProgressCancelled(Progress))
+                {
+                    OutError = "BuildAnalysis: cancelled";
+                    return false;
+                }
             }
         }
 
@@ -641,7 +710,15 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
         {
             AddCandidate(Analysis, MakeStackBlock(Data, RangeStart, RangeLength));
         }
+
+        if (ProgressCancelled(Progress))
+        {
+            OutError = "BuildAnalysis: cancelled";
+            return false;
+        }
     }
+
+    ProgressSet(Progress, 55, 100);
 
     // ------------------------------------------------------------
     // 4. Повторяющиеся WORD подряд.
@@ -682,7 +759,15 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
                 AddCandidate(Analysis, MakeRepeatWordStack(Data, Start, PairCount));
             }
         }
+
+        if ((Start & 0x1FF) == 0 && ProgressCancelled(Progress))
+        {
+            OutError = "BuildAnalysis: cancelled";
+            return false;
+        }
     }
+
+    ProgressSet(Progress, 70, 100);
 
     // ------------------------------------------------------------
     // 5. Горизонтальные серии одинакового байта через INC L.
@@ -753,7 +838,15 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
                 }
             }
         }
+
+        if ((Start & 0x3FF) == 0 && ProgressCancelled(Progress))
+        {
+            OutError = "BuildAnalysis: cancelled";
+            return false;
+        }
     }
+
+    ProgressSet(Progress, 85, 100);
 
     // ------------------------------------------------------------
     // 6. Вертикальные серии через INC H и повторяющиеся WORD с шагом #0100.
@@ -838,9 +931,16 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
                     AddCandidate(Analysis, MakeVerticalRepeatWordAbsHL(Data, Start, WordCount));
                 }
             }
+
+            if ((Start & 0x3FF) == 0 && ProgressCancelled(Progress))
+            {
+                OutError = "BuildAnalysis: cancelled";
+                return false;
+            }
         }
     }
 
+    ProgressSet(Progress, 100, 100);
     OutAnalysis = std::move(Analysis);
     return true;
 }
@@ -860,21 +960,32 @@ namespace
         return Count;
     }
 
-    void MarkCandidateClean(std::vector<uint8_t>& Dirty, const CodeGenerator::FCandidate& Candidate)
+    int32_t MarkCandidateClean(std::vector<uint8_t>& Dirty, const CodeGenerator::FCandidate& Candidate)
     {
+        int32_t Cleaned = 0;
         if (Candidate.Linear)
         {
             for (int32_t i = Candidate.StartOffset; i < Candidate.EndOffset; ++i)
             {
-                Dirty[i] = 0;
+                if (Dirty[i])
+                {
+                    Dirty[i] = 0;
+                    ++Cleaned;
+                }
             }
-            return;
+            return Cleaned;
         }
 
         for (int32_t Offset : Candidate.CoveredOffsets)
         {
-            Dirty[Offset] = 0;
+            if (Dirty[Offset])
+            {
+                Dirty[Offset] = 0;
+                ++Cleaned;
+            }
         }
+
+        return Cleaned;
     }
 
     bool CandidateOverlaps(const CodeGenerator::FCandidate& A, const CodeGenerator::FCandidate& B)
@@ -1053,7 +1164,7 @@ namespace
     }
 }
 
-bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Options, FPlan& OutPlan, std::string& OutError)
+bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Options, FPlan& OutPlan, std::string& OutError, const FProgressInfo* Progress)
 {
     OutPlan = FPlan();
 
@@ -1061,6 +1172,7 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
     {
         std::vector<uint8_t> Remaining;
         std::vector<int32_t> CandidateIds;
+        int32_t RemainingCount = 0;
         int32_t Cycles = 0;
         int32_t CodeBytes = 0;
         bool UsesBC = false;
@@ -1074,21 +1186,34 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
 
     const int32_t BeamWidth = max(1, Options.NonLinearBeamWidth);
     const int32_t MaxCandidatesToEvaluatePerPass = max(1, Options.MaxNonLinearCandidatesToEvaluatePerPass);
+    const int32_t InitialDirty = CountDirtyBytes(Analysis.Dirty);
 
     std::vector<FSearchState> Beam;
-    Beam.push_back(FSearchState{ Analysis.Dirty });
+    Beam.push_back(FSearchState{});
+    Beam.back().Remaining = Analysis.Dirty;
+    Beam.back().RemainingCount = InitialDirty;
 
     bool bHasBest = false;
     FSearchState BestFinished;
     int64_t BestFinishedScore = (std::numeric_limits<int64_t>::max)() / 4;
 
+    ProgressSet(Progress, 0, 100);
     while (!Beam.empty())
     {
+        if (ProgressCancelled(Progress))
+        {
+            OutError = "OptimizePlan: cancelled";
+            return false;
+        }
+
         std::vector<FSearchState> NextBeam;
+        int32_t BestBeamRemaining = InitialDirty;
 
         for (const FSearchState& State : Beam)
         {
-            if (CountDirtyBytes(State.Remaining) == 0)
+            BestBeamRemaining = min(BestBeamRemaining, State.RemainingCount);
+
+            if (State.RemainingCount == 0)
             {
                 const int64_t StateScore = ScoreState(State);
                 if (!bHasBest || StateScore < BestFinishedScore)
@@ -1100,20 +1225,22 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
                 continue;
             }
 
-        std::vector<int32_t> LinearIds;
-        int32_t LinearCycles = 0;
-        int32_t LinearCodeBytes = 0;
+            std::vector<int32_t> LinearIds;
+            int32_t LinearCycles = 0;
+            int32_t LinearCodeBytes = 0;
             if (!BuildLinearPlan(Analysis, Options, State.Remaining, LinearIds, LinearCycles, LinearCodeBytes, OutError))
-        {
-            return false;
-        }
+            {
+                return false;
+            }
 
-        const bool bLinearNeedsBC = CandidateIdsUseBC(Analysis, LinearIds);
+            const bool bLinearNeedsBC = CandidateIdsUseBC(Analysis, LinearIds);
             const bool bLinearNeedsStack = CandidateIdsUseStack(Analysis, LinearIds);
+
             FSearchState Finished = State;
             Finished.CandidateIds.insert(Finished.CandidateIds.end(), LinearIds.begin(), LinearIds.end());
             Finished.Cycles += LinearCycles;
             Finished.CodeBytes += LinearCodeBytes;
+            Finished.RemainingCount = 0;
             if (!Finished.UsesBC && bLinearNeedsBC)
             {
                 Finished.Cycles += 10;
@@ -1129,57 +1256,69 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
             const int64_t FinishedScore = ScoreState(Finished);
             if (!bHasBest || FinishedScore < BestFinishedScore)
             {
-                BestFinished = std::move(Finished);
+                BestFinished = Finished;
                 BestFinishedScore = FinishedScore;
                 bHasBest = true;
             }
 
-        struct FNonLinearProbe
-        {
-            int32_t ID;
-            int64_t ApproxSaving;
-        };
-
-        std::vector<FNonLinearProbe> Probes;
-
-        for (int32_t ID = 0; ID < static_cast<int32_t>(Analysis.Candidates.size()); ++ID)
-        {
-            const FCandidate& Candidate = Analysis.Candidates[ID];
-                if (Candidate.Linear || !CandidateIsDirty(State.Remaining, Candidate))
+            struct FNonLinearProbe
             {
-                continue;
-            }
+                int32_t ID;
+                int64_t ApproxSaving;
+            };
 
-            int64_t OverlappedLinearCost = 0;
-            for (int32_t LinearID : LinearIds)
+            std::vector<FNonLinearProbe> Probes;
+            Probes.reserve(MaxCandidatesToEvaluatePerPass);
+
+            for (int32_t ID = 0; ID < static_cast<int32_t>(Analysis.Candidates.size()); ++ID)
             {
-                const FCandidate& LinearCandidate = Analysis.Candidates[LinearID];
-                if (CandidateOverlaps(Candidate, LinearCandidate))
+                if (ProgressCancelled(Progress))
                 {
-                    OverlappedLinearCost += ScoreCandidate(LinearCandidate, Options);
+                    OutError = "OptimizePlan: cancelled";
+                    return false;
                 }
+
+                const FCandidate& Candidate = Analysis.Candidates[ID];
+                if (Candidate.Linear || !CandidateIsDirty(State.Remaining, Candidate))
+                {
+                    continue;
+                }
+
+                int64_t OverlappedLinearCost = 0;
+                for (int32_t LinearID : LinearIds)
+                {
+                    const FCandidate& LinearCandidate = Analysis.Candidates[LinearID];
+                    if (CandidateOverlaps(Candidate, LinearCandidate))
+                    {
+                        OverlappedLinearCost += ScoreCandidate(LinearCandidate, Options);
+                    }
+                }
+
+                const int64_t CandidateCost = ScoreCandidate(Candidate, Options);
+                if (CandidateCost >= OverlappedLinearCost)
+                {
+                    continue;
+                }
+
+                Probes.push_back({ ID, OverlappedLinearCost - CandidateCost });
             }
 
-            const int64_t CandidateCost = ScoreCandidate(Candidate, Options);
-            if (CandidateCost >= OverlappedLinearCost)
+            std::sort(Probes.begin(), Probes.end(),
+                [](const FNonLinearProbe& A, const FNonLinearProbe& B)
+                {
+                    return A.ApproxSaving > B.ApproxSaving;
+                });
+
+            const int32_t ProbeCount = min(MaxCandidatesToEvaluatePerPass, static_cast<int32_t>(Probes.size()));
+            for (int32_t ProbeIndex = 0; ProbeIndex < ProbeCount; ++ProbeIndex)
             {
-                continue;
-            }
+                if (ProgressCancelled(Progress))
+                {
+                    OutError = "OptimizePlan: cancelled";
+                    return false;
+                }
 
-            Probes.push_back({ ID, OverlappedLinearCost - CandidateCost });
-        }
-
-        std::sort(Probes.begin(), Probes.end(),
-            [](const FNonLinearProbe& A, const FNonLinearProbe& B)
-            {
-                return A.ApproxSaving > B.ApproxSaving;
-            });
-
-        const int32_t ProbeCount = min(MaxCandidatesToEvaluatePerPass, static_cast<int32_t>(Probes.size()));
-
-        for (int32_t ProbeIndex = 0; ProbeIndex < ProbeCount; ++ProbeIndex)
-        {
-            const FCandidate& Candidate = Analysis.Candidates[Probes[ProbeIndex].ID];
+                const FCandidate& Candidate = Analysis.Candidates[Probes[ProbeIndex].ID];
 
                 FSearchState Child = State;
                 Child.CandidateIds.push_back(Probes[ProbeIndex].ID);
@@ -1198,7 +1337,8 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
                     Child.UsesStack = true;
                 }
 
-                MarkCandidateClean(Child.Remaining, Candidate);
+                const int32_t Cleaned = MarkCandidateClean(Child.Remaining, Candidate);
+                Child.RemainingCount = max(0, Child.RemainingCount - Cleaned);
                 NextBeam.push_back(std::move(Child));
             }
         }
@@ -1212,6 +1352,20 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
         if (static_cast<int32_t>(NextBeam.size()) > BeamWidth)
         {
             NextBeam.resize(BeamWidth);
+        }
+
+        if (!NextBeam.empty())
+        {
+            int32_t BestRemaining = InitialDirty;
+            for (const FSearchState& State : NextBeam)
+            {
+                BestRemaining = min(BestRemaining, State.RemainingCount);
+            }
+            if (InitialDirty > 0)
+            {
+                const int32_t Covered = InitialDirty - BestRemaining;
+                ProgressSet(Progress, Covered, InitialDirty);
+            }
         }
 
         Beam = std::move(NextBeam);
@@ -1228,6 +1382,7 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
     OutPlan.TotalCodeBytes = BestFinished.CodeBytes;
     OutPlan.UsesBC = BestFinished.UsesBC;
     OutPlan.UsesStack = BestFinished.UsesStack;
+    ProgressSet(Progress, InitialDirty, InitialDirty);
     return true;
 }
 
@@ -1560,7 +1715,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
     return true;
 }
 
-bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::vector<uint8_t>& OutCode, int32_t& OutCycles, std::string& OutError, const std::string& LabelName)
+bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::vector<uint8_t>& OutCode, int32_t& OutCycles, std::string& OutError, const std::string& LabelName, const FProgressInfo* Progress)
 {
     FEmitOutput Out;
     FEmitState State;
@@ -1572,6 +1727,13 @@ bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const 
     static constexpr const char* RestoreSPPreviewPlaceholder = "                LD BC, #0000\n";
     const bool bPlanUsesStack = Plan.UsesStack;
     const bool bPreserveSP = Options.PreserveSP && bPlanUsesStack;
+
+    ProgressSet(Progress, 0, 100);
+    if (ProgressCancelled(Progress))
+    {
+        OutError = "EmitAsm: cancelled";
+        return false;
+    }
 
     Out.Preview << LabelName << ":\n";
     if (Options.DisableInterruptsForStack && bPlanUsesStack)
@@ -1655,8 +1817,16 @@ bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const 
     }
     Out.Preview << "\n";
 
-    for (int32_t ID : Plan.CandidateIds)
+    const int32_t CandidateCount = static_cast<int32_t>(Plan.CandidateIds.size());
+    for (int32_t Index = 0; Index < CandidateCount; ++Index)
     {
+        if (ProgressCancelled(Progress))
+        {
+            OutError = "EmitAsm: cancelled";
+            return false;
+        }
+
+        const int32_t ID = Plan.CandidateIds[Index];
         const FCandidate& Candidate = Analysis.Candidates[ID];
         Out.Preview << "                ; "
             << ToString(Candidate.Kind)
@@ -1671,6 +1841,11 @@ bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const 
             return false;
         }
         Out.Preview << "\n";
+
+        if (CandidateCount > 0)
+        {
+            ProgressSet(Progress, 5 + ((Index + 1) * 85) / CandidateCount, 100);
+        }
     }
 
     if (bPreserveSP)
@@ -1721,6 +1896,7 @@ bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const 
         return false;
     }
 
+    ProgressSet(Progress, 100, 100);
     return true;
 }
 

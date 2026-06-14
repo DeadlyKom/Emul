@@ -1,8 +1,11 @@
 #pragma once
 
+#include <atomic>
 #include <Core/AppFramework.h>
 #include <Core/ViewerBase.h>
 #include <Utils/6912/CodeGenerator.h>
+#include <mutex>
+#include <thread>
 
 class SCanvas;
 
@@ -99,6 +102,7 @@ private:
 	bool ShowModal_WindowQuit();
 	bool ShowModal_WindowNewCanvas();
 	bool ShowModal_WindowgGridSettings();
+	bool ShowModal_CodeGenerationProgress();
 
 	bool Show_WindowgCodeGeneration();
 
@@ -113,6 +117,8 @@ private:
 	bool Callback_OpenFile(const std::filesystem::path& FilePath);
 	bool HasCanvasWithTimeline() const;
 	void RefreshCodeGenerationPreview();
+	void StartCodeGenerationPreview();
+	void PollCodeGenerationPreviewJob();
 	bool ExportCodeGenerationPreview();
 
 	std::shared_ptr<SCanvas> GetActiveCanvas();
@@ -147,6 +153,12 @@ private:
 	bool bCodeGenerationApplyWindowSize;
 	bool bCodeGenerationPreviewValid;
 	bool bCodeGenerationCodeWindowSizeInitialized;
+	std::atomic<bool> bCodeGenerationGenerationInProgress;
+	bool bCodeGenerationProgressModalOpen;
+	bool bCodeGenerationProgressShouldClose;
+	std::atomic<bool> bCodeGenerationCancelRequested;
+	std::atomic<int32_t> CodeGenerationProgressCurrent;
+	std::atomic<int32_t> CodeGenerationProgressTotal;
 	int32_t ExportCounter;
 	float CodeGenerationWindowHeight;
 	char NewOutputFileNameBuffer[BUFFER_SIZE_INPUT];
@@ -157,6 +169,8 @@ private:
 	std::string CodeGenerationPreviewText;
 	std::string CodeGenerationLogText;
 	std::vector<uint8_t> CodeGenerationOpcodeBytes;
+	std::thread CodeGenerationWorker;
+	CodeGenerator::FResult CodeGenerationJobResult;
 
 	std::shared_ptr<SViewerBase> Viewer;
 	std::vector<std::filesystem::path> RecentFiles;

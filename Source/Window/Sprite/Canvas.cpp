@@ -2080,9 +2080,9 @@ std::string SCanvas::GetNextSpriteName(const std::map<int32_t, std::string>& Spr
 	return BestBase + std::to_string(MaxIndex + 1);
 }
 
-FCodeGenerationResult SCanvas::BuildCodeGenerationResult(const CodeGenerator::FOptions& Options, const std::string& LabelName)
+CodeGenerator::FResult SCanvas::BuildCodeGenerationResult(const CodeGenerator::FOptions& Options, const std::string& LabelName, const CodeGenerator::FProgressInfo* Progress)
 {
-	FCodeGenerationResult Result;
+	CodeGenerator::FResult Result;
 	std::vector<uint8_t> Difference_InkData(CodeGenerator::ZX_PIXEL_SIZE);
 	std::vector<uint8_t> Difference_AttributeData(CodeGenerator::ZX_ATTRIBUTE_SIZE);
 	std::vector<uint8_t> Difference_MaskData(CodeGenerator::ZX_PIXEL_SIZE);
@@ -2092,17 +2092,18 @@ FCodeGenerationResult SCanvas::BuildCodeGenerationResult(const CodeGenerator::FO
 		return Result;
 	}
 	const std::string EffectiveLabelName = LabelName.empty() ? CodeGenerator::MakeFrameLabelName(SelectedSpritesFrame) : LabelName;
-	return CodeGeneration(Difference_InkData, Difference_AttributeData, Difference_MaskData, Options, EffectiveLabelName);
+	return CodeGeneration(Difference_InkData, Difference_AttributeData, Difference_MaskData, Options, EffectiveLabelName, Progress);
 }
 
-FCodeGenerationResult SCanvas::CodeGeneration(
+CodeGenerator::FResult SCanvas::CodeGeneration(
 	const std::vector<uint8_t>& InkData,
 	const std::vector<uint8_t>& AttributeData,
 	const std::vector<uint8_t>& MaskData,
 	const CodeGenerator::FOptions& Options,
-	const std::string& LabelName)
+	const std::string& LabelName,
+	const CodeGenerator::FProgressInfo* Progress)
 {
-	FCodeGenerationResult Result;
+	CodeGenerator::FResult Result;
 
 	/*
 	DirtyMask — это дифф-маска, то есть карта байтов, которые надо реально перезаписать.
@@ -2214,19 +2215,19 @@ FCodeGenerationResult SCanvas::CodeGeneration(
 	}
 
 	CodeGenerator::FAnalysis Analysis;
-	if (!BuildAnalysis(ScreenData, DirtyMask, Options, Analysis, Result.Error))
+	if (!BuildAnalysis(ScreenData, DirtyMask, Options, Analysis, Result.Error, Progress))
 	{
 		return Result;
 	}
 
 	CodeGenerator::FPlan Plan;
-	if (!OptimizePlan(Analysis, Options, Plan, Result.Error))
+	if (!OptimizePlan(Analysis, Options, Plan, Result.Error, Progress))
 	{
 		return Result;
 	}
 
 	int32_t EmittedCycles = 0;
-	if (!EmitAsm(Analysis, Plan, Options, Result.AsmCode, Result.ByteCode, EmittedCycles, Result.Error, LabelName.empty() ? "DrawFrame:" : LabelName))
+	if (!EmitAsm(Analysis, Plan, Options, Result.AsmCode, Result.ByteCode, EmittedCycles, Result.Error, LabelName.empty() ? "DrawFrame:" : LabelName, Progress))
 	{
 		return Result;
 	}

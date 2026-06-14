@@ -57,6 +57,7 @@ namespace
 	static const char* Modal_NewCanvasName = "New canvas";
 	static const char* Modal_GridSettingsName = "Grid settings";
 	static const char* Modal_CodeGenerationName = "Code generation";
+	static const char* Modal_CodeGenerationProgressName = "Code generation progress";
 
 	int32_t TextEditNumberCallback(ImGuiInputTextCallbackData* Data)
 	{
@@ -114,6 +115,12 @@ FAppSprite::FAppSprite()
 	, bCodeGenerationApplyWindowSize(false)
 	, bCodeGenerationPreviewValid(false)
 	, bCodeGenerationCodeWindowSizeInitialized(false)
+	, bCodeGenerationGenerationInProgress(false)
+	, bCodeGenerationProgressModalOpen(false)
+	, bCodeGenerationProgressShouldClose(false)
+	, bCodeGenerationCancelRequested(false)
+	, CodeGenerationProgressCurrent(0)
+	, CodeGenerationProgressTotal(0)
 	, ExportCounter(0)
 	, CodeGenerationWindowHeight(0.0f)
 	, NewOutputFileNameBuffer{}
@@ -300,6 +307,12 @@ bool FAppSprite::Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const 
 
 void FAppSprite::Shutdown()
 {
+	bCodeGenerationCancelRequested.store(true, std::memory_order_relaxed);
+	if (CodeGenerationWorker.joinable())
+	{
+		CodeGenerationWorker.join();
+	}
+
 	if (Viewer)
 	{
 		Viewer->Destroy();
@@ -324,6 +337,8 @@ void FAppSprite::Tick(float DeltaTime)
 	{
 		Viewer->Tick(DeltaTime);
 	}
+
+	PollCodeGenerationPreviewJob();
 }
 
 void FAppSprite::Render()
@@ -337,6 +352,8 @@ void FAppSprite::Render()
 		Input_HotKeys();
 		Viewer->Render();
 	}
+
+	ShowModal_CodeGenerationProgress();
 
 	ImGui::PopFont();
 }
@@ -913,7 +930,10 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 			std::string OutputFileNameUtf8 = Utils::Utf16ToUtf8(OutputFileNameW);
 			Utils::CopyToBuffer(NewOutputFileNameBuffer, sizeof(NewOutputFileNameBuffer), OutputFileNameUtf8);
 			Utils::CopyToBuffer(CodeGenerationLabelNameBuffer, sizeof(CodeGenerationLabelNameBuffer), CodeGenerator::MakeFrameLabelName(FrameIndex));
-			RefreshCodeGenerationPreview();
+			bCodeGenerationPreviewValid = false;
+			CodeGenerationPreviewText.clear();
+			CodeGenerationOpcodeBytes.clear();
+			CodeGenerationLogText = "Press Generate to start.";
 			CodeGenerationBaseWindowSize = ImVec2(0.0f, 0.0f);
 			CodeGenerationCodeWindowSize = ImVec2(0.0f, 0.0f);
 			CodeGenerationWindowHeight = 0.0f;
@@ -931,9 +951,13 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		const float RefreshButtonWidth = TextWidth * 11.0f;
 		const float InputNumberWidth = TextWidth * 14.0f;
 		const float OutputFileWidth = TextWidth * 56.0f;
+		bool bOptionsChanged = false;
 		auto CheckboxWithTooltip = [&](const char* Label, bool* Value, const char* Tooltip)
 		{
-			ImGui::Checkbox(Label, Value);
+			if (ImGui::Checkbox(Label, Value))
+			{
+				bOptionsChanged = true;
+			}
 			if (ImGui::IsItemHovered())
 			{
 				ImGui::BeginTooltip();
@@ -949,7 +973,6 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		ImGui::SeparatorText("Output file : ");
 		ImGui::InputTextEx("##Name", NULL, NewOutputFileNameBuffer, IM_ARRAYSIZE(NewOutputFileNameBuffer), ImVec2(OutputFileWidth, TextHeight), ImGuiInputTextFlags_None);
 
-		bool bOptionsChanged = false;
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
 		ImGui::SeparatorText("Code generation options : ");
 		bOptionsChanged |= ImGui::InputTextEx("Label", NULL, CodeGenerationLabelNameBuffer, IM_ARRAYSIZE(CodeGenerationLabelNameBuffer), ImVec2(TextWidth * 32.0f, TextHeight), ImGuiInputTextFlags_ReadOnly);
@@ -1063,15 +1086,23 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 			&CodeGenerationOptions.EnableRegisterConstants,
 			"Counts dirty byte values, loads the best pair into BC, and allows candidates that write through B or C.\nThe one-time LD BC cost is included in the plan score.");
 
+		if (bOptionsChanged)
+		{
+			bCodeGenerationPreviewValid = false;
+		}
+
 		CodeGenerationOptions.MaxStackPairsToEnumerate = ImClamp(CodeGenerationOptions.MaxStackPairsToEnumerate, 2, 256);
 		CodeGenerationOptions.NonLinearBeamWidth = ImClamp(CodeGenerationOptions.NonLinearBeamWidth, 1, 32);
 		CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass = ImClamp(CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass, 1, 1024);
 		CodeGenerationOptions.CycleWeight = ImMax(CodeGenerationOptions.CycleWeight, 1LL);
 		CodeGenerationOptions.ByteWeight = ImMax(CodeGenerationOptions.ByteWeight, 1LL);
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.35f));
-		if (ImGui::Button("Refresh", ImVec2(RefreshButtonWidth, TextHeight * 1.5f)))
+		const bool bGenerationInProgress = bCodeGenerationGenerationInProgress.load(std::memory_order_relaxed);
+		const bool bGenerationBusy = bGenerationInProgress || bCodeGenerationProgressModalOpen || bCodeGenerationProgressShouldClose;
+		const char* GenerateButtonLabel = bGenerationBusy ? "Generating..." : (bCodeGenerationPreviewValid ? "Refresh" : "Generate");
+		if (!bGenerationBusy && ImGui::Button(GenerateButtonLabel, ImVec2(RefreshButtonWidth, TextHeight * 1.5f)))
 		{
-			RefreshCodeGenerationPreview();
+			StartCodeGenerationPreview();
 		}
 
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
@@ -1197,11 +1228,12 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 	return bVisible;
 }
 
-void FAppSprite::RefreshCodeGenerationPreview()
+void FAppSprite::StartCodeGenerationPreview()
 {
-	bCodeGenerationPreviewValid = false;
-	CodeGenerationPreviewText.clear();
-	CodeGenerationOpcodeBytes.clear();
+	if (bCodeGenerationGenerationInProgress.load(std::memory_order_relaxed))
+	{
+		return;
+	}
 
 	auto AppendLogLine = [this](const std::string& Line)
 	{
@@ -1212,6 +1244,14 @@ void FAppSprite::RefreshCodeGenerationPreview()
 		CodeGenerationLogText += Line;
 	};
 
+	CodeGenerationPreviewText.clear();
+	CodeGenerationOpcodeBytes.clear();
+	CodeGenerationJobResult = CodeGenerator::FResult();
+	bCodeGenerationPreviewValid = false;
+	bCodeGenerationProgressShouldClose = false;
+	CodeGenerationProgressCurrent.store(0, std::memory_order_relaxed);
+	CodeGenerationProgressTotal.store(100, std::memory_order_relaxed);
+
 	AppendLogLine("Generating source code...");
 
 	std::shared_ptr<SCanvas> Canvas = GetActiveCanvas();
@@ -1220,33 +1260,171 @@ void FAppSprite::RefreshCodeGenerationPreview()
 		AppendLogLine("No active canvas.");
 		return;
 	}
+
 	const int32_t FrameIndex = Canvas->GetSelectedFrameIndex();
 	Utils::CopyToBuffer(NewOutputFileNameBuffer, sizeof(NewOutputFileNameBuffer), Utils::Utf16ToUtf8(MakeFrameOutputFileName(Canvas->GetWindowWName(), FrameIndex)));
 	Utils::CopyToBuffer(CodeGenerationLabelNameBuffer, sizeof(CodeGenerationLabelNameBuffer), CodeGenerator::MakeFrameLabelName(FrameIndex));
 
-	FCodeGenerationResult Result = Canvas->BuildCodeGenerationResult(CodeGenerationOptions, CodeGenerationLabelNameBuffer);
-	if (!Result.bSuccess)
+	if (CodeGenerationWorker.joinable())
 	{
-		AppendLogLine(std::format("Failed: {}", Result.Error));
+		CodeGenerationWorker.join();
+	}
+
+	bCodeGenerationCancelRequested.store(false, std::memory_order_relaxed);
+	bCodeGenerationGenerationInProgress.store(true, std::memory_order_relaxed);
+	bCodeGenerationProgressModalOpen = true;
+
+	const CodeGenerator::FOptions Options = CodeGenerationOptions;
+	const std::string LabelName = CodeGenerationLabelNameBuffer;
+	CodeGenerationWorker = std::thread(
+		[this, Canvas, Options, LabelName]()
+		{
+			CodeGenerator::FProgressInfo Progress;
+			Progress.CancelRequested = &bCodeGenerationCancelRequested;
+			Progress.Current = &CodeGenerationProgressCurrent;
+			Progress.Total = &CodeGenerationProgressTotal;
+
+			CodeGenerationJobResult = Canvas->BuildCodeGenerationResult(Options, LabelName, &Progress);
+			bCodeGenerationGenerationInProgress.store(false, std::memory_order_relaxed);
+		});
+}
+
+void FAppSprite::RefreshCodeGenerationPreview()
+{
+	StartCodeGenerationPreview();
+}
+
+void FAppSprite::PollCodeGenerationPreviewJob()
+{
+	if (bCodeGenerationGenerationInProgress.load(std::memory_order_relaxed))
+	{
 		return;
 	}
 
-	bCodeGenerationPreviewValid = true;
-	CodeGenerationPreviewText = std::move(Result.AsmCode);
-	CodeGenerationOpcodeBytes = std::move(Result.ByteCode);
-	AppendLogLine(std::format("Source code size: {} bytes", CodeGenerationPreviewText.size()));
-	AppendLogLine(std::format("Opcode size: {} bytes", CodeGenerationOpcodeBytes.size()));
-	AppendLogLine(std::format("Stack top address: 0x{:04X}", CodeGenerationOptions.StackTopAddress));
-	AppendLogLine(std::format("Dirty bytes: {}", Result.DirtyBytes));
-	AppendLogLine(std::format("Operations: {}", Result.OperationCount));
-	AppendLogLine(std::format("Estimated cycles: {}", Result.Cycles));
-	AppendLogLine(std::format("Code bytes: {}", Result.CodeBytes));
-	if (bCodeGenerationGenerateOpcode)
+	if (!CodeGenerationWorker.joinable())
 	{
-		AppendLogLine("Opcode generation: enabled.");
-		AppendLogLine("Preview remains readable assembly text.");
+		return;
 	}
-	AppendLogLine("OK");
+
+	CodeGenerationWorker.join();
+
+	auto AppendLogLine = [this](const std::string& Line)
+	{
+		if (!CodeGenerationLogText.empty())
+		{
+			CodeGenerationLogText.push_back('\n');
+		}
+		CodeGenerationLogText += Line;
+	};
+
+	if (!CodeGenerationJobResult.bSuccess)
+	{
+		if (bCodeGenerationCancelRequested.load(std::memory_order_relaxed))
+		{
+			AppendLogLine("Cancelled.");
+		}
+		else
+		{
+			AppendLogLine(std::format("Failed: {}", CodeGenerationJobResult.Error));
+		}
+	}
+	else
+	{
+		bCodeGenerationPreviewValid = true;
+		CodeGenerationPreviewText = std::move(CodeGenerationJobResult.AsmCode);
+		CodeGenerationOpcodeBytes = std::move(CodeGenerationJobResult.ByteCode);
+		AppendLogLine(std::format("Source code size: {} bytes", CodeGenerationPreviewText.size()));
+		AppendLogLine(std::format("Opcode size: {} bytes", CodeGenerationOpcodeBytes.size()));
+		AppendLogLine(std::format("Stack top address: 0x{:04X}", CodeGenerationOptions.StackTopAddress));
+		AppendLogLine(std::format("Dirty bytes: {}", CodeGenerationJobResult.DirtyBytes));
+		AppendLogLine(std::format("Operations: {}", CodeGenerationJobResult.OperationCount));
+		AppendLogLine(std::format("Estimated cycles: {}", CodeGenerationJobResult.Cycles));
+		AppendLogLine(std::format("Code bytes: {}", CodeGenerationJobResult.CodeBytes));
+		if (bCodeGenerationGenerateOpcode)
+		{
+			AppendLogLine("Opcode generation: enabled.");
+			AppendLogLine("Preview remains readable assembly text.");
+		}
+		AppendLogLine("OK");
+	}
+
+	bCodeGenerationProgressShouldClose = true;
+}
+
+bool FAppSprite::ShowModal_CodeGenerationProgress()
+{
+	if (!bCodeGenerationProgressModalOpen && !bCodeGenerationGenerationInProgress.load(std::memory_order_relaxed) && !bCodeGenerationProgressShouldClose)
+	{
+		return false;
+	}
+
+	if (bCodeGenerationProgressModalOpen)
+	{
+		ImGui::OpenPopup(Modal_CodeGenerationProgressName);
+	}
+
+	if (bCodeGenerationProgressShouldClose && !bCodeGenerationProgressModalOpen)
+	{
+		bCodeGenerationProgressShouldClose = false;
+		return false;
+	}
+
+	if (ImGui::IsWindowAppearing())
+	{
+		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+	}
+
+	const bool bVisible = ImGui::BeginPopupModal(Modal_CodeGenerationProgressName, nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings);
+	if (bVisible)
+	{
+		if (bCodeGenerationProgressShouldClose)
+		{
+			ImGui::CloseCurrentPopup();
+			bCodeGenerationProgressModalOpen = false;
+			bCodeGenerationProgressShouldClose = false;
+			ImGui::EndPopup();
+			return false;
+		}
+
+		const int32_t Current = CodeGenerationProgressCurrent.load(std::memory_order_relaxed);
+		const int32_t Total = ImMax(CodeGenerationProgressTotal.load(std::memory_order_relaxed), 1);
+		const float Fraction = ImClamp(static_cast<float>(Current) / static_cast<float>(Total), 0.0f, 1.0f);
+
+		ImGui::TextUnformatted("Generating code...");
+		ImGui::ProgressBar(Fraction, ImVec2(320.0f, 0.0f));
+		ImGui::Text("%d / %d", Current, Total);
+
+		if (bCodeGenerationCancelRequested.load(std::memory_order_relaxed))
+		{
+			ImGui::TextUnformatted("Cancelling...");
+		}
+		else
+		{
+			ImGui::TextUnformatted("Press Cancel to stop the current generation.");
+		}
+
+		if (!bCodeGenerationCancelRequested.load(std::memory_order_relaxed))
+		{
+			if (ImGui::Button("Cancel", ImVec2(120.0f, 0.0f)))
+			{
+				bCodeGenerationCancelRequested.store(true, std::memory_order_relaxed);
+			}
+		}
+		else
+		{
+			ImGui::BeginDisabled();
+			ImGui::Button("Cancel", ImVec2(120.0f, 0.0f));
+			ImGui::EndDisabled();
+		}
+
+		ImGui::EndPopup();
+		return true;
+	}
+	if (!bVisible && !bCodeGenerationGenerationInProgress.load(std::memory_order_relaxed))
+	{
+		bCodeGenerationProgressModalOpen = false;
+	}
+	return false;
 }
 
 bool FAppSprite::ExportCodeGenerationPreview()

@@ -1,5 +1,6 @@
 ﻿#pragma once
 
+#include <atomic>
 #include <CoreMinimal.h>
 
 namespace CodeGenerator
@@ -33,6 +34,27 @@ namespace CodeGenerator
         VerticalSameByteDecH,      // LD HL,addr / LD A,n / LD (HL),A / DEC H...
         VerticalSameByteRegIncH,   // LD HL,addr / LD (HL),B|C / INC H...
         VerticalSameByteRegDecH,   // LD HL,addr / LD (HL),B|C / DEC H...
+    };
+
+    struct FResult
+    {
+        bool bSuccess;
+        std::string Error;
+        std::string AsmCode;
+        std::vector<uint8_t> ByteCode;
+        int32_t OperationCount;
+        int32_t Cycles;
+        int32_t CodeBytes;
+        int32_t DirtyBytes;
+
+        FResult()
+            : bSuccess(false)
+            , OperationCount(0)
+            , Cycles(0)
+            , CodeBytes(0)
+            , DirtyBytes(0)
+        {
+        }
     };
 
     struct FCandidate
@@ -208,6 +230,20 @@ namespace CodeGenerator
         }
     };
 
+    struct FProgressInfo
+    {
+        std::atomic<bool>* CancelRequested;
+        std::atomic<int32_t>* Current;
+        std::atomic<int32_t>* Total;
+
+        FProgressInfo()
+            : CancelRequested(nullptr)
+            , Current(nullptr)
+            , Total(nullptr)
+        {
+        }
+    };
+
     inline bool IsValidOffset(int Offset)
     {
         return Offset >= 0 && Offset < ZX_SCREEN_SIZE;
@@ -257,8 +293,8 @@ namespace CodeGenerator
     FCandidate MakeVerticalSameByteRegIncH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count, char RegisterName);
     FCandidate MakeVerticalSameByteRegDecH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count, char RegisterName);
 
-    bool BuildAnalysis(const std::vector<uint8_t>& Data, const std::vector<uint8_t>& DirtyMask, const FOptions& Options, FAnalysis& OutAnalysis, std::string& OutError);
-    bool OptimizePlan(const FAnalysis& Analysis, const FOptions& Options, FPlan& OutPlan, std::string& OutError);
+    bool BuildAnalysis(const std::vector<uint8_t>& Data, const std::vector<uint8_t>& DirtyMask, const FOptions& Options, FAnalysis& OutAnalysis, std::string& OutError, const FProgressInfo* Progress = nullptr);
+    bool OptimizePlan(const FAnalysis& Analysis, const FOptions& Options, FPlan& OutPlan, std::string& OutError, const FProgressInfo* Progress = nullptr);
 
     void EmitByte(FEmitOutput& Out, uint8_t Value);
     void EmitWordLE(FEmitOutput& Out, uint16_t Value);
@@ -267,7 +303,7 @@ namespace CodeGenerator
     void EmitLdHL(FEmitOutput& Out, FEmitState& State, uint16_t Value);
     void EmitLdSP(FEmitOutput& Out, FEmitState& State, uint16_t Value);
     bool EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate, const std::vector<uint8_t>& Data, FEmitState& State, std::string& OutError);
-    bool EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::vector<uint8_t>& OutCode, int32_t& OutCycles, std::string& OutError, const std::string& LabelName);
+    bool EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::vector<uint8_t>& OutCode, int32_t& OutCycles, std::string& OutError, const std::string& LabelName, const FProgressInfo* Progress = nullptr);
 
     void PrintPlanSummary(const FAnalysis& Analysis, const FPlan& Plan);
 }
