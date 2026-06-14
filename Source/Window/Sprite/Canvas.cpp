@@ -103,6 +103,56 @@ namespace
 			}
 		}
 	}
+
+	void ApplyActiveAreaToCodeGenerationMask(
+		const ImRect& Rect,
+		int32_t Width,
+		int32_t Height,
+		const std::vector<uint8_t>& InkData,
+		const std::vector<uint8_t>& AttributeData,
+		const std::vector<uint8_t>& MaskData,
+		std::vector<uint8_t>& PixelAllowedMask,
+		std::vector<uint8_t>& AttributeAllowedMask)
+	{
+		const ImRect Area = AlignLimitAreaToAttributeCells(Rect, Width, Height);
+		if (Area.GetWidth() <= 0.0f || Area.GetHeight() <= 0.0f)
+		{
+			return;
+		}
+
+		const int32_t Boundary_X = Width >> 3;
+		const int32_t MinByteX = (int32_t)Area.Min.x >> 3;
+		const int32_t MaxByteX = (int32_t)Area.Max.x >> 3;
+		const int32_t MinY = (int32_t)Area.Min.y;
+		const int32_t MaxY = (int32_t)Area.Max.y;
+
+		for (int32_t y = MinY; y < MaxY; ++y)
+		{
+			for (int32_t ByteX = MinByteX; ByteX < MaxByteX; ++ByteX)
+			{
+				const int32_t PixelIndex = y * Boundary_X + ByteX;
+				if (PixelIndex < 0 || PixelIndex >= (int32_t)PixelAllowedMask.size() || PixelIndex >= (int32_t)InkData.size() || PixelIndex >= (int32_t)MaskData.size())
+				{
+					continue;
+				}
+
+				const uint8_t Mask = MaskData[PixelIndex];
+				const uint8_t Pixels = InkData[PixelIndex];
+				if (Mask == 0x00 || Pixels == 0x00 || Pixels == 0xFF)
+				{
+					continue;
+				}
+
+				PixelAllowedMask[PixelIndex] = 1;
+
+				const int32_t AttrIndex = (y >> 3) * Boundary_X + ByteX;
+				if (AttrIndex >= 0 && AttrIndex < (int32_t)AttributeAllowedMask.size() && AttrIndex < (int32_t)AttributeData.size())
+				{
+					AttributeAllowedMask[AttrIndex] = 1;
+				}
+			}
+		}
+	}
 }
 
 int32_t SCanvas::SpriteCounter = 0;
@@ -789,7 +839,12 @@ void SCanvas::Draw_PopupMenu()
 						FPropertyBag* Property = Keyframes->GetMutableProperty(TimelineState.CurrentFrame, TimelineState.CurrentLayer);
 						if (Property != nullptr)
 						{
-							Property->AddStruct(FPropertyTag::LimitArea, FTilemapCellData_Rect(ZXColorView->RectangleMarqueeRect));
+							//Property->RemoveProperty(FPropertyTag::ActiveArea);
+							const FTilemapCellData_Rect LimitArea(ZXColorView->RectangleMarqueeRect);
+							if (!Property->SetStruct(FPropertyTag::LimitArea, LimitArea))
+							{
+								Property->AddStruct(FPropertyTag::LimitArea, LimitArea);
+							}
 						}
 					};
 				SendEvent(Event_Timeline);
@@ -2061,7 +2116,7 @@ FCodeGenerationResult SCanvas::CodeGeneration(
 
 	if (Keyframes && AsepriteSprite && AsepriteSprite->IsValid())
 	{
-		bool bHasLimitArea = false;
+		bool bHasCodeGenerationMask = false;
 		std::vector<uint8_t> LimitedPixelAllowedMask(CodeGenerator::ZX_PIXEL_SIZE, 0);
 		std::vector<uint8_t> LimitedAttributeAllowedMask(CodeGenerator::ZX_ATTRIBUTE_SIZE, 0);
 
@@ -2073,22 +2128,59 @@ FCodeGenerationResult SCanvas::CodeGeneration(
 				continue;
 			}
 
+			std::vector<uint8_t> LayerPixelAllowedMask(CodeGenerator::ZX_PIXEL_SIZE, 0);
+			std::vector<uint8_t> LayerAttributeAllowedMask(CodeGenerator::ZX_ATTRIBUTE_SIZE, 0);
+			bool bHasLayerMask = false;
+
 			FTilemapCellData_Rect LimitArea;
-			if (!Property.GetStruct(FPropertyTag::LimitArea, LimitArea))
+			if (Property.GetStruct(FPropertyTag::LimitArea, LimitArea))
+			{
+				if (LimitArea.bActiveArea)
+				{
+					ApplyActiveAreaToCodeGenerationMask(
+						LimitArea.Rect,
+						Width,
+						Height,
+						InkData,
+						AttributeData,
+						MaskData,
+						LayerPixelAllowedMask,
+						LayerAttributeAllowedMask);
+					bHasLayerMask = true;
+				}
+				else
+				{
+					FTilemapCellData_Rect LimitArea;
+					if (Property.GetStruct(FPropertyTag::LimitArea, LimitArea))
+					{
+						ApplyLimitAreaToCodeGenerationMask(
+							LimitArea.Rect,
+							Width,
+							Height,
+							LayerPixelAllowedMask,
+							LayerAttributeAllowedMask);
+						bHasLayerMask = true;
+					}
+				}
+			}
+
+			if (!bHasLayerMask)
 			{
 				continue;
 			}
 
-			ApplyLimitAreaToCodeGenerationMask(
-				LimitArea.Rect,
-				Width,
-				Height,
-				LimitedPixelAllowedMask,
-				LimitedAttributeAllowedMask);
-			bHasLimitArea = true;
+			for (int32_t PixelIndex = 0; PixelIndex < CodeGenerator::ZX_PIXEL_SIZE; ++PixelIndex)
+			{
+				LimitedPixelAllowedMask[PixelIndex] = LimitedPixelAllowedMask[PixelIndex] || LayerPixelAllowedMask[PixelIndex] ? 1 : 0;
+			}
+			for (int32_t AttrIndex = 0; AttrIndex < CodeGenerator::ZX_ATTRIBUTE_SIZE; ++AttrIndex)
+			{
+				LimitedAttributeAllowedMask[AttrIndex] = LimitedAttributeAllowedMask[AttrIndex] || LayerAttributeAllowedMask[AttrIndex] ? 1 : 0;
+			}
+			bHasCodeGenerationMask = true;
 		}
 
-		if (bHasLimitArea)
+		if (bHasCodeGenerationMask)
 		{
 			PixelAllowedMask = std::move(LimitedPixelAllowedMask);
 			AttributeAllowedMask = std::move(LimitedAttributeAllowedMask);

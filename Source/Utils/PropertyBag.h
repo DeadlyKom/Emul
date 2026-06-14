@@ -270,14 +270,12 @@ public:
     bool GetStruct(const std::string& Name, T& OutValue) const
     {
         int32_t Index = FindPropertyIndex(Name);
-
         if (Index < 0)
         {
             return false;
         }
 
         const FPropertyValue& PropertyValue = Values[Index];
-
         if (PropertyValue.Type != EPropertyType::Struct)
         {
             return false;
@@ -329,6 +327,25 @@ public:
         TStructValue<T>* TypedValue = static_cast<TStructValue<T>*>(PropertyValue.StructValue.get());
 
         TypedValue->Value = NewValue;
+        return true;
+    }
+
+    bool HasProperty(const std::string& Name) const
+    {
+        return FindPropertyIndex(Name) >= 0;
+    }
+
+    bool RemoveProperty(const std::string& Name)
+    {
+        const int32_t Index = FindPropertyIndex(Name);
+        if (Index < 0)
+        {
+            return false;
+        }
+
+        Descriptions.erase(Descriptions.begin() + Index);
+        Values.erase(Values.begin() + Index);
+        bIsValid = !Descriptions.empty();
         return true;
     }
 

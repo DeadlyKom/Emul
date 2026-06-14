@@ -1,5 +1,7 @@
 #include "Timeline.h"
 #include <Window/Sprite/Events.h>
+#include <Utils/UI/Draw.h>
+#include <Utils/UI/Draw_ZXColorVideo.h>
 #include "resource.h"
 #include "Keyframes.h"
 
@@ -56,10 +58,26 @@ namespace
         {
             return;
         }
-        ImU32 ColKey = IM_COL32(255, 220, 80, 255);
-        float CenterX = (CellMin.x + CellMax.x) * 0.5f;
-        float CenterY = (CellMin.y + CellMax.y) * 0.5f;
-        DrawList->AddCircleFilled(ImVec2(CenterX, CenterY), 4.0f, ColKey, 12);
+
+        const bool bHasLimitArea = Property.HasProperty(FPropertyTag::LimitArea);
+        if (!bHasLimitArea)
+        {
+            return;
+        }
+
+        FTilemapCellData_Rect LimitArea;
+        Property.GetStruct(FPropertyTag::LimitArea, LimitArea);
+
+        const ImU32 ColKey = IM_COL32(255, 220, 80, 255);
+        const ImVec2 Center((CellMin.x + CellMax.x) * 0.5f, (CellMin.y + CellMax.y) * 0.5f);
+        if (LimitArea.bActiveArea)
+        {
+            DrawList->AddCircle(Center, 5.0f, ColKey, 12, 2.0f);
+        }
+        else
+        {
+            DrawList->AddCircleFilled(Center, 4.0f, ColKey, 12);
+        }
     }
 }
 
@@ -70,6 +88,10 @@ STimeline::STimeline(EFont::Type _FontName, std::string _DockSlot /*= ""*/, bool
 		.SetFontName(_FontName)
 		.SetDockSlot(_DockSlot)
 		.SetIncludeInWindows(true))
+    , FrameCount(0)
+    , LayerCount(0)
+    , PopupFrame(INDEX_NONE)
+    , PopupLayer(INDEX_NONE)
 {}
 
 void STimeline::NativeInitialize(const FNativeDataInitialize& Data)
@@ -518,6 +540,55 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
             SetCurrentLayer(Layer);
         }
 
+        if (!State.bDragging &&
+            bHovered &&
+            ImGui::IsMouseClicked(ImGuiMouseButton_Right) &&
+            IsMouseInsideTable())
+        {
+            const int32_t Frame = GetFrameFromBodyMouse();
+            const int32_t Layer = GetLayerFromBodyMouse();
+            std::shared_ptr<FKeyframes> KeyframeData = Keyframes.lock();
+            if (KeyframeData && KeyframeData->GetProperty(Frame, Layer).IsValid())
+            {
+                PopupFrame = Frame;
+                PopupLayer = Layer;
+                ImGui::OpenPopup("TimelineCellPropertyPopup");
+            }
+        }
+
+        if (ImGui::BeginPopup("TimelineCellPropertyPopup"))
+        {
+            std::shared_ptr<FKeyframes> KeyframeData = Keyframes.lock();
+            FPropertyBag* Property = KeyframeData ? KeyframeData->GetMutableProperty(PopupFrame, PopupLayer) : nullptr;
+            if (Property != nullptr)
+            {
+                const bool bHasLimitArea = Property->HasProperty(FPropertyTag::LimitArea);
+                if (bHasLimitArea)
+                {
+                    if (ImGui::MenuItem("Delete Limit Area"))
+                    {
+                        Property->RemoveProperty(FPropertyTag::LimitArea);
+                    }
+
+                    FTilemapCellData_Rect LimitArea;
+                    if (Property->GetStruct(FPropertyTag::LimitArea, LimitArea))
+                    {
+                        if (LimitArea.bActiveArea && ImGui::MenuItem("Convert to Limit Area"))
+                        {
+                            LimitArea.bActiveArea = false;
+                            Property->SetStruct(FPropertyTag::LimitArea, LimitArea);
+                        }
+                        else if (!LimitArea.bActiveArea && ImGui::MenuItem("Convert to Active Area"))
+                        {
+                            LimitArea.bActiveArea = true;
+                            Property->SetStruct(FPropertyTag::LimitArea, LimitArea);
+                        }
+                    }
+                }
+            }
+            ImGui::EndPopup();
+        }
+
         if (State.bDragging &&
             State.DragMode == TimelineDrag_Cells &&
             bActive &&
@@ -932,6 +1003,7 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
     ImGui::PopStyleVar(2);
     ImGui::PopID();
 }
+
 void STimeline::InitializeFromAseprite(std::weak_ptr<AsepriteFormat::FSprite> NewSprite, std::weak_ptr<FKeyframes> SpriteKeyframes)
 {
     AsepriteSprite = NewSprite;

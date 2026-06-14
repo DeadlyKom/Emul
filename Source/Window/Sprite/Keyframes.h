@@ -10,11 +10,15 @@ namespace FPropertyTag
 
 struct FTilemapCellData_Rect
 {
+	bool bActiveArea;
 	ImRect Rect;
-	static const FName StaticStructName() { return TEXT("FTilemapCellData_Rect"); }
+
 	FTilemapCellData_Rect(const ImRect& _Rect = {})
-		: Rect(_Rect)
+		: bActiveArea (false)
+		, Rect(_Rect)
 	{}
+
+	static const FName StaticStructName() { return TEXT("FTilemapCellData_Rect"); }
 };
 
 struct FKeyframes

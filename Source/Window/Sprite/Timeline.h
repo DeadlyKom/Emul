@@ -92,6 +92,8 @@ private:
 
 	int32_t FrameCount;
 	int32_t LayerCount;
+	int32_t PopupFrame;
+	int32_t PopupLayer;
 	EImageFormat Format;
 
 	FTimelineState TimelineState;
