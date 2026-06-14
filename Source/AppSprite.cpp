@@ -80,89 +80,49 @@ namespace
 		return 0;
 	}
 
-	inline std::string WideToUtf8(const std::wstring& Text)
+	std::wstring MakeFrameOutputFileName(const std::wstring& FileName, int32_t FrameIndex)
 	{
-		if (Text.empty())
-		{
-			return {};
-		}
-
-		const int Size = WideCharToMultiByte(
-			CP_UTF8,
-			0,
-			Text.data(),
-			(int)Text.size(),
-			nullptr,
-			0,
-			nullptr,
-			nullptr
-		);
-
-		std::string Result;
-		Result.resize(Size);
-
-		WideCharToMultiByte(
-			CP_UTF8,
-			0,
-			Text.data(),
-			(int)Text.size(),
-			Result.data(),
-			Size,
-			nullptr,
-			nullptr
-		);
-
-		return Result;
+		std::filesystem::path FileNamePath(FileName);
+		FileNamePath.replace_filename(std::format(L"{} ({}){}", FileNamePath.stem().wstring(), FrameIndex, FileNamePath.extension().wstring()));
+		FileNamePath.replace_extension(".asm");
+		return FileNamePath.wstring();
 	}
 
-	inline std::wstring Utf8ToWide(const std::string& Text)
-	{
-		if (Text.empty())
-		{
-			return {};
-		}
-
-		const int Size = MultiByteToWideChar(
-			CP_UTF8,
-			0,
-			Text.data(),
-			(int)Text.size(),
-			nullptr,
-			0
-		);
-
-		std::wstring Result;
-		Result.resize(Size);
-
-		MultiByteToWideChar(
-			CP_UTF8,
-			0,
-			Text.data(),
-			(int)Text.size(),
-			Result.data(),
-			Size
-		);
-
-		return Result;
-	}
-
-	inline void CopyToBuffer(char* Buffer, size_t BufferSize, const std::string& Text)
-	{
-		if (Buffer == nullptr || BufferSize == 0)
-		{
-			return;
-		}
-
-		snprintf(Buffer, BufferSize, "%s", Text.c_str());
-	}
 }
 
 FAppSprite::FAppSprite()
 	: bOpen(true)
+	, bRectangularCanvas(false)
+	, bRoundingToMultipleEight(false)
 	, CanvasCounter(0)
+	, NewCanvasNameBuffer{}
+	, NewCanvasWidthBuffer{}
+	, NewCanvasHeightBuffer{}
+	, OriginalCanvasSize(0.0f, 0.0f)
+	, NewCanvasSize(0.0f, 0.0f)
+	, Log2CanvasSize(0.0f, 0.0f)
+	, bTmpGrid(false)
+	, GridSettingsWidthBuffer{}
+	, GridSettingsHeightBuffer{}
+	, GridSettingsOffsetXBuffer{}
+	, GridSettingsOffsetYBuffer{}
+	, TmpGridSettingSize(0.0f, 0.0f)
+	, TmpGridSettingOffset(0.0f, 0.0f)
+	, bCodeGenerationGenerateOpcode(false)
+	, bCodeGenerationOpen(false)
+	, bCodeGenerationShowCode(false)
+	, bCodeGenerationApplyWindowSize(false)
+	, bCodeGenerationPreviewValid(false)
+	, bCodeGenerationCodeWindowSizeInitialized(false)
 	, ExportCounter(0)
+	, CodeGenerationWindowHeight(0.0f)
+	, NewOutputFileNameBuffer{}
+	, CodeGenerationLabelNameBuffer{}
+	, CodeGenerationBaseWindowSize(0.0f, 0.0f)
+	, CodeGenerationCodeWindowSize(0.0f, 0.0f)
 {
 	WindowName = SpriteName.c_str();
+	Utils::CopyToBuffer(CodeGenerationLabelNameBuffer, sizeof(CodeGenerationLabelNameBuffer), CodeGenerator::MakeFrameLabelName(0));
 }
 
 void FAppSprite::Initialize()
@@ -948,9 +908,11 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		{
 			std::shared_ptr<SCanvas> Canvas = GetActiveCanvas();
 			std::wstring CanvasName = Canvas ? Canvas->GetWindowWName() : std::format(L"Export-{:04}", ++ExportCounter);
-			std::wstring OutputFileNameW = std::format(L"{}.asm", CanvasName);
-			std::string OutputFileNameUtf8 = WideToUtf8(OutputFileNameW);
-			CopyToBuffer(NewOutputFileNameBuffer, sizeof(NewOutputFileNameBuffer), OutputFileNameUtf8);
+			const int32_t FrameIndex = Canvas ? Canvas->GetSelectedFrameIndex() : 0;
+			std::wstring OutputFileNameW = MakeFrameOutputFileName(CanvasName, FrameIndex);
+			std::string OutputFileNameUtf8 = Utils::Utf16ToUtf8(OutputFileNameW);
+			Utils::CopyToBuffer(NewOutputFileNameBuffer, sizeof(NewOutputFileNameBuffer), OutputFileNameUtf8);
+			Utils::CopyToBuffer(CodeGenerationLabelNameBuffer, sizeof(CodeGenerationLabelNameBuffer), CodeGenerator::MakeFrameLabelName(FrameIndex));
 			RefreshCodeGenerationPreview();
 			CodeGenerationBaseWindowSize = ImVec2(0.0f, 0.0f);
 			CodeGenerationCodeWindowSize = ImVec2(0.0f, 0.0f);
@@ -990,45 +952,62 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		bool bOptionsChanged = false;
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
 		ImGui::SeparatorText("Code generation options : ");
-		bOptionsChanged |= ImGui::InputTextEx("Label", NULL, CodeGenerationLabelNameBuffer, IM_ARRAYSIZE(CodeGenerationLabelNameBuffer), ImVec2(TextWidth * 32.0f, TextHeight), ImGuiInputTextFlags_None);
+		bOptionsChanged |= ImGui::InputTextEx("Label", NULL, CodeGenerationLabelNameBuffer, IM_ARRAYSIZE(CodeGenerationLabelNameBuffer), ImVec2(TextWidth * 32.0f, TextHeight), ImGuiInputTextFlags_ReadOnly);
 
 		if (ImGui::Button("Speed", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
-			CodeGenerationCycleWeight = 1000;
-			CodeGenerationByteWeight = 1;
+			CodeGenerationOptions.CycleWeight = 1000;
+			CodeGenerationOptions.ByteWeight = 1;
 			bOptionsChanged = true;
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Balanced", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
-			CodeGenerationCycleWeight = 10;
-			CodeGenerationByteWeight = 1;
+			CodeGenerationOptions.CycleWeight = 10;
+			CodeGenerationOptions.ByteWeight = 1;
 			bOptionsChanged = true;
 		}
 		ImGui::SameLine();
 		if (ImGui::Button("Small", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
-			CodeGenerationCycleWeight = 1;
-			CodeGenerationByteWeight = 20;
+			CodeGenerationOptions.CycleWeight = 1;
+			CodeGenerationOptions.ByteWeight = 20;
 			bOptionsChanged = true;
 		}
 
-		CodeGenerationMaxStackPairsToEnumerate = ImMax(CodeGenerationMaxStackPairsToEnumerate, 2);
-		CodeGenerationCycleWeight = ImMax(CodeGenerationCycleWeight, 1);
-		CodeGenerationByteWeight = ImMax(CodeGenerationByteWeight, 1);
+		CodeGenerationOptions.MaxStackPairsToEnumerate = ImMax(CodeGenerationOptions.MaxStackPairsToEnumerate, 2);
+		CodeGenerationOptions.CycleWeight = ImMax(CodeGenerationOptions.CycleWeight, 1LL);
+		CodeGenerationOptions.ByteWeight = ImMax(CodeGenerationOptions.ByteWeight, 1LL);
 		ImGui::SetNextItemWidth(InputNumberWidth);
-		bOptionsChanged |= ImGui::InputInt("Max stack pairs", &CodeGenerationMaxStackPairsToEnumerate);
+		bOptionsChanged |= ImGui::InputInt("Max stack pairs", &CodeGenerationOptions.MaxStackPairsToEnumerate);
+		int32_t CodeBaseAddress = CodeGenerationOptions.CodeBaseAddress;
 		ImGui::SetNextItemWidth(InputNumberWidth);
-		bOptionsChanged |= ImGui::InputInt("Cycle weight", &CodeGenerationCycleWeight);
+		if (ImGui::InputInt("Code base address", &CodeBaseAddress))
+		{
+			CodeGenerationOptions.CodeBaseAddress = static_cast<uint16_t>(ImClamp(CodeBaseAddress, 0, 0xFFFF));
+			bOptionsChanged = true;
+		}
+		int32_t CycleWeight = static_cast<int32_t>(CodeGenerationOptions.CycleWeight);
 		ImGui::SetNextItemWidth(InputNumberWidth);
-		bOptionsChanged |= ImGui::InputInt("Code byte weight", &CodeGenerationByteWeight);
+		if (ImGui::InputInt("Cycle weight", &CycleWeight))
+		{
+			CodeGenerationOptions.CycleWeight = ImMax(CycleWeight, 1);
+			bOptionsChanged = true;
+		}
+		int32_t ByteWeight = static_cast<int32_t>(CodeGenerationOptions.ByteWeight);
+		ImGui::SetNextItemWidth(InputNumberWidth);
+		if (ImGui::InputInt("Code byte weight", &ByteWeight))
+		{
+			CodeGenerationOptions.ByteWeight = ImMax(ByteWeight, 1);
+			bOptionsChanged = true;
+		}
 		CheckboxWithTooltip(
 			"Preserve SP",
-			&bCodeGenerationPreserveSP,
+			&CodeGenerationOptions.PreserveSP,
 			"Keeps SP stable around stack-based candidates when possible.\nThis changes the emitted sequence, not the scoring formula.");
 		CheckboxWithTooltip(
 			"Disable interrupts for stack writes",
-			&bCodeGenerationDisableInterruptsForStack,
+			&CodeGenerationOptions.DisableInterruptsForStack,
 			"Adds DI/EI protection around stack write sequences.\nUseful when the generated block must not be interrupted.");
 		CheckboxWithTooltip(
 			"Generate opcode instead of text file",
@@ -1039,28 +1018,28 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		ImGui::SeparatorText("Code generation approaches : ");
 		CheckboxWithTooltip(
 			"Byte candidates",
-			&bCodeGenerationEnableByteCandidates,
+			&CodeGenerationOptions.EnableByteCandidates,
 			"Enables section 1: single-byte writes through:\n LD A, n\n LD (nn), A\n and\n LD HL, nn\n LD (HL), n\n Cost is still chosen by Cycle weight and Code byte weight.");
 		CheckboxWithTooltip(
 			"Word candidates",
-			&bCodeGenerationEnableWordCandidates,
+			&CodeGenerationOptions.EnableWordCandidates,
 			"Enables section 2: 2-byte writes through:\n LD HL, word\n LD (nn), HL\n Useful when consecutive bytes share the same 16-bit word.");
 		CheckboxWithTooltip(
 			"Stack blocks",
-			&bCodeGenerationEnableStackBlocks,
+			&CodeGenerationOptions.EnableStackBlocks,
 			"Enables section 3: stack-based blocks using:\n LD SP, end\n LD HL, word\n PUSH HL\n ...\n Usually fewer code bytes, often better cycle/code tradeoff.");
 		CheckboxWithTooltip(
 			"Repeat words",
-			&bCodeGenerationEnableRepeatWords,
+			&CodeGenerationOptions.EnableRepeatWords,
 			"Enables section 4: repeated 16-bit values with:\n LD (addr), HL\n ...\n or\n PUSH HL\n...\n Used for repeated WORD patterns in the dirty range.");
 		CheckboxWithTooltip(
 			"Horizontal same byte: INC L",
-			&bCodeGenerationEnableHorizontalSameByteIncL,
+			&CodeGenerationOptions.EnableHorizontalSameByteIncL,
 			"Enables section 5: horizontal runs of the same byte using INC L\n This keeps the row on one page and is scored by the same cost formula.");
 
-		CodeGenerationMaxStackPairsToEnumerate = ImClamp(CodeGenerationMaxStackPairsToEnumerate, 2, 256);
-		CodeGenerationCycleWeight = ImMax(CodeGenerationCycleWeight, 1);
-		CodeGenerationByteWeight = ImMax(CodeGenerationByteWeight, 1);
+		CodeGenerationOptions.MaxStackPairsToEnumerate = ImClamp(CodeGenerationOptions.MaxStackPairsToEnumerate, 2, 256);
+		CodeGenerationOptions.CycleWeight = ImMax(CodeGenerationOptions.CycleWeight, 1LL);
+		CodeGenerationOptions.ByteWeight = ImMax(CodeGenerationOptions.ByteWeight, 1LL);
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.35f));
 		if (ImGui::Button("Refresh", ImVec2(RefreshButtonWidth, TextHeight * 1.5f)))
 		{
@@ -1194,6 +1173,7 @@ void FAppSprite::RefreshCodeGenerationPreview()
 {
 	bCodeGenerationPreviewValid = false;
 	CodeGenerationPreviewText.clear();
+	CodeGenerationOpcodeBytes.clear();
 
 	auto AppendLogLine = [this](const std::string& Line)
 	{
@@ -1212,20 +1192,11 @@ void FAppSprite::RefreshCodeGenerationPreview()
 		AppendLogLine("No active canvas.");
 		return;
 	}
+	const int32_t FrameIndex = Canvas->GetSelectedFrameIndex();
+	Utils::CopyToBuffer(NewOutputFileNameBuffer, sizeof(NewOutputFileNameBuffer), Utils::Utf16ToUtf8(MakeFrameOutputFileName(Canvas->GetWindowWName(), FrameIndex)));
+	Utils::CopyToBuffer(CodeGenerationLabelNameBuffer, sizeof(CodeGenerationLabelNameBuffer), CodeGenerator::MakeFrameLabelName(FrameIndex));
 
-	CodeGenerator::FOptions Options;
-	Options.MaxStackPairsToEnumerate = CodeGenerationMaxStackPairsToEnumerate;
-	Options.CycleWeight = CodeGenerationCycleWeight;
-	Options.ByteWeight = CodeGenerationByteWeight;
-	Options.PreserveSP = bCodeGenerationPreserveSP;
-	Options.DisableInterruptsForStack = bCodeGenerationDisableInterruptsForStack;
-	Options.EnableByteCandidates = bCodeGenerationEnableByteCandidates;
-	Options.EnableWordCandidates = bCodeGenerationEnableWordCandidates;
-	Options.EnableStackBlocks = bCodeGenerationEnableStackBlocks;
-	Options.EnableRepeatWords = bCodeGenerationEnableRepeatWords;
-	Options.EnableHorizontalSameByteIncL = bCodeGenerationEnableHorizontalSameByteIncL;
-
-	FCodeGenerationResult Result = Canvas->BuildCodeGenerationResult(Options, CodeGenerationLabelNameBuffer);
+	FCodeGenerationResult Result = Canvas->BuildCodeGenerationResult(CodeGenerationOptions, CodeGenerationLabelNameBuffer);
 	if (!Result.bSuccess)
 	{
 		AppendLogLine(std::format("Failed: {}", Result.Error));
@@ -1234,7 +1205,10 @@ void FAppSprite::RefreshCodeGenerationPreview()
 
 	bCodeGenerationPreviewValid = true;
 	CodeGenerationPreviewText = std::move(Result.AsmCode);
+	CodeGenerationOpcodeBytes = std::move(Result.ByteCode);
 	AppendLogLine(std::format("Source code size: {} bytes", CodeGenerationPreviewText.size()));
+	AppendLogLine(std::format("Opcode size: {} bytes", CodeGenerationOpcodeBytes.size()));
+	AppendLogLine(std::format("Code base address: 0x{:04X}", CodeGenerationOptions.CodeBaseAddress));
 	AppendLogLine(std::format("Dirty bytes: {}", Result.DirtyBytes));
 	AppendLogLine(std::format("Operations: {}", Result.OperationCount));
 	AppendLogLine(std::format("Estimated cycles: {}", Result.Cycles));
@@ -1258,13 +1232,13 @@ bool FAppSprite::ExportCodeGenerationPreview()
 		CodeGenerationLogText += Line;
 	};
 
-	if (!bCodeGenerationPreviewValid || CodeGenerationPreviewText.empty())
+	if (!bCodeGenerationPreviewValid || (bCodeGenerationGenerateOpcode ? CodeGenerationOpcodeBytes.empty() : CodeGenerationPreviewText.empty()))
 	{
 		AppendLogLine("Nothing to export.");
 		return false;
 	}
 
-	std::filesystem::path OutputPath(Utf8ToWide(NewOutputFileNameBuffer));
+	std::filesystem::path OutputPath(Utils::Utf8ToUtf16(NewOutputFileNameBuffer));
 	if (OutputPath.empty())
 	{
 		AppendLogLine("Output filename is empty.");
@@ -1273,7 +1247,12 @@ bool FAppSprite::ExportCodeGenerationPreview()
 
 	if (!OutputPath.has_extension())
 	{
-		OutputPath.replace_extension(".asm");
+		OutputPath.replace_extension(bCodeGenerationGenerateOpcode ? ".bin" : ".asm");
+	}
+	else if (bCodeGenerationGenerateOpcode &&
+		(OutputPath.extension() == L".asm" || OutputPath.extension() == L".txt"))
+	{
+		OutputPath.replace_extension(".bin");
 	}
 
 	if (OutputPath.is_relative())
@@ -1289,8 +1268,11 @@ bool FAppSprite::ExportCodeGenerationPreview()
 	}
 
 	OutputPath = IO::NormalizePath(std::filesystem::absolute(OutputPath));
-	std::vector<uint8_t> AsmBytes(CodeGenerationPreviewText.begin(), CodeGenerationPreviewText.end());
-	std::error_code Error = IO::SaveBinaryData(AsmBytes, OutputPath, false);
+	std::vector<uint8_t> AsmBytes;
+	const std::vector<uint8_t>& ExportBytes = bCodeGenerationGenerateOpcode
+		? CodeGenerationOpcodeBytes
+		: (AsmBytes = std::vector<uint8_t>(CodeGenerationPreviewText.begin(), CodeGenerationPreviewText.end()));
+	std::error_code Error = IO::SaveBinaryData(ExportBytes, OutputPath, false);
 	if (Error)
 	{
 		AppendLogLine(std::format("Export failed: {}", Error.message()));

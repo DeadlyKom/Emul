@@ -25,23 +25,37 @@ namespace CodeGenerator
 
     struct FCandidate
     {
-        EOpKind Kind = EOpKind::ByteAbsA;
+        EOpKind Kind;
 
-        int32_t StartOffset = 0;
-        int32_t EndOffset = 0;
+        int32_t StartOffset;
+        int32_t EndOffset;
 
-        uint16_t StartAddr = 0;
+        uint16_t StartAddr;
 
-        int32_t WriteBytes = 0;
-        int32_t Cycles = 0;
-        int32_t CodeBytes = 0;
+        int32_t WriteBytes;
+        int32_t Cycles;
+        int32_t CodeBytes;
 
-        uint8_t ByteValue = 0;
-        uint16_t WordValue = 0;
+        uint8_t ByteValue;
+        uint16_t WordValue;
 
         // Для первой версии оптимизатора все кандидаты линейные:
         // покрывают [StartOffset, EndOffset).
-        bool Linear = true;
+        bool Linear;
+
+        FCandidate()
+            : Kind(EOpKind::ByteAbsA)
+            , StartOffset(0)
+            , EndOffset(0)
+            , StartAddr(0)
+            , WriteBytes(0)
+            , Cycles(0)
+            , CodeBytes(0)
+            , ByteValue(0)
+            , WordValue(0)
+            , Linear(true)
+        {
+        }
     };
 
     struct FAnalysis
@@ -52,13 +66,23 @@ namespace CodeGenerator
 
         // StartsAt[Offset] -> ID кандидатов, которые могут начаться с Offset.
         std::vector<std::vector<int32_t>> StartsAt;
+
+        FAnalysis()
+        {
+        }
     };
 
     struct FPlan
     {
         std::vector<int32_t> CandidateIds;
-        int TotalCycles = 0;
-        int TotalCodeBytes = 0;
+        int TotalCycles;
+        int TotalCodeBytes;
+
+        FPlan()
+            : TotalCycles(0)
+            , TotalCodeBytes(0)
+        {
+        }
     };
 
     struct FOptions
@@ -66,7 +90,7 @@ namespace CodeGenerator
         // Сколько пар максимум перебирать для STACK_BLOCK с каждого Offset.
         // 16 пар = 32 экранных байта.
         // Большой цельный блок тоже добавляется отдельно.
-        int32_t MaxStackPairsToEnumerate = 16;
+        int32_t MaxStackPairsToEnumerate;
 
         // Если важнее скорость:
         // CycleWeight = 1000, ByteWeight = 1
@@ -76,29 +100,67 @@ namespace CodeGenerator
         //
         // Если хочешь минимальный код:
         // CycleWeight = 1, ByteWeight = 20
-        int64_t CycleWeight = 1000;
-        int64_t ByteWeight = 1;
+        int64_t CycleWeight;
+        int64_t ByteWeight;
 
-        bool PreserveSP = true;
-        bool DisableInterruptsForStack = true;
+        bool PreserveSP;
+        bool DisableInterruptsForStack;
+        uint16_t CodeBaseAddress;
 
-        bool EnableByteCandidates = true;
-        bool EnableWordCandidates = true;
-        bool EnableStackBlocks = true;
-        bool EnableRepeatWords = true;
-        bool EnableHorizontalSameByteIncL = true;
+        bool EnableByteCandidates;
+        bool EnableWordCandidates;
+        bool EnableStackBlocks;
+        bool EnableRepeatWords;
+        bool EnableHorizontalSameByteIncL;
+
+        FOptions()
+            : MaxStackPairsToEnumerate(16)
+            , CycleWeight(1000)
+            , ByteWeight(1)
+            , PreserveSP(true)
+            , DisableInterruptsForStack(true)
+            , CodeBaseAddress(0x8000)
+            , EnableByteCandidates(true)
+            , EnableWordCandidates(true)
+            , EnableStackBlocks(true)
+            , EnableRepeatWords(true)
+            , EnableHorizontalSameByteIncL(true)
+        {
+        }
     };
 
     struct FEmitState
     {
-        bool bHasA = false;
-        uint8_t A = 0;
+        bool bHasA;
+        uint8_t A;
 
-        bool bHasHL = false;
-        uint16_t HL = 0;
+        bool bHasHL;
+        uint16_t HL;
 
-        bool bHasSP = false;
-        uint16_t SP = 0;
+        bool bHasSP;
+        uint16_t SP;
+
+        FEmitState()
+            : bHasA(false)
+            , A(0)
+            , bHasHL(false)
+            , HL(0)
+            , bHasSP(false)
+            , SP(0)
+        {
+        }
+    };
+
+    struct FEmitOutput
+    {
+        std::ostringstream Preview;
+        std::vector<uint8_t> Code;
+        uint16_t BaseAddress;
+
+        FEmitOutput()
+            : BaseAddress(0)
+        {
+        }
     };
 
     inline bool IsValidOffset(int Offset)
@@ -125,6 +187,7 @@ namespace CodeGenerator
     const char* ToString(EOpKind Kind);
     std::string Hex8(uint8_t Value);
     std::string Hex16(uint16_t Value);
+    std::string MakeFrameLabelName(int32_t FrameIndex);
 
     void AddCandidate(FAnalysis& Analysis, const FCandidate& Candidate);
     bool RangeIsDirty(const std::vector<uint8_t>& Dirty, int32_t Start, int32_t End);
@@ -140,11 +203,14 @@ namespace CodeGenerator
     bool BuildAnalysis(const std::vector<uint8_t>& Data, const std::vector<uint8_t>& DirtyMask, const FOptions& Options, FAnalysis& OutAnalysis, std::string& OutError);
     bool OptimizePlan(const FAnalysis& Analysis, const FOptions& Options, FPlan& OutPlan, std::string& OutError);
 
-    void EmitLdA(std::ostringstream& Out, FEmitState& State, uint8_t Value);
-    void EmitLdHL(std::ostringstream& Out, FEmitState& State, uint16_t Value);
-    void EmitLdSP(std::ostringstream& Out, FEmitState& State, uint16_t Value);
-    bool EmitCandidate(std::ostringstream& Out, const FCandidate& Candidate, const std::vector<uint8_t>& Data, FEmitState& State, std::string& OutError);
-    bool EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::string& OutError, const std::string& LabelName = "DrawGeneratedScreen");
+    void EmitByte(FEmitOutput& Out, uint8_t Value);
+    void EmitWordLE(FEmitOutput& Out, uint16_t Value);
+    void PatchWordLE(FEmitOutput& Out, size_t Offset, uint16_t Value);
+    void EmitLdA(FEmitOutput& Out, FEmitState& State, uint8_t Value);
+    void EmitLdHL(FEmitOutput& Out, FEmitState& State, uint16_t Value);
+    void EmitLdSP(FEmitOutput& Out, FEmitState& State, uint16_t Value);
+    bool EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate, const std::vector<uint8_t>& Data, FEmitState& State, std::string& OutError);
+    bool EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::vector<uint8_t>& OutCode, std::string& OutError, const std::string& LabelName);
 
     void PrintPlanSummary(const FAnalysis& Analysis, const FPlan& Plan);
 }

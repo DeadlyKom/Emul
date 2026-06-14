@@ -35,6 +35,11 @@ std::string CodeGenerator::Hex16(uint16_t Value)
     return ss.str();
 }
 
+std::string CodeGenerator::MakeFrameLabelName(int32_t FrameIndex)
+{
+    return std::format("DrawFrame_{}:", FrameIndex);
+}
+
 void CodeGenerator::AddCandidate(FAnalysis& Analysis, const FCandidate& Candidate)
 {
     if (Candidate.StartOffset < 0 || Candidate.StartOffset >= ZX_SCREEN_SIZE)
@@ -503,51 +508,83 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
     return true;
 }
 
-void CodeGenerator::EmitLdA(std::ostringstream& Out, FEmitState& State, uint8_t Value)
+void CodeGenerator::EmitByte(FEmitOutput& Out, uint8_t Value)
+{
+    Out.Code.push_back(Value);
+}
+
+void CodeGenerator::EmitWordLE(FEmitOutput& Out, uint16_t Value)
+{
+    EmitByte(Out, static_cast<uint8_t>(Value & 0x00FF));
+    EmitByte(Out, static_cast<uint8_t>((Value >> 8) & 0x00FF));
+}
+
+void CodeGenerator::PatchWordLE(FEmitOutput& Out, size_t Offset, uint16_t Value)
+{
+    if (Offset + 1 >= Out.Code.size())
+    {
+        return;
+    }
+
+    Out.Code[Offset] = static_cast<uint8_t>(Value & 0x00FF);
+    Out.Code[Offset + 1] = static_cast<uint8_t>((Value >> 8) & 0x00FF);
+}
+
+void CodeGenerator::EmitLdA(FEmitOutput& Out, FEmitState& State, uint8_t Value)
 {
     if (!State.bHasA || State.A != Value)
     {
-        Out << "                LD A, " << Hex8(Value) << "\n";
+        Out.Preview << "                LD A, " << Hex8(Value) << "\n";
+        EmitByte(Out, 0x3E);
+        EmitByte(Out, Value);
         State.A = Value;
         State.bHasA = true;
     }
 }
 
-void CodeGenerator::EmitLdHL(std::ostringstream& Out, FEmitState& State, uint16_t Value)
+void CodeGenerator::EmitLdHL(FEmitOutput& Out, FEmitState& State, uint16_t Value)
 {
     if (!State.bHasHL || State.HL != Value)
     {
-        Out << "                LD HL, " << Hex16(Value) << "\n";
+        Out.Preview << "                LD HL, " << Hex16(Value) << "\n";
+        EmitByte(Out, 0x21);
+        EmitWordLE(Out, Value);
         State.HL = Value;
         State.bHasHL = true;
     }
 }
 
-void CodeGenerator::EmitLdSP(std::ostringstream& Out, FEmitState& State, uint16_t Value)
+void CodeGenerator::EmitLdSP(FEmitOutput& Out, FEmitState& State, uint16_t Value)
 {
     if (!State.bHasSP || State.SP != Value)
     {
-        Out << "                LD SP, " << Hex16(Value) << "\n";
+        Out.Preview << "                LD SP, " << Hex16(Value) << "\n";
+        EmitByte(Out, 0x31);
+        EmitWordLE(Out, Value);
         State.SP = Value;
         State.bHasSP = true;
     }
 }
 
-bool CodeGenerator::EmitCandidate(std::ostringstream& Out, const FCandidate& Candidate, const std::vector<uint8_t>& Data, FEmitState& State, std::string& OutError)
+bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate, const std::vector<uint8_t>& Data, FEmitState& State, std::string& OutError)
 {
     switch (Candidate.Kind)
     {
     case EOpKind::ByteAbsA:
     {
         EmitLdA(Out, State, Candidate.ByteValue);
-        Out << "                LD (" << Hex16(Candidate.StartAddr) << "), A\n";
+        Out.Preview << "                LD (" << Hex16(Candidate.StartAddr) << "), A\n";
+        EmitByte(Out, 0x32);
+        EmitWordLE(Out, Candidate.StartAddr);
         break;
     }
 
     case EOpKind::ByteHLImm:
     {
         EmitLdHL(Out, State, Candidate.StartAddr);
-        Out << "                LD (HL), " << Hex8(Candidate.ByteValue) << "\n";
+        Out.Preview << "                LD (HL), " << Hex8(Candidate.ByteValue) << "\n";
+        EmitByte(Out, 0x36);
+        EmitByte(Out, Candidate.ByteValue);
 
         // HL не меняется.
         break;
@@ -556,7 +593,9 @@ bool CodeGenerator::EmitCandidate(std::ostringstream& Out, const FCandidate& Can
     case EOpKind::WordAbsHL:
     {
         EmitLdHL(Out, State, Candidate.WordValue);
-        Out << "                LD (" << Hex16(Candidate.StartAddr) << "), HL\n";
+        Out.Preview << "                LD (" << Hex16(Candidate.StartAddr) << "), HL\n";
+        EmitByte(Out, 0x22);
+        EmitWordLE(Out, Candidate.StartAddr);
         break;
     }
 
@@ -569,7 +608,8 @@ bool CodeGenerator::EmitCandidate(std::ostringstream& Out, const FCandidate& Can
         {
             const uint16_t Word = ReadWordLE(Data, Pos);
             EmitLdHL(Out, State, Word);
-            Out << "                PUSH HL\n";
+            Out.Preview << "                PUSH HL\n";
+            EmitByte(Out, 0xE5);
 
             State.SP = static_cast<uint16_t>(State.SP - 2);
             State.bHasSP = true;
@@ -584,7 +624,9 @@ bool CodeGenerator::EmitCandidate(std::ostringstream& Out, const FCandidate& Can
 
         for (int32_t Pos = Candidate.StartOffset; Pos < Candidate.EndOffset; Pos += 2)
         {
-            Out << "                LD (" << Hex16(AddrOf(Pos)) << "), HL\n";
+            Out.Preview << "                LD (" << Hex16(AddrOf(Pos)) << "), HL\n";
+            EmitByte(Out, 0x22);
+            EmitWordLE(Out, AddrOf(Pos));
         }
 
         break;
@@ -599,7 +641,8 @@ bool CodeGenerator::EmitCandidate(std::ostringstream& Out, const FCandidate& Can
         const int32_t PairCount = Candidate.WriteBytes / 2;
         for (int32_t i = 0; i < PairCount; ++i)
         {
-            Out << "                PUSH HL\n";
+            Out.Preview << "                PUSH HL\n";
+            EmitByte(Out, 0xE5);
 
             State.SP = static_cast<uint16_t>(State.SP - 2);
             State.bHasSP = true;
@@ -613,13 +656,16 @@ bool CodeGenerator::EmitCandidate(std::ostringstream& Out, const FCandidate& Can
         EmitLdHL(Out, State, Candidate.StartAddr);
         EmitLdA(Out, State, Candidate.ByteValue);
 
-        Out << "                LD (HL), A\n";
+        Out.Preview << "                LD (HL), A\n";
+        EmitByte(Out, 0x77);
 
         uint16_t HL = Candidate.StartAddr;
         for (int32_t i = 1; i < Candidate.WriteBytes; ++i)
         {
-            Out << "                INC L\n";
-            Out << "                LD (HL), A\n";
+            Out.Preview << "                INC L\n";
+            EmitByte(Out, 0x2C);
+            Out.Preview << "                LD (HL), A\n";
+            EmitByte(Out, 0x77);
             HL = static_cast<uint16_t>((HL & 0xFF00) | ((HL + 1) & 0x00FF));
         }
 
@@ -636,29 +682,36 @@ bool CodeGenerator::EmitCandidate(std::ostringstream& Out, const FCandidate& Can
     return true;
 }
 
-bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::string& OutError, const std::string& LabelName)
+bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::vector<uint8_t>& OutCode, std::string& OutError, const std::string& LabelName)
 {
-    std::ostringstream Out;
+    FEmitOutput Out;
+    Out.BaseAddress = Options.CodeBaseAddress;
     FEmitState State;
+    size_t RestoreSPOperandOffset = (std::numeric_limits<size_t>::max)();
 
-    Out << LabelName << ":\n";
+    Out.Preview << LabelName << ":\n";
     if (Options.DisableInterruptsForStack)
     {
-        Out << "                DI\n";
+        Out.Preview << "                DI\n";
+        EmitByte(Out, 0xF3);
     }
 
     if (Options.PreserveSP)
     {
         // Самомодификация: сохраняем текущий SP в операнд LD SP,#0000.
         // Код должен быть в RAM.
-        Out << "                LD (" << LabelName << "_RestoreSP + 1), SP\n";
+        Out.Preview << "                LD (" << LabelName << "_RestoreSP + 1), SP\n";
+        EmitByte(Out, 0xED);
+        EmitByte(Out, 0x73);
+        RestoreSPOperandOffset = Out.Code.size();
+        EmitWordLE(Out, 0x0000);
     }
-    Out << "\n";
+    Out.Preview << "\n";
 
     for (int32_t ID : Plan.CandidateIds)
     {
         const FCandidate& Candidate = Analysis.Candidates[ID];
-        Out << "                ; "
+        Out.Preview << "                ; "
             << ToString(Candidate.Kind)
             << " addr=" << Hex16(Candidate.StartAddr)
             << " bytes=" << Candidate.WriteBytes
@@ -670,26 +723,39 @@ bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const 
         {
             return false;
         }
-        Out << "\n";
+        Out.Preview << "\n";
     }
 
     if (Options.PreserveSP)
     {
-        Out << LabelName << "_RestoreSP:\n";
-        Out << "                LD SP, #0000\n";
+        const uint16_t RestoreSPAddr = static_cast<uint16_t>(Out.BaseAddress + Out.Code.size());
+        PatchWordLE(Out, RestoreSPOperandOffset, static_cast<uint16_t>(RestoreSPAddr + 1));
+
+        Out.Preview << LabelName << "_RestoreSP:\n";
+        Out.Preview << "                LD SP, #0000\n";
+        EmitByte(Out, 0x31);
+        EmitWordLE(Out, 0x0000);
     }
 
     if (Options.DisableInterruptsForStack)
     {
-        Out << "                EI\n";
+        Out.Preview << "                EI\n";
+        EmitByte(Out, 0xFB);
     }
 
-    Out << "                RET\n";
+    Out.Preview << "                RET\n";
+    EmitByte(Out, 0xC9);
 
-    OutAsm = Out.str();
+    OutAsm = Out.Preview.str();
+    OutCode = std::move(Out.Code);
     if (OutAsm.empty())
     {
         OutError = "EmitAsm: produced empty output";
+        return false;
+    }
+    if (OutCode.empty())
+    {
+        OutError = "EmitAsm: produced empty bytecode";
         return false;
     }
 

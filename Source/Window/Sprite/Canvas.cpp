@@ -38,7 +38,74 @@ namespace
 		}
 		return 0;
 	}
+
+	int32_t GetZXScreenPixelOffset(int32_t LinearPixelByteOffset)
+	{
+		const int32_t ByteY = LinearPixelByteOffset / 32;
+		const int32_t ByteX = LinearPixelByteOffset % 32;
+		return ((ByteY & 0xC0) << 5) | ((ByteY & 0x07) << 8) | ((ByteY & 0x38) << 2) | ByteX;
+	}
+
+	ImRect AlignLimitAreaToAttributeCells(const ImRect& Rect, int32_t Width, int32_t Height)
+	{
+		ImRect Result;
+		Result.Min.x = floorf(Rect.Min.x / 8.0f) * 8.0f;
+		Result.Min.y = floorf(Rect.Min.y / 8.0f) * 8.0f;
+		Result.Max.x = ceilf(Rect.Max.x / 8.0f) * 8.0f;
+		Result.Max.y = ceilf(Rect.Max.y / 8.0f) * 8.0f;
+		Result.Min = ImClamp(Result.Min, ImVec2(0.0f, 0.0f), ImVec2((float)Width, (float)Height));
+		Result.Max = ImClamp(Result.Max, ImVec2(0.0f, 0.0f), ImVec2((float)Width, (float)Height));
+		return Result;
+	}
+
+	void ApplyLimitAreaToCodeGenerationMask(
+		const ImRect& Rect,
+		int32_t Width,
+		int32_t Height,
+		std::vector<uint8_t>& PixelAllowedMask,
+		std::vector<uint8_t>& AttributeAllowedMask)
+	{
+		const ImRect Area = AlignLimitAreaToAttributeCells(Rect, Width, Height);
+		if (Area.GetWidth() <= 0.0f || Area.GetHeight() <= 0.0f)
+		{
+			return;
+		}
+
+		const int32_t Boundary_X = Width >> 3;
+		const int32_t MinByteX = (int32_t)Area.Min.x >> 3;
+		const int32_t MaxByteX = (int32_t)Area.Max.x >> 3;
+		const int32_t MinY = (int32_t)Area.Min.y;
+		const int32_t MaxY = (int32_t)Area.Max.y;
+
+		for (int32_t y = MinY; y < MaxY; ++y)
+		{
+			for (int32_t ByteX = MinByteX; ByteX < MaxByteX; ++ByteX)
+			{
+				const int32_t PixelIndex = y * Boundary_X + ByteX;
+				if (PixelIndex >= 0 && PixelIndex < (int32_t)PixelAllowedMask.size())
+				{
+					PixelAllowedMask[PixelIndex] = 1;
+				}
+			}
+		}
+
+		const int32_t MinAttrY = MinY >> 3;
+		const int32_t MaxAttrY = MaxY >> 3;
+		for (int32_t AttrY = MinAttrY; AttrY < MaxAttrY; ++AttrY)
+		{
+			for (int32_t ByteX = MinByteX; ByteX < MaxByteX; ++ByteX)
+			{
+				const int32_t AttrIndex = AttrY * Boundary_X + ByteX;
+				if (AttrIndex >= 0 && AttrIndex < (int32_t)AttributeAllowedMask.size())
+				{
+					AttributeAllowedMask[AttrIndex] = 1;
+				}
+			}
+		}
+	}
 }
+
+int32_t SCanvas::SpriteCounter = 0;
 
 SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::filesystem::path& _SourcePathFile)
 	: Super(FWindowInitializer()
@@ -69,6 +136,9 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	, ImageFormat(EImageFormat::None)
 	, ImageFrameIndex(INDEX_NONE)
 	, SourcePathFile(_SourcePathFile)
+	, CreateSpriteNameBuffer{}
+	, CreateSpriteWidthBuffer{}
+	, CreateSpriteHeightBuffer{}
 {
 	ButtonColor[0] = EZXColor::Black_;
 	ButtonColor[1] = EZXColor::Black;
@@ -1965,14 +2035,16 @@ FCodeGenerationResult SCanvas::BuildCodeGenerationResult(const CodeGenerator::FO
 		Result.Error = std::format("Error: getting difference in ZX frame Color");
 		return Result;
 	}
-	return CodeGeneration(Difference_InkData, Difference_AttributeData, Difference_MaskData, Options, LabelName);
+	const std::string EffectiveLabelName = LabelName.empty() ? CodeGenerator::MakeFrameLabelName(SelectedSpritesFrame) : LabelName;
+	return CodeGeneration(Difference_InkData, Difference_AttributeData, Difference_MaskData, Options, EffectiveLabelName);
 }
 
 FCodeGenerationResult SCanvas::CodeGeneration(
 	const std::vector<uint8_t>& InkData,
 	const std::vector<uint8_t>& AttributeData,
 	const std::vector<uint8_t>& MaskData,
-	const CodeGenerator::FOptions& Options, const std::string& LabelName)
+	const CodeGenerator::FOptions& Options,
+	const std::string& LabelName)
 {
 	FCodeGenerationResult Result;
 
@@ -1984,23 +2056,65 @@ FCodeGenerationResult SCanvas::CodeGeneration(
 	// Пока прозрачности нет — DirtyMask пустой.
 	std::vector<uint8_t> ScreenData(CodeGenerator::ZX_SCREEN_SIZE);
 	std::vector<uint8_t> DirtyMask(CodeGenerator::ZX_SCREEN_SIZE);
+	std::vector<uint8_t> PixelAllowedMask(CodeGenerator::ZX_PIXEL_SIZE, 1);
+	std::vector<uint8_t> AttributeAllowedMask(CodeGenerator::ZX_ATTRIBUTE_SIZE, 1);
+
+	if (Keyframes && AsepriteSprite && AsepriteSprite->IsValid())
+	{
+		bool bHasLimitArea = false;
+		std::vector<uint8_t> LimitedPixelAllowedMask(CodeGenerator::ZX_PIXEL_SIZE, 0);
+		std::vector<uint8_t> LimitedAttributeAllowedMask(CodeGenerator::ZX_ATTRIBUTE_SIZE, 0);
+
+		for (int32_t LayerIndex = 0; LayerIndex < (int32_t)AsepriteSprite->Layers.size(); ++LayerIndex)
+		{
+			const FPropertyBag& Property = Keyframes->GetProperty(SelectedSpritesFrame, LayerIndex);
+			if (!Property.IsValid())
+			{
+				continue;
+			}
+
+			FTilemapCellData_Rect LimitArea;
+			if (!Property.GetStruct(FPropertyTag::LimitArea, LimitArea))
+			{
+				continue;
+			}
+
+			ApplyLimitAreaToCodeGenerationMask(
+				LimitArea.Rect,
+				Width,
+				Height,
+				LimitedPixelAllowedMask,
+				LimitedAttributeAllowedMask);
+			bHasLimitArea = true;
+		}
+
+		if (bHasLimitArea)
+		{
+			PixelAllowedMask = std::move(LimitedPixelAllowedMask);
+			AttributeAllowedMask = std::move(LimitedAttributeAllowedMask);
+		}
+	}
 
 	// fill pixels
 	for (int32_t PixelIndex = 0; PixelIndex < CodeGenerator::ZX_PIXEL_SIZE; ++PixelIndex)
 	{
 		const uint8_t& Mask = MaskData[PixelIndex];
-		DirtyMask[PixelIndex] = Mask == 0x00 ? 0 : 1;
-
 		const uint8_t& Pixels = InkData[PixelIndex];
-		ScreenData[PixelIndex] = Mask == 0x00 ? 0 : Pixels;
+		const int32_t ZXPixelOffset = GetZXScreenPixelOffset(PixelIndex);
+		const bool bAllowed = PixelAllowedMask[PixelIndex] != 0;
+
+		DirtyMask[ZXPixelOffset] = Mask == 0x00 || !bAllowed ? 0 : 1;
+		ScreenData[ZXPixelOffset] = Mask == 0x00 || !bAllowed ? 0 : Pixels;
 	}
 
 	// fill attribute
 	for (int32_t AttrIndex = 0; AttrIndex < CodeGenerator::ZX_ATTRIBUTE_SIZE; ++AttrIndex)
 	{
 		const uint8_t& Attribute = AttributeData[AttrIndex];
-		DirtyMask[CodeGenerator::ZX_PIXEL_SIZE + AttrIndex] = Attribute == 0xFF ? 0 : 1;
-		ScreenData[CodeGenerator::ZX_PIXEL_SIZE + AttrIndex] = Attribute == 0xFF ? 0 : Attribute;
+		const bool bAllowed = AttributeAllowedMask[AttrIndex] != 0;
+
+		DirtyMask[CodeGenerator::ZX_PIXEL_SIZE + AttrIndex] = Attribute == 0xFF || !bAllowed ? 0 : 1;
+		ScreenData[CodeGenerator::ZX_PIXEL_SIZE + AttrIndex] = Attribute == 0xFF || !bAllowed ? 0 : Attribute;
 	}
 
 	CodeGenerator::FAnalysis Analysis;
@@ -2015,14 +2129,14 @@ FCodeGenerationResult SCanvas::CodeGeneration(
 		return Result;
 	}
 
-	if (!EmitAsm(Analysis, Plan, Options, Result.AsmCode, Result.Error, LabelName.empty() ? "DrawGeneratedScreen" : LabelName))
+	if (!EmitAsm(Analysis, Plan, Options, Result.AsmCode, Result.ByteCode, Result.Error, LabelName.empty() ? "DrawFrame:" : LabelName))
 	{
 		return Result;
 	}
 
 	Result.OperationCount = (int32_t)Plan.CandidateIds.size();
 	Result.Cycles = Plan.TotalCycles;
-	Result.CodeBytes = Plan.TotalCodeBytes;
+	Result.CodeBytes = (int32_t)Result.ByteCode.size();
 	Result.DirtyBytes = 0;
 
 	for (uint8_t Dirty : Analysis.Dirty)
@@ -2035,6 +2149,11 @@ FCodeGenerationResult SCanvas::CodeGeneration(
 	{
 		Result.bSuccess = false;
 		Result.Error = "Code generation produced empty output.";
+	}
+	if (Result.ByteCode.empty())
+	{
+		Result.bSuccess = false;
+		Result.Error = "Code generation produced empty bytecode.";
 	}
 
 	return Result;

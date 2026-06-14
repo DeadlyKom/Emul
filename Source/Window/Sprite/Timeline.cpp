@@ -82,7 +82,6 @@ void STimeline::NativeInitialize(const FNativeDataInitialize& Data)
             if (Event.Tag == FEventTag::TimelineInitializeTag)
             {
                 Format = Event.Format;
-
                 if (Event.Format == EImageFormat::Aseprite)
                 {
                     InitializeFromAseprite(Event.Sprite, Event.Keyframes);

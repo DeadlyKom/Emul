@@ -2,6 +2,7 @@
 
 #include <Core/AppFramework.h>
 #include <Core/ViewerBase.h>
+#include <Utils/6912/CodeGenerator.h>
 
 class SCanvas;
 
@@ -47,15 +48,27 @@ namespace EFrameMode
 
 struct FViewFlags
 {
-	bool bGrid = false;
-	bool bPixelGrid = true;
-	bool bAttributeGrid = false;
-	bool bAlphaCheckerboardGrid = true;
-	bool bTransparentMask = false;
-	EFrameMode::Type FrameMode = EFrameMode::None;
-	ImVec2 GridSettingSize = ImVec2(8.0f, 8.0f);
-	ImVec2 GridSettingOffset = ImVec2(0.0f, 0.0f);
-	ImVec4 TransparentColor = ImVec4(0.169f, 0.396f, 0.925f, 0.0f);
+	bool bGrid;
+	bool bPixelGrid;
+	bool bAttributeGrid;
+	bool bAlphaCheckerboardGrid;
+	bool bTransparentMask;
+	EFrameMode::Type FrameMode;
+	ImVec2 GridSettingSize;
+	ImVec2 GridSettingOffset;
+	ImVec4 TransparentColor;
+
+	FViewFlags()
+		: bGrid(false)
+		, bPixelGrid(true)
+		, bAttributeGrid(false)
+		, bAlphaCheckerboardGrid(true)
+		, bTransparentMask(false)
+		, FrameMode(EFrameMode::None)
+		, GridSettingSize(8.0f, 8.0f)
+		, GridSettingOffset(0.0f, 0.0f)
+		, TransparentColor(0.169f, 0.396f, 0.925f, 0.0f)
+	{}
 };
 
 class FAppSprite : public FAppFramework
@@ -111,47 +124,39 @@ private:
 	bool bRectangularCanvas;
 	bool bRoundingToMultipleEight;
 	int32_t CanvasCounter;
+	char NewCanvasNameBuffer[BUFFER_SIZE_INPUT];
+	char NewCanvasWidthBuffer[BUFFER_SIZE_INPUT];
+	char NewCanvasHeightBuffer[BUFFER_SIZE_INPUT];
 	ImVec2 OriginalCanvasSize;
 	ImVec2 NewCanvasSize;
 	ImVec2 Log2CanvasSize;
-	char NewCanvasNameBuffer[BUFFER_SIZE_INPUT] = "";
-	char NewCanvasWidthBuffer[BUFFER_SIZE_INPUT] = "";
-	char NewCanvasHeightBuffer[BUFFER_SIZE_INPUT] = "";
 
 	// popup menu 'Grid Settings' 
-	char GridSettingsWidthBuffer[BUFFER_SIZE_INPUT] = "";
-	char GridSettingsHeightBuffer[BUFFER_SIZE_INPUT] = "";
-	char GridSettingsOffsetXBuffer[BUFFER_SIZE_INPUT] = "";
-	char GridSettingsOffsetYBuffer[BUFFER_SIZE_INPUT] = "";
 	bool bTmpGrid;
+	char GridSettingsWidthBuffer[BUFFER_SIZE_INPUT];
+	char GridSettingsHeightBuffer[BUFFER_SIZE_INPUT];
+	char GridSettingsOffsetXBuffer[BUFFER_SIZE_INPUT];
+	char GridSettingsOffsetYBuffer[BUFFER_SIZE_INPUT];
 	ImVec2 TmpGridSettingSize;
 	ImVec2 TmpGridSettingOffset;
 
 	//popup menu 'Export'
+	bool bCodeGenerationGenerateOpcode;
+	bool bCodeGenerationOpen;
+	bool bCodeGenerationShowCode;
+	bool bCodeGenerationApplyWindowSize;
+	bool bCodeGenerationPreviewValid;
+	bool bCodeGenerationCodeWindowSizeInitialized;
 	int32_t ExportCounter;
-	char NewOutputFileNameBuffer[BUFFER_SIZE_INPUT] = "";
-	char CodeGenerationLabelNameBuffer[BUFFER_SIZE_INPUT] = "DrawGeneratedScreen";
-	int32_t CodeGenerationMaxStackPairsToEnumerate = 16;
-	int32_t CodeGenerationCycleWeight = 1000;
-	int32_t CodeGenerationByteWeight = 1;
-	bool bCodeGenerationPreserveSP = true;
-	bool bCodeGenerationDisableInterruptsForStack = true;
-	bool bCodeGenerationGenerateOpcode = false;
-	bool bCodeGenerationOpen = false;
-	bool bCodeGenerationEnableByteCandidates = true;
-	bool bCodeGenerationEnableWordCandidates = true;
-	bool bCodeGenerationEnableStackBlocks = true;
-	bool bCodeGenerationEnableRepeatWords = true;
-	bool bCodeGenerationEnableHorizontalSameByteIncL = true;
-	bool bCodeGenerationShowCode = false;
-	bool bCodeGenerationApplyWindowSize = false;
-	bool bCodeGenerationPreviewValid = false;
-	ImVec2 CodeGenerationBaseWindowSize = ImVec2(0.0f, 0.0f);
-	ImVec2 CodeGenerationCodeWindowSize = ImVec2(0.0f, 0.0f);
-	bool bCodeGenerationCodeWindowSizeInitialized = false;
-	float CodeGenerationWindowHeight = 0.0f;
+	float CodeGenerationWindowHeight;
+	char NewOutputFileNameBuffer[BUFFER_SIZE_INPUT];
+	char CodeGenerationLabelNameBuffer[BUFFER_SIZE_INPUT];
+	ImVec2 CodeGenerationBaseWindowSize;
+	ImVec2 CodeGenerationCodeWindowSize;
+	CodeGenerator::FOptions CodeGenerationOptions;
 	std::string CodeGenerationPreviewText;
 	std::string CodeGenerationLogText;
+	std::vector<uint8_t> CodeGenerationOpcodeBytes;
 
 	std::shared_ptr<SViewerBase> Viewer;
 	std::vector<std::filesystem::path> RecentFiles;

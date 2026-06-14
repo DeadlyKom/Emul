@@ -31,13 +31,22 @@ struct FKeyframes;
 
 struct FCodeGenerationResult
 {
-	bool bSuccess = false;
+	bool bSuccess;
 	std::string Error;
 	std::string AsmCode;
-	int32_t OperationCount = 0;
-	int32_t Cycles = 0;
-	int32_t CodeBytes = 0;
-	int32_t DirtyBytes = 0;
+	std::vector<uint8_t> ByteCode;
+	int32_t OperationCount;
+	int32_t Cycles;
+	int32_t CodeBytes;
+	int32_t DirtyBytes;
+
+	FCodeGenerationResult()
+		: bSuccess(false)
+		, OperationCount(0)
+		, Cycles(0)
+		, CodeBytes(0)
+		, DirtyBytes(0)
+	{}
 };
 
 class SCanvas : public SViewerChildBase
@@ -58,6 +67,7 @@ public:
 
 	const std::filesystem::path& GetSourcePathFile() const { return SourcePathFile; }
 	EImageFormat GetImageFormat() const { return ImageFormat; }
+	int32_t GetSelectedFrameIndex() const { return SelectedSpritesFrame; }
 	FCodeGenerationResult BuildCodeGenerationResult(const CodeGenerator::FOptions& Options, const std::string& LabelName);
 
 private:
@@ -170,10 +180,10 @@ private:
 
 	ImVec2 CreateSpriteSize;
 	ImVec2 Log2SpriteSize;
-	inline static int32_t SpriteCounter = 0;
-	char CreateSpriteNameBuffer[BUFFER_SIZE_INPUT] = "";
-	char CreateSpriteWidthBuffer[BUFFER_SIZE_INPUT] = "";
-	char CreateSpriteHeightBuffer[BUFFER_SIZE_INPUT] = "";
+	static int32_t SpriteCounter;
+	char CreateSpriteNameBuffer[BUFFER_SIZE_INPUT];
+	char CreateSpriteWidthBuffer[BUFFER_SIZE_INPUT];
+	char CreateSpriteHeightBuffer[BUFFER_SIZE_INPUT];
 	std::map<int32_t, std::string> SpriteNames;
 
 	// clipboard
