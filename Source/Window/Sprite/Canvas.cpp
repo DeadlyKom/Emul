@@ -108,6 +108,7 @@ namespace
 		const ImRect& Rect,
 		int32_t Width,
 		int32_t Height,
+		const FTilemapCellData_ByteValues& IgnoredPixels,
 		const std::vector<uint8_t>& InkData,
 		const std::vector<uint8_t>& AttributeData,
 		const std::vector<uint8_t>& MaskData,
@@ -138,7 +139,7 @@ namespace
 
 				const uint8_t Mask = MaskData[PixelIndex];
 				const uint8_t Pixels = InkData[PixelIndex];
-				if (Mask == 0x00 || Pixels == 0x00 || Pixels == 0xFF)
+				if (Mask == 0x00 || IgnoredPixels.Contains(Pixels))
 				{
 					continue;
 				}
@@ -2137,10 +2138,13 @@ FCodeGenerationResult SCanvas::CodeGeneration(
 			{
 				if (LimitArea.bActiveArea)
 				{
+					FTilemapCellData_ByteValues IgnoredPixels;
+					Property.GetStruct(FPropertyTag::ActiveAreaIgnoredPixels, IgnoredPixels);
 					ApplyActiveAreaToCodeGenerationMask(
 						LimitArea.Rect,
 						Width,
 						Height,
+						IgnoredPixels,
 						InkData,
 						AttributeData,
 						MaskData,
@@ -2221,13 +2225,14 @@ FCodeGenerationResult SCanvas::CodeGeneration(
 		return Result;
 	}
 
-	if (!EmitAsm(Analysis, Plan, Options, Result.AsmCode, Result.ByteCode, Result.Error, LabelName.empty() ? "DrawFrame:" : LabelName))
+	int32_t EmittedCycles = 0;
+	if (!EmitAsm(Analysis, Plan, Options, Result.AsmCode, Result.ByteCode, EmittedCycles, Result.Error, LabelName.empty() ? "DrawFrame:" : LabelName))
 	{
 		return Result;
 	}
 
 	Result.OperationCount = (int32_t)Plan.CandidateIds.size();
-	Result.Cycles = Plan.TotalCycles;
+	Result.Cycles = EmittedCycles;
 	Result.CodeBytes = (int32_t)Result.ByteCode.size();
 	Result.DirtyBytes = 0;
 

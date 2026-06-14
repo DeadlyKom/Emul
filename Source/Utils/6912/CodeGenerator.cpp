@@ -1,5 +1,8 @@
 ﻿#include "CodeGenerator.h"
 
+#include <algorithm>
+#include <cstring>
+
 const char* CodeGenerator::ToString(EOpKind Kind)
 {
     switch (Kind)
@@ -11,6 +14,16 @@ const char* CodeGenerator::ToString(EOpKind Kind)
     case EOpKind::RepeatWordAbsHL:          return "REPEAT_WORD_ABS_HL";
     case EOpKind::RepeatWordStack:          return "REPEAT_WORD_STACK";
     case EOpKind::HorizontalSameByteIncL:   return "HORIZONTAL_SAME_BYTE_INC_L";
+    case EOpKind::VerticalBytesIncH:        return "VERTICAL_BYTES_INC_H";
+    case EOpKind::VerticalSameByteIncH:     return "VERTICAL_SAME_BYTE_INC_H";
+    case EOpKind::VerticalRepeatWordAbsHL:  return "VERTICAL_REPEAT_WORD_ABS_HL";
+    case EOpKind::HorizontalSameByteDecL:   return "HORIZONTAL_SAME_BYTE_DEC_L";
+    case EOpKind::HorizontalSameByteRegIncL:return "HORIZONTAL_SAME_BYTE_REG_INC_L";
+    case EOpKind::HorizontalSameByteRegDecL:return "HORIZONTAL_SAME_BYTE_REG_DEC_L";
+    case EOpKind::VerticalBytesDecH:        return "VERTICAL_BYTES_DEC_H";
+    case EOpKind::VerticalSameByteDecH:     return "VERTICAL_SAME_BYTE_DEC_H";
+    case EOpKind::VerticalSameByteRegIncH:  return "VERTICAL_SAME_BYTE_REG_INC_H";
+    case EOpKind::VerticalSameByteRegDecH:  return "VERTICAL_SAME_BYTE_REG_DEC_H";
     default:                                return "UNKNOWN";
     }
 }
@@ -73,6 +86,39 @@ bool CodeGenerator::RangeIsDirty(const std::vector<uint8_t>& Dirty, int32_t Star
     }
 
     return true;
+}
+
+bool CodeGenerator::CandidateIsDirty(const std::vector<uint8_t>& Dirty, const FCandidate& Candidate)
+{
+    if (Candidate.Linear)
+    {
+        return RangeIsDirty(Dirty, Candidate.StartOffset, Candidate.EndOffset);
+    }
+
+    if (Candidate.CoveredOffsets.empty())
+    {
+        return false;
+    }
+
+    for (int32_t Offset : Candidate.CoveredOffsets)
+    {
+        if (!IsValidOffset(Offset) || !Dirty[Offset])
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool CodeGenerator::CandidateCoversOffset(const FCandidate& Candidate, int32_t Offset)
+{
+    if (Candidate.Linear)
+    {
+        return Offset >= Candidate.StartOffset && Offset < Candidate.EndOffset;
+    }
+
+    return std::find(Candidate.CoveredOffsets.begin(), Candidate.CoveredOffsets.end(), Offset) != Candidate.CoveredOffsets.end();
 }
 
 CodeGenerator::FCandidate CodeGenerator::MakeByteAbsA(const std::vector<uint8_t>& Data, int32_t Offset)
@@ -149,7 +195,6 @@ CodeGenerator::FCandidate CodeGenerator::MakeStackBlock(const std::vector<uint8_
     for (int32_t Pos = StartOffset + ByteLength - 2; Pos >= StartOffset; Pos -= 2)
     {
         const uint16_t Word = ReadWordLE(Data, Pos);
-
         if (!bHasHL || CurrentHL != Word)
         {
             // LD HL, nn
@@ -227,6 +272,233 @@ CodeGenerator::FCandidate CodeGenerator::MakeHorizontalSameByteIncL(const std::v
     return C;
 }
 
+CodeGenerator::FCandidate CodeGenerator::MakeHorizontalSameByteDecL(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Length)
+{
+    FCandidate C = MakeHorizontalSameByteIncL(Data, StartOffset - Length + 1, Length);
+    C.Kind = EOpKind::HorizontalSameByteDecL;
+    C.StartOffset = StartOffset - Length + 1;
+    C.EndOffset = StartOffset + 1;
+    C.StartAddr = AddrOf(StartOffset);
+    C.Stride = -1;
+    C.Count = Length;
+    return C;
+}
+
+CodeGenerator::FCandidate CodeGenerator::MakeHorizontalSameByteRegIncL(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Length, char RegisterName)
+{
+    FCandidate C;
+    C.Kind = EOpKind::HorizontalSameByteRegIncL;
+    C.StartOffset = StartOffset;
+    C.EndOffset = StartOffset + Length;
+    C.StartAddr = AddrOf(StartOffset);
+    C.WriteBytes = Length;
+    C.ByteValue = Data[StartOffset];
+    C.Count = Length;
+    C.Stride = 1;
+    C.RegisterName = RegisterName;
+    C.RequiresBC = true;
+    C.Count = Length;
+    C.Stride = 1;
+
+    // LD HL,addr / LD (HL),r / INC L...
+    C.Cycles = 10 + 7 + (Length - 1) * (4 + 7);
+    C.CodeBytes = 3 + 1 + (Length - 1) * 2;
+
+    return C;
+}
+
+CodeGenerator::FCandidate CodeGenerator::MakeHorizontalSameByteRegDecL(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Length, char RegisterName)
+{
+    FCandidate C = MakeHorizontalSameByteRegIncL(Data, StartOffset - Length + 1, Length, RegisterName);
+    C.Kind = EOpKind::HorizontalSameByteRegDecL;
+    C.StartOffset = StartOffset - Length + 1;
+    C.EndOffset = StartOffset + 1;
+    C.StartAddr = AddrOf(StartOffset);
+    C.Stride = -1;
+    return C;
+}
+
+CodeGenerator::FCandidate CodeGenerator::MakeVerticalBytesIncH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count)
+{
+    FCandidate C;
+    C.Kind = EOpKind::VerticalBytesIncH;
+    C.StartOffset = StartOffset;
+    C.EndOffset = StartOffset + 1;
+    C.StartAddr = AddrOf(StartOffset);
+    C.WriteBytes = Count;
+    C.Linear = false;
+    C.Stride = 0x0100;
+    C.Count = Count;
+    C.Width = 1;
+
+    C.CoveredOffsets.reserve(Count);
+    for (int32_t i = 0; i < Count; ++i)
+    {
+        C.CoveredOffsets.push_back(StartOffset + i * C.Stride);
+    }
+
+    // LD HL, addr / LD (HL), n / INC H...
+    C.Cycles = 10 + Count * 10 + (Count - 1) * 4;
+    C.CodeBytes = 3 + Count * 2 + (Count - 1);
+
+    return C;
+}
+
+CodeGenerator::FCandidate CodeGenerator::MakeVerticalSameByteIncH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count)
+{
+    FCandidate C;
+    C.Kind = EOpKind::VerticalSameByteIncH;
+    C.StartOffset = StartOffset;
+    C.EndOffset = StartOffset + 1;
+    C.StartAddr = AddrOf(StartOffset);
+    C.WriteBytes = Count;
+    C.ByteValue = Data[StartOffset];
+    C.Linear = false;
+    C.Stride = 0x0100;
+    C.Count = Count;
+    C.Width = 1;
+
+    C.CoveredOffsets.reserve(Count);
+    for (int32_t i = 0; i < Count; ++i)
+    {
+        C.CoveredOffsets.push_back(StartOffset + i * C.Stride);
+    }
+
+    // LD HL, addr / LD A, n / LD (HL), A / INC H...
+    C.Cycles = 10 + 7 + 7 + (Count - 1) * (4 + 7);
+    C.CodeBytes = 3 + 2 + 1 + (Count - 1) * 2;
+
+    return C;
+}
+
+CodeGenerator::FCandidate CodeGenerator::MakeVerticalRepeatWordAbsHL(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count)
+{
+    FCandidate C;
+    C.Kind = EOpKind::VerticalRepeatWordAbsHL;
+    C.StartOffset = StartOffset;
+    C.EndOffset = StartOffset + 2;
+    C.StartAddr = AddrOf(StartOffset);
+    C.WriteBytes = Count * 2;
+    C.WordValue = ReadWordLE(Data, StartOffset);
+    C.Linear = false;
+    C.Stride = 0x0100;
+    C.Count = Count;
+    C.Width = 2;
+
+    C.CoveredOffsets.reserve(Count * 2);
+    for (int32_t i = 0; i < Count; ++i)
+    {
+        const int32_t Offset = StartOffset + i * C.Stride;
+        C.CoveredOffsets.push_back(Offset);
+        C.CoveredOffsets.push_back(Offset + 1);
+    }
+
+    // LD HL, word / LD (nn), HL...
+    C.Cycles = 10 + Count * 16;
+    C.CodeBytes = 3 + Count * 3;
+
+    return C;
+}
+
+CodeGenerator::FCandidate CodeGenerator::MakeVerticalBytesDecH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count)
+{
+    const int32_t TopOffset = StartOffset - (Count - 1) * 0x0100;
+    FCandidate C;
+    C.Kind = EOpKind::VerticalBytesDecH;
+    C.StartOffset = TopOffset;
+    C.EndOffset = TopOffset + 1;
+    C.StartAddr = AddrOf(StartOffset);
+    C.WriteBytes = Count;
+    C.Linear = false;
+    C.Stride = -0x0100;
+    C.Count = Count;
+    C.Width = 1;
+
+    C.CoveredOffsets.reserve(Count);
+    for (int32_t i = 0; i < Count; ++i)
+    {
+        C.CoveredOffsets.push_back(StartOffset + i * C.Stride);
+    }
+
+    C.Cycles = 10 + Count * 10 + (Count - 1) * 4;
+    C.CodeBytes = 3 + Count * 2 + (Count - 1);
+
+    return C;
+}
+
+CodeGenerator::FCandidate CodeGenerator::MakeVerticalSameByteDecH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count)
+{
+    const int32_t TopOffset = StartOffset - (Count - 1) * 0x0100;
+    FCandidate C;
+    C.Kind = EOpKind::VerticalSameByteDecH;
+    C.StartOffset = TopOffset;
+    C.EndOffset = TopOffset + 1;
+    C.StartAddr = AddrOf(StartOffset);
+    C.WriteBytes = Count;
+    C.ByteValue = Data[StartOffset];
+    C.Linear = false;
+    C.Stride = -0x0100;
+    C.Count = Count;
+    C.Width = 1;
+
+    C.CoveredOffsets.reserve(Count);
+    for (int32_t i = 0; i < Count; ++i)
+    {
+        C.CoveredOffsets.push_back(StartOffset + i * C.Stride);
+    }
+
+    C.Cycles = 10 + 7 + 7 + (Count - 1) * (4 + 7);
+    C.CodeBytes = 3 + 2 + 1 + (Count - 1) * 2;
+
+    return C;
+}
+
+CodeGenerator::FCandidate CodeGenerator::MakeVerticalSameByteRegIncH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count, char RegisterName)
+{
+    FCandidate C;
+    C.Kind = EOpKind::VerticalSameByteRegIncH;
+    C.StartOffset = StartOffset;
+    C.EndOffset = StartOffset + 1;
+    C.StartAddr = AddrOf(StartOffset);
+    C.WriteBytes = Count;
+    C.ByteValue = Data[StartOffset];
+    C.RegisterName = RegisterName;
+    C.RequiresBC = true;
+    C.Linear = false;
+    C.Stride = 0x0100;
+    C.Count = Count;
+    C.Width = 1;
+
+    C.CoveredOffsets.reserve(Count);
+    for (int32_t i = 0; i < Count; ++i)
+    {
+        C.CoveredOffsets.push_back(StartOffset + i * C.Stride);
+    }
+
+    C.Cycles = 10 + 7 + (Count - 1) * (4 + 7);
+    C.CodeBytes = 3 + 1 + (Count - 1) * 2;
+
+    return C;
+}
+
+CodeGenerator::FCandidate CodeGenerator::MakeVerticalSameByteRegDecH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count, char RegisterName)
+{
+    const int32_t TopOffset = StartOffset - (Count - 1) * 0x0100;
+    FCandidate C = MakeVerticalSameByteRegIncH(Data, StartOffset, Count, RegisterName);
+    C.Kind = EOpKind::VerticalSameByteRegDecH;
+    C.StartOffset = TopOffset;
+    C.EndOffset = TopOffset + 1;
+    C.StartAddr = AddrOf(StartOffset);
+    C.Stride = -0x0100;
+    C.CoveredOffsets.clear();
+    C.CoveredOffsets.reserve(Count);
+    for (int32_t i = 0; i < Count; ++i)
+    {
+        C.CoveredOffsets.push_back(StartOffset + i * C.Stride);
+    }
+    return C;
+}
+
 bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::vector<uint8_t>& DirtyMask, const FOptions& Options, FAnalysis& OutAnalysis, std::string& OutError)
 {
     if (Data.size() != ZX_SCREEN_SIZE)
@@ -254,6 +526,40 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
     }
 
     Analysis.StartsAt.resize(ZX_SCREEN_SIZE);
+
+    if (Options.EnableRegisterConstants)
+    {
+        int32_t Counts[256] = {};
+        for (int32_t Offset = 0; Offset < ZX_SCREEN_SIZE; ++Offset)
+        {
+            if (Analysis.Dirty[Offset])
+            {
+                ++Counts[Data[Offset]];
+            }
+        }
+
+        int32_t BestB = 0;
+        int32_t BestC = 0;
+        for (int32_t Value = 0; Value < 256; ++Value)
+        {
+            if (Counts[Value] > Counts[BestB])
+            {
+                BestC = BestB;
+                BestB = Value;
+            }
+            else if (Value != BestB && Counts[Value] > Counts[BestC])
+            {
+                BestC = Value;
+            }
+        }
+
+        if (Counts[BestB] > 0)
+        {
+            Analysis.bHasPreferredBC = true;
+            Analysis.PreferredB = static_cast<uint8_t>(BestB);
+            Analysis.PreferredC = static_cast<uint8_t>(BestC);
+        }
+    }
 
     // ------------------------------------------------------------
     // 1. Одиночные байты.
@@ -419,6 +725,118 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
             if (Options.EnableHorizontalSameByteIncL)
             {
                 AddCandidate(Analysis, MakeHorizontalSameByteIncL(Data, Start, Length));
+                if (Options.EnableReverseDirections)
+                {
+                    AddCandidate(Analysis, MakeHorizontalSameByteDecL(Data, Start + Length - 1, Length));
+                }
+            }
+
+            if (Options.EnableRegisterConstants && Analysis.bHasPreferredBC)
+            {
+                char RegisterName = 0;
+                if (Value == Analysis.PreferredB)
+                {
+                    RegisterName = 'B';
+                }
+                else if (Value == Analysis.PreferredC)
+                {
+                    RegisterName = 'C';
+                }
+
+                if (RegisterName != 0)
+                {
+                    AddCandidate(Analysis, MakeHorizontalSameByteRegIncL(Data, Start, Length, RegisterName));
+                    if (Options.EnableReverseDirections)
+                    {
+                        AddCandidate(Analysis, MakeHorizontalSameByteRegDecL(Data, Start + Length - 1, Length, RegisterName));
+                    }
+                }
+            }
+        }
+    }
+
+    // ------------------------------------------------------------
+    // 6. Вертикальные серии через INC H и повторяющиеся WORD с шагом #0100.
+    //    Это отражает геометрию экрана ZX: соседние raster-строки часто лежат
+    //    в адресах addr, addr+#0100, addr+#0200...
+    // ------------------------------------------------------------
+    if (Options.EnableVerticalCandidates)
+    {
+        for (int32_t Start = 0; Start < ZX_SCREEN_SIZE; ++Start)
+        {
+            if (!Analysis.Dirty[Start])
+            {
+                continue;
+            }
+
+            int32_t Count = 1;
+            while (Start + Count * 0x0100 < ZX_SCREEN_SIZE && Analysis.Dirty[Start + Count * 0x0100])
+            {
+                ++Count;
+            }
+
+            if (Count >= 3)
+            {
+                AddCandidate(Analysis, MakeVerticalBytesIncH(Data, Start, Count));
+                if (Options.EnableReverseDirections)
+                {
+                    AddCandidate(Analysis, MakeVerticalBytesDecH(Data, Start + (Count - 1) * 0x0100, Count));
+                }
+
+                const uint8_t Value = Data[Start];
+                int32_t SameCount = 1;
+                while (SameCount < Count && Data[Start + SameCount * 0x0100] == Value)
+                {
+                    ++SameCount;
+                }
+
+                if (SameCount >= 3)
+                {
+                    AddCandidate(Analysis, MakeVerticalSameByteIncH(Data, Start, SameCount));
+                    if (Options.EnableReverseDirections)
+                    {
+                        AddCandidate(Analysis, MakeVerticalSameByteDecH(Data, Start + (SameCount - 1) * 0x0100, SameCount));
+                    }
+
+                    if (Options.EnableRegisterConstants && Analysis.bHasPreferredBC)
+                    {
+                        char RegisterName = 0;
+                        if (Value == Analysis.PreferredB)
+                        {
+                            RegisterName = 'B';
+                        }
+                        else if (Value == Analysis.PreferredC)
+                        {
+                            RegisterName = 'C';
+                        }
+
+                        if (RegisterName != 0)
+                        {
+                            AddCandidate(Analysis, MakeVerticalSameByteRegIncH(Data, Start, SameCount, RegisterName));
+                            if (Options.EnableReverseDirections)
+                            {
+                                AddCandidate(Analysis, MakeVerticalSameByteRegDecH(Data, Start + (SameCount - 1) * 0x0100, SameCount, RegisterName));
+                            }
+                        }
+                    }
+                }
+            }
+
+            if (Start + 1 < ZX_SCREEN_SIZE && RangeIsDirty(Analysis.Dirty, Start, Start + 2))
+            {
+                const uint16_t Word = ReadWordLE(Data, Start);
+                int32_t WordCount = 1;
+                while (Start + WordCount * 0x0100 + 1 < ZX_SCREEN_SIZE &&
+                    RangeIsDirty(Analysis.Dirty, Start + WordCount * 0x0100, Start + WordCount * 0x0100 + 2) &&
+                    ReadWordLE(Data, Start + WordCount * 0x0100) == Word)
+                {
+                    ++WordCount;
+                }
+
+                if (WordCount >= 2)
+                {
+                    AddCandidate(Analysis, MakeVerticalRepeatWordAbsHL(Data, Start, WordCount));
+                }
             }
         }
     }
@@ -427,84 +845,389 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
     return true;
 }
 
-bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Options, FPlan& OutPlan, std::string& OutError)
+namespace
 {
-    const int32_t N = ZX_SCREEN_SIZE;
-    const int64_t INF = (std::numeric_limits<int64_t>::max)() / 4;
-
-    std::vector<int64_t> DP(N + 1, INF);
-    std::vector<int32_t> Choice(N + 1, -1);
-
-    DP[N] = 0;
-
-    for (int32_t i = N - 1; i >= 0; --i)
+    int32_t CountDirtyBytes(const std::vector<uint8_t>& Dirty)
     {
-        if (!Analysis.Dirty[i])
+        int32_t Count = 0;
+        for (uint8_t Value : Dirty)
         {
-            DP[i] = DP[i + 1];
-            Choice[i] = -2; // skip
-            continue;
-        }
-
-        for (int32_t ID : Analysis.StartsAt[i])
-        {
-            const FCandidate& Candidate = Analysis.Candidates[ID];
-            if (!Candidate.Linear)
+            if (Value)
             {
-                continue;
-            }
-
-            if (Candidate.EndOffset <= i || Candidate.EndOffset > N)
-            {
-                continue;
-            }
-
-            if (!RangeIsDirty(Analysis.Dirty, Candidate.StartOffset, Candidate.EndOffset))
-            {
-                continue;
-            }
-
-            if (DP[Candidate.EndOffset] == INF)
-            {
-                continue;
-            }
-
-            const int64_t Cost = ScoreCandidate(Candidate, Options) + DP[Candidate.EndOffset];
-            if (Cost < DP[i])
-            {
-                DP[i] = Cost;
-                Choice[i] = ID;
+                ++Count;
             }
         }
-
+        return Count;
     }
 
-    int32_t Pos = 0;
-
-    while (Pos < N)
+    void MarkCandidateClean(std::vector<uint8_t>& Dirty, const CodeGenerator::FCandidate& Candidate)
     {
-        if (!Analysis.Dirty[Pos])
+        if (Candidate.Linear)
         {
-            ++Pos;
-            continue;
+            for (int32_t i = Candidate.StartOffset; i < Candidate.EndOffset; ++i)
+            {
+                Dirty[i] = 0;
+            }
+            return;
         }
 
-        const int32_t ID = Choice[Pos];
-        if (ID < 0)
+        for (int32_t Offset : Candidate.CoveredOffsets)
         {
-            OutError = "OptimizePlan: failed to cover dirty byte";
+            Dirty[Offset] = 0;
+        }
+    }
+
+    bool CandidateOverlaps(const CodeGenerator::FCandidate& A, const CodeGenerator::FCandidate& B)
+    {
+        if (A.Linear && B.Linear)
+        {
+            return A.StartOffset < B.EndOffset && B.StartOffset < A.EndOffset;
+        }
+
+        const CodeGenerator::FCandidate& Sparse = A.Linear ? B : A;
+        const CodeGenerator::FCandidate& Other = A.Linear ? A : B;
+        for (int32_t Offset : Sparse.CoveredOffsets)
+        {
+            if (CodeGenerator::CandidateCoversOffset(Other, Offset))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    int64_t ScorePlan(int32_t Cycles, int32_t CodeBytes, const CodeGenerator::FOptions& Options)
+    {
+        return static_cast<int64_t>(Cycles) * Options.CycleWeight + static_cast<int64_t>(CodeBytes) * Options.ByteWeight;
+    }
+
+    bool CandidateIdsUseBC(const CodeGenerator::FAnalysis& Analysis, const std::vector<int32_t>& CandidateIds)
+    {
+        for (int32_t ID : CandidateIds)
+        {
+            if (Analysis.Candidates[ID].RequiresBC)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    bool CandidateUsesStack(const CodeGenerator::FCandidate& Candidate)
+    {
+        return Candidate.Kind == CodeGenerator::EOpKind::StackBlock ||
+            Candidate.Kind == CodeGenerator::EOpKind::RepeatWordStack;
+    }
+
+    bool CandidateIdsUseStack(const CodeGenerator::FAnalysis& Analysis, const std::vector<int32_t>& CandidateIds)
+    {
+        for (int32_t ID : CandidateIds)
+        {
+            if (CandidateUsesStack(Analysis.Candidates[ID]))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    void AddStackOverheadIfNeeded(int32_t& Cycles, int32_t& CodeBytes, const CodeGenerator::FOptions& Options)
+    {
+        if (Options.DisableInterruptsForStack)
+        {
+            Cycles += 8;
+            CodeBytes += 2;
+        }
+
+        if (Options.PreserveSP)
+        {
+            Cycles += 132;
+            CodeBytes += 25;
+        }
+    }
+
+    int64_t ScorePlanWithBC(
+        int32_t Cycles,
+        int32_t CodeBytes,
+        bool bNeedsBC,
+        bool bBCAlreadyLoaded,
+        const CodeGenerator::FOptions& Options)
+    {
+        if (bNeedsBC && !bBCAlreadyLoaded)
+        {
+            // LD BC,nn
+            Cycles += 10;
+            CodeBytes += 3;
+        }
+
+        return ScorePlan(Cycles, CodeBytes, Options);
+    }
+
+    bool BuildLinearPlan(
+        const CodeGenerator::FAnalysis& Analysis,
+        const CodeGenerator::FOptions& Options,
+        const std::vector<uint8_t>& Dirty,
+        std::vector<int32_t>& OutCandidateIds,
+        int32_t& OutCycles,
+        int32_t& OutCodeBytes,
+        std::string& OutError)
+    {
+        const int32_t N = CodeGenerator::ZX_SCREEN_SIZE;
+        const int64_t INF = (std::numeric_limits<int64_t>::max)() / 4;
+
+        std::vector<int64_t> DP(N + 1, INF);
+        std::vector<int32_t> Choice(N + 1, -1);
+
+        DP[N] = 0;
+
+        for (int32_t i = N - 1; i >= 0; --i)
+        {
+            if (!Dirty[i])
+            {
+                DP[i] = DP[i + 1];
+                Choice[i] = -2;
+                continue;
+            }
+
+            for (int32_t ID : Analysis.StartsAt[i])
+            {
+                const CodeGenerator::FCandidate& Candidate = Analysis.Candidates[ID];
+                if (!Candidate.Linear)
+                {
+                    continue;
+                }
+
+                if (Candidate.EndOffset <= i || Candidate.EndOffset > N)
+                {
+                    continue;
+                }
+
+                if (!CodeGenerator::CandidateIsDirty(Dirty, Candidate))
+                {
+                    continue;
+                }
+
+                if (DP[Candidate.EndOffset] == INF)
+                {
+                    continue;
+                }
+
+                const int64_t Cost = CodeGenerator::ScoreCandidate(Candidate, Options) + DP[Candidate.EndOffset];
+                if (Cost < DP[i])
+                {
+                    DP[i] = Cost;
+                    Choice[i] = ID;
+                }
+            }
+        }
+
+        OutCandidateIds.clear();
+        OutCycles = 0;
+        OutCodeBytes = 0;
+
+        int32_t Pos = 0;
+        while (Pos < N)
+        {
+            if (!Dirty[Pos])
+            {
+                ++Pos;
+                continue;
+            }
+
+            const int32_t ID = Choice[Pos];
+            if (ID < 0)
+            {
+                OutError = "OptimizePlan: failed to cover dirty byte";
+                return false;
+            }
+
+            const CodeGenerator::FCandidate& Candidate = Analysis.Candidates[ID];
+            OutCandidateIds.push_back(ID);
+            OutCycles += Candidate.Cycles;
+            OutCodeBytes += Candidate.CodeBytes;
+            Pos = Candidate.EndOffset;
+        }
+
+        return true;
+    }
+}
+
+bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Options, FPlan& OutPlan, std::string& OutError)
+{
+    OutPlan = FPlan();
+
+    struct FSearchState
+    {
+        std::vector<uint8_t> Remaining;
+        std::vector<int32_t> CandidateIds;
+        int32_t Cycles = 0;
+        int32_t CodeBytes = 0;
+        bool UsesBC = false;
+        bool UsesStack = false;
+    };
+
+    auto ScoreState = [&Options](const FSearchState& State)
+    {
+        return ScorePlan(State.Cycles, State.CodeBytes, Options);
+    };
+
+    const int32_t BeamWidth = max(1, Options.NonLinearBeamWidth);
+    const int32_t MaxCandidatesToEvaluatePerPass = max(1, Options.MaxNonLinearCandidatesToEvaluatePerPass);
+
+    std::vector<FSearchState> Beam;
+    Beam.push_back(FSearchState{ Analysis.Dirty });
+
+    bool bHasBest = false;
+    FSearchState BestFinished;
+    int64_t BestFinishedScore = (std::numeric_limits<int64_t>::max)() / 4;
+
+    while (!Beam.empty())
+    {
+        std::vector<FSearchState> NextBeam;
+
+        for (const FSearchState& State : Beam)
+        {
+            if (CountDirtyBytes(State.Remaining) == 0)
+            {
+                const int64_t StateScore = ScoreState(State);
+                if (!bHasBest || StateScore < BestFinishedScore)
+                {
+                    BestFinished = State;
+                    BestFinishedScore = StateScore;
+                    bHasBest = true;
+                }
+                continue;
+            }
+
+        std::vector<int32_t> LinearIds;
+        int32_t LinearCycles = 0;
+        int32_t LinearCodeBytes = 0;
+            if (!BuildLinearPlan(Analysis, Options, State.Remaining, LinearIds, LinearCycles, LinearCodeBytes, OutError))
+        {
             return false;
         }
 
-        const FCandidate& Candidate = Analysis.Candidates[ID];
+        const bool bLinearNeedsBC = CandidateIdsUseBC(Analysis, LinearIds);
+            const bool bLinearNeedsStack = CandidateIdsUseStack(Analysis, LinearIds);
+            FSearchState Finished = State;
+            Finished.CandidateIds.insert(Finished.CandidateIds.end(), LinearIds.begin(), LinearIds.end());
+            Finished.Cycles += LinearCycles;
+            Finished.CodeBytes += LinearCodeBytes;
+            if (!Finished.UsesBC && bLinearNeedsBC)
+            {
+                Finished.Cycles += 10;
+                Finished.CodeBytes += 3;
+                Finished.UsesBC = true;
+            }
+            if (!Finished.UsesStack && bLinearNeedsStack)
+            {
+                AddStackOverheadIfNeeded(Finished.Cycles, Finished.CodeBytes, Options);
+                Finished.UsesStack = true;
+            }
 
-        OutPlan.CandidateIds.push_back(ID);
-        OutPlan.TotalCycles += Candidate.Cycles;
-        OutPlan.TotalCodeBytes += Candidate.CodeBytes;
+            const int64_t FinishedScore = ScoreState(Finished);
+            if (!bHasBest || FinishedScore < BestFinishedScore)
+            {
+                BestFinished = std::move(Finished);
+                BestFinishedScore = FinishedScore;
+                bHasBest = true;
+            }
 
-        Pos = Candidate.EndOffset;
+        struct FNonLinearProbe
+        {
+            int32_t ID;
+            int64_t ApproxSaving;
+        };
+
+        std::vector<FNonLinearProbe> Probes;
+
+        for (int32_t ID = 0; ID < static_cast<int32_t>(Analysis.Candidates.size()); ++ID)
+        {
+            const FCandidate& Candidate = Analysis.Candidates[ID];
+                if (Candidate.Linear || !CandidateIsDirty(State.Remaining, Candidate))
+            {
+                continue;
+            }
+
+            int64_t OverlappedLinearCost = 0;
+            for (int32_t LinearID : LinearIds)
+            {
+                const FCandidate& LinearCandidate = Analysis.Candidates[LinearID];
+                if (CandidateOverlaps(Candidate, LinearCandidate))
+                {
+                    OverlappedLinearCost += ScoreCandidate(LinearCandidate, Options);
+                }
+            }
+
+            const int64_t CandidateCost = ScoreCandidate(Candidate, Options);
+            if (CandidateCost >= OverlappedLinearCost)
+            {
+                continue;
+            }
+
+            Probes.push_back({ ID, OverlappedLinearCost - CandidateCost });
+        }
+
+        std::sort(Probes.begin(), Probes.end(),
+            [](const FNonLinearProbe& A, const FNonLinearProbe& B)
+            {
+                return A.ApproxSaving > B.ApproxSaving;
+            });
+
+        const int32_t ProbeCount = min(MaxCandidatesToEvaluatePerPass, static_cast<int32_t>(Probes.size()));
+
+        for (int32_t ProbeIndex = 0; ProbeIndex < ProbeCount; ++ProbeIndex)
+        {
+            const FCandidate& Candidate = Analysis.Candidates[Probes[ProbeIndex].ID];
+
+                FSearchState Child = State;
+                Child.CandidateIds.push_back(Probes[ProbeIndex].ID);
+                Child.Cycles += Candidate.Cycles;
+                Child.CodeBytes += Candidate.CodeBytes;
+
+                if (!Child.UsesBC && Candidate.RequiresBC)
+                {
+                    Child.Cycles += 10;
+                    Child.CodeBytes += 3;
+                    Child.UsesBC = true;
+                }
+                if (!Child.UsesStack && CandidateUsesStack(Candidate))
+                {
+                    AddStackOverheadIfNeeded(Child.Cycles, Child.CodeBytes, Options);
+                    Child.UsesStack = true;
+                }
+
+                MarkCandidateClean(Child.Remaining, Candidate);
+                NextBeam.push_back(std::move(Child));
+            }
+        }
+
+        std::sort(NextBeam.begin(), NextBeam.end(),
+            [&ScoreState](const FSearchState& A, const FSearchState& B)
+            {
+                return ScoreState(A) < ScoreState(B);
+            });
+
+        if (static_cast<int32_t>(NextBeam.size()) > BeamWidth)
+        {
+            NextBeam.resize(BeamWidth);
+        }
+
+        Beam = std::move(NextBeam);
     }
 
+    if (!bHasBest)
+    {
+        OutError = "OptimizePlan: failed to produce a plan";
+        return false;
+    }
+
+    OutPlan.CandidateIds = std::move(BestFinished.CandidateIds);
+    OutPlan.TotalCycles = BestFinished.Cycles;
+    OutPlan.TotalCodeBytes = BestFinished.CodeBytes;
+    OutPlan.UsesBC = BestFinished.UsesBC;
+    OutPlan.UsesStack = BestFinished.UsesStack;
     return true;
 }
 
@@ -537,6 +1260,7 @@ void CodeGenerator::EmitLdA(FEmitOutput& Out, FEmitState& State, uint8_t Value)
         Out.Preview << "                LD A, " << Hex8(Value) << "\n";
         EmitByte(Out, 0x3E);
         EmitByte(Out, Value);
+        Out.Cycles += 7;
         State.A = Value;
         State.bHasA = true;
     }
@@ -549,6 +1273,7 @@ void CodeGenerator::EmitLdHL(FEmitOutput& Out, FEmitState& State, uint16_t Value
         Out.Preview << "                LD HL, " << Hex16(Value) << "\n";
         EmitByte(Out, 0x21);
         EmitWordLE(Out, Value);
+        Out.Cycles += 10;
         State.HL = Value;
         State.bHasHL = true;
     }
@@ -561,6 +1286,7 @@ void CodeGenerator::EmitLdSP(FEmitOutput& Out, FEmitState& State, uint16_t Value
         Out.Preview << "                LD SP, " << Hex16(Value) << "\n";
         EmitByte(Out, 0x31);
         EmitWordLE(Out, Value);
+        Out.Cycles += 10;
         State.SP = Value;
         State.bHasSP = true;
     }
@@ -576,6 +1302,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
         Out.Preview << "                LD (" << Hex16(Candidate.StartAddr) << "), A\n";
         EmitByte(Out, 0x32);
         EmitWordLE(Out, Candidate.StartAddr);
+        Out.Cycles += 13;
         break;
     }
 
@@ -585,6 +1312,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
         Out.Preview << "                LD (HL), " << Hex8(Candidate.ByteValue) << "\n";
         EmitByte(Out, 0x36);
         EmitByte(Out, Candidate.ByteValue);
+        Out.Cycles += 10;
 
         // HL не меняется.
         break;
@@ -596,6 +1324,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
         Out.Preview << "                LD (" << Hex16(Candidate.StartAddr) << "), HL\n";
         EmitByte(Out, 0x22);
         EmitWordLE(Out, Candidate.StartAddr);
+        Out.Cycles += 16;
         break;
     }
 
@@ -610,6 +1339,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
             EmitLdHL(Out, State, Word);
             Out.Preview << "                PUSH HL\n";
             EmitByte(Out, 0xE5);
+            Out.Cycles += 11;
 
             State.SP = static_cast<uint16_t>(State.SP - 2);
             State.bHasSP = true;
@@ -627,6 +1357,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
             Out.Preview << "                LD (" << Hex16(AddrOf(Pos)) << "), HL\n";
             EmitByte(Out, 0x22);
             EmitWordLE(Out, AddrOf(Pos));
+            Out.Cycles += 16;
         }
 
         break;
@@ -643,6 +1374,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
         {
             Out.Preview << "                PUSH HL\n";
             EmitByte(Out, 0xE5);
+            Out.Cycles += 11;
 
             State.SP = static_cast<uint16_t>(State.SP - 2);
             State.bHasSP = true;
@@ -652,25 +1384,171 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
     }
 
     case EOpKind::HorizontalSameByteIncL:
+    case EOpKind::HorizontalSameByteDecL:
     {
         EmitLdHL(Out, State, Candidate.StartAddr);
         EmitLdA(Out, State, Candidate.ByteValue);
 
+        const bool bDec = Candidate.Kind == EOpKind::HorizontalSameByteDecL;
+        const uint8_t StepOpcode = bDec ? 0x2D : 0x2C;
+        const char* StepText = bDec ? "DEC L" : "INC L";
+
         Out.Preview << "                LD (HL), A\n";
         EmitByte(Out, 0x77);
+        Out.Cycles += 7;
 
         uint16_t HL = Candidate.StartAddr;
         for (int32_t i = 1; i < Candidate.WriteBytes; ++i)
         {
-            Out.Preview << "                INC L\n";
-            EmitByte(Out, 0x2C);
+            Out.Preview << "                " << StepText << "\n";
+            EmitByte(Out, StepOpcode);
+            Out.Cycles += 4;
             Out.Preview << "                LD (HL), A\n";
             EmitByte(Out, 0x77);
-            HL = static_cast<uint16_t>((HL & 0xFF00) | ((HL + 1) & 0x00FF));
+            Out.Cycles += 7;
+            HL = static_cast<uint16_t>((HL & 0xFF00) | ((HL + Candidate.Stride) & 0x00FF));
         }
 
         State.HL = HL;
         State.bHasHL = true;
+        break;
+    }
+
+    case EOpKind::HorizontalSameByteRegIncL:
+    case EOpKind::HorizontalSameByteRegDecL:
+    {
+        EmitLdHL(Out, State, Candidate.StartAddr);
+
+        const uint8_t StoreOpcode = Candidate.RegisterName == 'B' ? 0x70 : 0x71;
+        const uint8_t StepOpcode = Candidate.Kind == EOpKind::HorizontalSameByteRegIncL ? 0x2C : 0x2D;
+        const char* StepText = Candidate.Kind == EOpKind::HorizontalSameByteRegIncL ? "INC L" : "DEC L";
+
+        uint16_t HL = Candidate.StartAddr;
+        for (int32_t i = 0; i < Candidate.Count; ++i)
+        {
+            Out.Preview << "                LD (HL), " << Candidate.RegisterName << "\n";
+            EmitByte(Out, StoreOpcode);
+            Out.Cycles += 7;
+
+            if (i + 1 < Candidate.Count)
+            {
+                Out.Preview << "                " << StepText << "\n";
+                EmitByte(Out, StepOpcode);
+                Out.Cycles += 4;
+                HL = static_cast<uint16_t>((HL & 0xFF00) | ((HL + Candidate.Stride) & 0x00FF));
+            }
+        }
+
+        State.HL = HL;
+        State.bHasHL = true;
+        break;
+    }
+
+    case EOpKind::VerticalBytesIncH:
+    case EOpKind::VerticalBytesDecH:
+    {
+        EmitLdHL(Out, State, Candidate.StartAddr);
+
+        const bool bDec = Candidate.Kind == EOpKind::VerticalBytesDecH;
+        const uint8_t StepOpcode = bDec ? 0x25 : 0x24;
+        const char* StepText = bDec ? "DEC H" : "INC H";
+        uint16_t HL = Candidate.StartAddr;
+        for (int32_t i = 0; i < Candidate.Count; ++i)
+        {
+            const int32_t Offset = Candidate.CoveredOffsets[i];
+            Out.Preview << "                LD (HL), " << Hex8(Data[Offset]) << "\n";
+            EmitByte(Out, 0x36);
+            EmitByte(Out, Data[Offset]);
+            Out.Cycles += 10;
+
+            if (i + 1 < Candidate.Count)
+            {
+                Out.Preview << "                " << StepText << "\n";
+                EmitByte(Out, StepOpcode);
+                Out.Cycles += 4;
+                HL = static_cast<uint16_t>(HL + Candidate.Stride);
+            }
+        }
+
+        State.HL = HL;
+        State.bHasHL = true;
+        break;
+    }
+
+    case EOpKind::VerticalSameByteIncH:
+    case EOpKind::VerticalSameByteDecH:
+    {
+        EmitLdHL(Out, State, Candidate.StartAddr);
+        EmitLdA(Out, State, Candidate.ByteValue);
+
+        const bool bDec = Candidate.Kind == EOpKind::VerticalSameByteDecH;
+        const uint8_t StepOpcode = bDec ? 0x25 : 0x24;
+        const char* StepText = bDec ? "DEC H" : "INC H";
+        uint16_t HL = Candidate.StartAddr;
+        for (int32_t i = 0; i < Candidate.Count; ++i)
+        {
+            Out.Preview << "                LD (HL), A\n";
+            EmitByte(Out, 0x77);
+            Out.Cycles += 7;
+
+            if (i + 1 < Candidate.Count)
+            {
+                Out.Preview << "                " << StepText << "\n";
+                EmitByte(Out, StepOpcode);
+                Out.Cycles += 4;
+                HL = static_cast<uint16_t>(HL + Candidate.Stride);
+            }
+        }
+
+        State.HL = HL;
+        State.bHasHL = true;
+        break;
+    }
+
+    case EOpKind::VerticalSameByteRegIncH:
+    case EOpKind::VerticalSameByteRegDecH:
+    {
+        EmitLdHL(Out, State, Candidate.StartAddr);
+
+        const bool bDec = Candidate.Kind == EOpKind::VerticalSameByteRegDecH;
+        const uint8_t StoreOpcode = Candidate.RegisterName == 'B' ? 0x70 : 0x71;
+        const uint8_t StepOpcode = bDec ? 0x25 : 0x24;
+        const char* StepText = bDec ? "DEC H" : "INC H";
+
+        uint16_t HL = Candidate.StartAddr;
+        for (int32_t i = 0; i < Candidate.Count; ++i)
+        {
+            Out.Preview << "                LD (HL), " << Candidate.RegisterName << "\n";
+            EmitByte(Out, StoreOpcode);
+            Out.Cycles += 7;
+
+            if (i + 1 < Candidate.Count)
+            {
+                Out.Preview << "                " << StepText << "\n";
+                EmitByte(Out, StepOpcode);
+                Out.Cycles += 4;
+                HL = static_cast<uint16_t>(HL + Candidate.Stride);
+            }
+        }
+
+        State.HL = HL;
+        State.bHasHL = true;
+        break;
+    }
+
+    case EOpKind::VerticalRepeatWordAbsHL:
+    {
+        EmitLdHL(Out, State, Candidate.WordValue);
+
+        for (int32_t i = 0; i < Candidate.Count; ++i)
+        {
+            const int32_t Offset = Candidate.StartOffset + i * Candidate.Stride;
+            Out.Preview << "                LD (" << Hex16(AddrOf(Offset)) << "), HL\n";
+            EmitByte(Out, 0x22);
+            EmitWordLE(Out, AddrOf(Offset));
+            Out.Cycles += 16;
+        }
+
         break;
     }
 
@@ -682,29 +1560,98 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
     return true;
 }
 
-bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::vector<uint8_t>& OutCode, std::string& OutError, const std::string& LabelName)
+bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::vector<uint8_t>& OutCode, int32_t& OutCycles, std::string& OutError, const std::string& LabelName)
 {
     FEmitOutput Out;
-    Out.BaseAddress = Options.CodeBaseAddress;
     FEmitState State;
     size_t RestoreSPOperandOffset = (std::numeric_limits<size_t>::max)();
+    size_t CurrentAddressOffset = (std::numeric_limits<size_t>::max)();
+    uint16_t RestoreSPRelativeOffset = 0;
+    bool bHasRestoreSPRelativeOffset = false;
+    size_t RestoreSPPreviewOffset = (std::numeric_limits<size_t>::max)();
+    static constexpr const char* RestoreSPPreviewPlaceholder = "                LD BC, #0000\n";
+    const bool bPlanUsesStack = Plan.UsesStack;
+    const bool bPreserveSP = Options.PreserveSP && bPlanUsesStack;
 
     Out.Preview << LabelName << ":\n";
-    if (Options.DisableInterruptsForStack)
+    if (Options.DisableInterruptsForStack && bPlanUsesStack)
     {
         Out.Preview << "                DI\n";
         EmitByte(Out, 0xF3);
+        Out.Cycles += 4;
     }
 
-    if (Options.PreserveSP)
+    if (bPreserveSP)
     {
-        // Самомодификация: сохраняем текущий SP в операнд LD SP,#0000.
-        // Код должен быть в RAM.
-        Out.Preview << "                LD (" << LabelName << "_RestoreSP + 1), SP\n";
-        EmitByte(Out, 0xED);
-        EmitByte(Out, 0x73);
+        // Сохраняем исходный SP в DE, затем получаем текущий адрес без знания
+        // фактического адреса размещения кода.
+        Out.Preview << "                LD HL, #0000\n";
+        EmitByte(Out, 0x21);
+        EmitWordLE(Out, 0x0000);
+        Out.Cycles += 10;
+
+        Out.Preview << "                ADD HL, SP\n";
+        EmitByte(Out, 0x39);
+        Out.Cycles += 11;
+
+        Out.Preview << "                EX DE, HL\n";
+        EmitByte(Out, 0xEB);
+        Out.Cycles += 4;
+
+        Out.Preview << "                LD SP, " << Hex16(Options.StackTopAddress) << "\n";
+        EmitByte(Out, 0x31);
+        EmitWordLE(Out, Options.StackTopAddress);
+        Out.Cycles += 10;
+
+        Out.Preview << "                LD HL, #E9E1\n";
+        EmitByte(Out, 0x21);
+        EmitWordLE(Out, 0xE9E1);
+        Out.Cycles += 10;
+
+        Out.Preview << "                EX (SP), HL\n";
+        EmitByte(Out, 0xE3);
+        Out.Cycles += 19;
+
+        Out.Preview << "                CALL " << Hex16(Options.StackTopAddress) << "\n";
+        EmitByte(Out, 0xCD);
+        EmitWordLE(Out, Options.StackTopAddress);
+        Out.Cycles += 17/* CALL */ + 10/* POP HL */ + 4/* JP (HL) */;
+
+        CurrentAddressOffset = Out.Code.size();
+        RestoreSPPreviewOffset = static_cast<size_t>(Out.Preview.tellp());
+        Out.Preview << RestoreSPPreviewPlaceholder;
+        EmitByte(Out, 0x01);
         RestoreSPOperandOffset = Out.Code.size();
         EmitWordLE(Out, 0x0000);
+        Out.Cycles += 10;
+
+        Out.Preview << "                ADD HL, BC\n";
+        EmitByte(Out, 0x09);
+        Out.Cycles += 11;
+
+        Out.Preview << "                LD (HL), E\n";
+        EmitByte(Out, 0x73);
+        Out.Cycles += 7;
+
+        Out.Preview << "                INC HL\n";
+        EmitByte(Out, 0x23);
+        Out.Cycles += 6;
+
+        Out.Preview << "                LD (HL), D\n";
+        EmitByte(Out, 0x72);
+        Out.Cycles += 7;
+
+        State.bHasHL = false;
+        State.bHasSP = true;
+        State.SP = Options.StackTopAddress;
+    }
+    if (Plan.UsesBC && Analysis.bHasPreferredBC)
+    {
+        const uint16_t BC = static_cast<uint16_t>((Analysis.PreferredB << 8) | Analysis.PreferredC);
+        Out.Preview << "                LD BC, " << Hex16(BC) << "\n";
+        EmitByte(Out, 0x01);
+        EmitWordLE(Out, BC);
+        Out.Cycles += 10;
     }
     Out.Preview << "\n";
 
@@ -726,28 +1673,43 @@ bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const 
         Out.Preview << "\n";
     }
 
-    if (Options.PreserveSP)
+    if (bPreserveSP)
     {
-        const uint16_t RestoreSPAddr = static_cast<uint16_t>(Out.BaseAddress + Out.Code.size());
-        PatchWordLE(Out, RestoreSPOperandOffset, static_cast<uint16_t>(RestoreSPAddr + 1));
-
-        Out.Preview << LabelName << "_RestoreSP:\n";
+        Out.Preview << "._RestoreSP:\n";
         Out.Preview << "                LD SP, #0000\n";
         EmitByte(Out, 0x31);
+        const size_t RestoreSPValueOffset = Out.Code.size();
         EmitWordLE(Out, 0x0000);
+        Out.Cycles += 10;
+
+        if (RestoreSPOperandOffset != (std::numeric_limits<size_t>::max)() &&
+            CurrentAddressOffset != (std::numeric_limits<size_t>::max)())
+        {
+            const uint16_t RelativeOffset = static_cast<uint16_t>(RestoreSPValueOffset - CurrentAddressOffset);
+            PatchWordLE(Out, RestoreSPOperandOffset, RelativeOffset);
+            RestoreSPRelativeOffset = RelativeOffset;
+            bHasRestoreSPRelativeOffset = true;
+        }
     }
 
-    if (Options.DisableInterruptsForStack)
+    if (Options.DisableInterruptsForStack && bPlanUsesStack)
     {
         Out.Preview << "                EI\n";
         EmitByte(Out, 0xFB);
+        Out.Cycles += 4;
     }
 
     Out.Preview << "                RET\n";
     EmitByte(Out, 0xC9);
+    Out.Cycles += 10;
 
     OutAsm = Out.Preview.str();
+    if (bHasRestoreSPRelativeOffset && RestoreSPPreviewOffset != (std::numeric_limits<size_t>::max)())
+    {
+        OutAsm.replace(RestoreSPPreviewOffset, std::strlen(RestoreSPPreviewPlaceholder), "                LD BC, " + Hex16(RestoreSPRelativeOffset) + "\n");
+    }
     OutCode = std::move(Out.Code);
+    OutCycles = Out.Cycles;
     if (OutAsm.empty())
     {
         OutError = "EmitAsm: produced empty output";
@@ -773,6 +1735,8 @@ void CodeGenerator::PrintPlanSummary(const FAnalysis& Analysis, const FPlan& Pla
     int32_t ByteCount = 0;
     int32_t RepeatCount = 0;
     int32_t HorizCount = 0;
+    int32_t VertCount = 0;
+    int32_t RegisterCount = 0;
 
     for (int32_t ID : Plan.CandidateIds)
     {
@@ -799,8 +1763,26 @@ void CodeGenerator::PrintPlanSummary(const FAnalysis& Analysis, const FPlan& Pla
             break;
 
         case EOpKind::HorizontalSameByteIncL:
+        case EOpKind::HorizontalSameByteDecL:
+        case EOpKind::HorizontalSameByteRegIncL:
+        case EOpKind::HorizontalSameByteRegDecL:
             ++HorizCount;
             break;
+
+        case EOpKind::VerticalBytesIncH:
+        case EOpKind::VerticalBytesDecH:
+        case EOpKind::VerticalSameByteIncH:
+        case EOpKind::VerticalSameByteDecH:
+        case EOpKind::VerticalSameByteRegIncH:
+        case EOpKind::VerticalSameByteRegDecH:
+        case EOpKind::VerticalRepeatWordAbsHL:
+            ++VertCount;
+            break;
+        }
+
+        if (Candidate.RequiresBC)
+        {
+            ++RegisterCount;
         }
     }
 
@@ -809,4 +1791,6 @@ void CodeGenerator::PrintPlanSummary(const FAnalysis& Analysis, const FPlan& Pla
     std::cout << "Byte writes: " << ByteCount << "\n";
     std::cout << "Repeat blocks: " << RepeatCount << "\n";
     std::cout << "Horizontal runs: " << HorizCount << "\n";
+    std::cout << "Vertical runs: " << VertCount << "\n";
+    std::cout << "Register constant runs: " << RegisterCount << "\n";
 }

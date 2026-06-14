@@ -8,6 +8,7 @@
 namespace
 {
 	static const wchar_t* ThisWindowName = L"Timeline";
+    static const char* ActiveAreaIgnoredPixelModalName = "ActiveAreaIgnoredPixelModal";
 
 	static int32_t ClampInt(int32_t v, int32_t min, int32_t max)
 	{
@@ -43,6 +44,40 @@ namespace
             Point.y >= Min.y &&
             Point.x < Max.x &&
             Point.y < Max.y;
+    }
+
+    static void AddActiveAreaIgnoredPixel(FPropertyBag& Property, uint8_t Value)
+    {
+        FTilemapCellData_ByteValues IgnoredPixels;
+        if (!Property.GetStruct(FPropertyTag::ActiveAreaIgnoredPixels, IgnoredPixels))
+        {
+            IgnoredPixels = FTilemapCellData_ByteValues();
+            IgnoredPixels.AddUnique(Value);
+            Property.AddStruct(FPropertyTag::ActiveAreaIgnoredPixels, IgnoredPixels);
+            return;
+        }
+
+        IgnoredPixels.AddUnique(Value);
+        Property.SetStruct(FPropertyTag::ActiveAreaIgnoredPixels, IgnoredPixels);
+    }
+
+    static std::string FormatIgnoredPixelValues(const FTilemapCellData_ByteValues& IgnoredPixels)
+    {
+        if (IgnoredPixels.Values.empty())
+        {
+            return "";
+        }
+
+        std::string ValuesText;
+        for (uint8_t Value : IgnoredPixels.Values)
+        {
+            if (!ValuesText.empty())
+            {
+                ValuesText += " ";
+            }
+            ValuesText += std::format(" #{:02X}", Value);
+        }
+        return ValuesText;
     }
 
     static void DrawExampleCellContent(ImDrawList* DrawList, const ImVec2& CellMin, const ImVec2& CellMax, int32_t Frame, int32_t Layer, bool bSelected, bool bCurrentFrame, bool bCurrentLayer, void* UserData)
@@ -92,6 +127,10 @@ STimeline::STimeline(EFont::Type _FontName, std::string _DockSlot /*= ""*/, bool
     , LayerCount(0)
     , PopupFrame(INDEX_NONE)
     , PopupLayer(INDEX_NONE)
+    , bPendingIgnoredPixel00(false)
+    , bPendingIgnoredPixelFF(false)
+    , bPendingIgnoredPixelCustom(false)
+    , PendingIgnoredPixelCustomValue(0)
 {}
 
 void STimeline::NativeInitialize(const FNativeDataInitialize& Data)
@@ -176,15 +215,122 @@ void STimeline::Render()
                 );
             }
 
+            if (ShowModal_ActiveAreaIgnoredPixel()) {}
+
             ImGui::EndChild();
         }
 		ImGui::End();
 	}
+
 }
 
 void STimeline::Destroy()
 {
 	UnsubscribeAll();
+}
+
+bool STimeline::ShowModal_ActiveAreaIgnoredPixel()
+{
+    // always center this window when appearing
+    if (ImGui::IsWindowAppearing())
+    {
+        ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+    }
+
+    const bool bVisible = ImGui::BeginPopupModal(ActiveAreaIgnoredPixelModalName, nullptr, ImGuiWindowFlags_AlwaysAutoResize);
+    if (bVisible)
+    {
+        if (ImGui::IsWindowAppearing())
+        {
+            FTilemapCellData_ByteValues IgnoredPixels;
+            std::shared_ptr<FKeyframes> KeyframeData = Keyframes.lock();
+            const FPropertyBag& Property = KeyframeData ? KeyframeData->GetProperty(PopupFrame, PopupLayer) : FPropertyBag::Invalid;
+            Property.GetStruct(FPropertyTag::ActiveAreaIgnoredPixels, IgnoredPixels);
+
+            bPendingIgnoredPixel00 = false;
+            bPendingIgnoredPixelFF = false;
+            bPendingIgnoredPixelCustom = false;
+            PendingIgnoredPixelCustomValue = 0;
+
+            for (uint8_t Value : IgnoredPixels.Values)
+            {
+                if (Value == 0x00)
+                {
+                    bPendingIgnoredPixel00 = true;
+                }
+                else if (Value == 0xFF)
+                {
+                    bPendingIgnoredPixelFF = true;
+                }
+                else
+                {
+                    bPendingIgnoredPixelCustom = true;
+                    PendingIgnoredPixelCustomValue = Value;
+                }
+            }
+        }
+
+        ImGui::TextUnformatted("Active Area ignored pixel values");
+        ImGui::Checkbox("Value: #00", &bPendingIgnoredPixel00);
+        ImGui::Checkbox("Value: #FF", &bPendingIgnoredPixelFF);
+        ImGui::Checkbox("Custom", &bPendingIgnoredPixelCustom);
+        ImGui::BeginDisabled(!bPendingIgnoredPixelCustom);
+        ImGui::SetNextItemWidth(90.0f);
+        ImGui::InputInt("Value", &PendingIgnoredPixelCustomValue);
+        PendingIgnoredPixelCustomValue = ImClamp(PendingIgnoredPixelCustomValue, 0, 0xFF);
+        ImGui::EndDisabled();
+
+        if (ImGui::Button("Save", ImVec2(80.0f, 0.0f)))
+        {
+            std::shared_ptr<FKeyframes> KeyframeData = Keyframes.lock();
+            FPropertyBag* Property = KeyframeData ? KeyframeData->GetMutableProperty(PopupFrame, PopupLayer) : nullptr;
+            if (Property != nullptr)
+            {
+                FTilemapCellData_ByteValues IgnoredPixels;
+                if (bPendingIgnoredPixel00)
+                {
+                    IgnoredPixels.AddUnique(0x00);
+                }
+                if (bPendingIgnoredPixelFF)
+                {
+                    IgnoredPixels.AddUnique(0xFF);
+                }
+                if (bPendingIgnoredPixelCustom)
+                {
+                    IgnoredPixels.AddUnique(static_cast<uint8_t>(PendingIgnoredPixelCustomValue));
+                }
+
+                if (IgnoredPixels.Values.empty())
+                {
+                    Property->RemoveProperty(FPropertyTag::ActiveAreaIgnoredPixels);
+                }
+                else if (!Property->SetStruct(FPropertyTag::ActiveAreaIgnoredPixels, IgnoredPixels))
+                {
+                    Property->AddStruct(FPropertyTag::ActiveAreaIgnoredPixels, IgnoredPixels);
+                }
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Default", ImVec2(80.0f, 0.0f)))
+        {
+            std::shared_ptr<FKeyframes> KeyframeData = Keyframes.lock();
+            FPropertyBag* Property = KeyframeData ? KeyframeData->GetMutableProperty(PopupFrame, PopupLayer) : nullptr;
+            if (Property != nullptr)
+            {
+                Property->RemoveProperty(FPropertyTag::ActiveAreaIgnoredPixels);
+            }
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::SameLine();
+        if (ImGui::Button("Cancel", ImVec2(80.0f, 0.0f)))
+        {
+            ImGui::CloseCurrentPopup();
+        }
+        ImGui::EndPopup();
+    }
+
+    return bVisible;
 }
 
 void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float TimelineHeight, FTimelineDrawCellContentFn DrawCellContent, void* DrawCellUserData)
@@ -214,6 +360,8 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
     const ImU32 ColSelected = IM_COL32(90, 120, 180, 180);
     const ImU32 ColCurrent = IM_COL32(255, 190, 40, 255);
     const ImU32 ColText = IM_COL32(220, 220, 220, 255);
+
+    const ImGuiID ActiveAreaIgnoredPixelModalID = ImGui::GetCurrentWindow()->GetID(ActiveAreaIgnoredPixelModalName);
 
     ImGui::PushID(Id);
 
@@ -585,6 +733,19 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
                         }
                     }
                 }
+
+                const bool bHasIgnoredPixels = Property->HasProperty(FPropertyTag::ActiveAreaIgnoredPixels);
+                FTilemapCellData_ByteValues IgnoredPixels;
+                if (bHasIgnoredPixels)
+                {
+                    Property->GetStruct(FPropertyTag::ActiveAreaIgnoredPixels, IgnoredPixels);
+                }
+
+                const char* IgnoredPixelsMenuText = bHasIgnoredPixels ? "Edit Active Area Ignored Pixels..." : "Add Active Area Ignored Pixels...";
+                if (ImGui::MenuItem(IgnoredPixelsMenuText))
+                {
+                    ImGui::OpenPopup(ActiveAreaIgnoredPixelModalID);
+                }
             }
             ImGui::EndPopup();
         }
@@ -699,6 +860,27 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
                 }
 
                 DrawList->AddRect(P0, P1, ColGrid);
+
+                if (bCanAcceptMouse && IsPointInsideRect(Mouse, P0, P1))
+                {
+                    FKeyframes* KeyframeData = static_cast<FKeyframes*>(DrawCellUserData);
+                    const FPropertyBag& Property = KeyframeData ? KeyframeData->GetProperty(Frame, Layer) : FPropertyBag::Invalid;
+                    FTilemapCellData_Rect LimitArea;
+                    if (Property.GetStruct(FPropertyTag::LimitArea, LimitArea))
+                    {
+                        ImGui::BeginTooltip();
+                        ImGui::TextUnformatted("RECT");
+                        ImGui::TextUnformatted(LimitArea.bActiveArea ? "Active" : "Limit");
+
+                        FTilemapCellData_ByteValues IgnoredPixels;
+                        if (Property.GetStruct(FPropertyTag::ActiveAreaIgnoredPixels, IgnoredPixels) && !IgnoredPixels.Values.empty())
+                        {
+                            const std::string IgnoredValues = FormatIgnoredPixelValues(IgnoredPixels);
+                            ImGui::Text("Ignored bytes:%s", IgnoredValues.c_str());
+                        }
+                        ImGui::EndTooltip();
+                    }
+                }
             }
         }
 

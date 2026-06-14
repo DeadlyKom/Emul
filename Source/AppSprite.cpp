@@ -980,11 +980,11 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		CodeGenerationOptions.ByteWeight = ImMax(CodeGenerationOptions.ByteWeight, 1LL);
 		ImGui::SetNextItemWidth(InputNumberWidth);
 		bOptionsChanged |= ImGui::InputInt("Max stack pairs", &CodeGenerationOptions.MaxStackPairsToEnumerate);
-		int32_t CodeBaseAddress = CodeGenerationOptions.CodeBaseAddress;
+		int32_t StackTopAddress = CodeGenerationOptions.StackTopAddress;
 		ImGui::SetNextItemWidth(InputNumberWidth);
-		if (ImGui::InputInt("Code base address", &CodeBaseAddress))
+		if (ImGui::InputInt("Stack top address", &StackTopAddress))
 		{
-			CodeGenerationOptions.CodeBaseAddress = static_cast<uint16_t>(ImClamp(CodeBaseAddress, 0, 0xFFFF));
+			CodeGenerationOptions.StackTopAddress = static_cast<uint16_t>(ImClamp(StackTopAddress, 0, 0xFFFF));
 			bOptionsChanged = true;
 		}
 		int32_t CycleWeight = static_cast<int32_t>(CodeGenerationOptions.CycleWeight);
@@ -999,6 +999,20 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		if (ImGui::InputInt("Code byte weight", &ByteWeight))
 		{
 			CodeGenerationOptions.ByteWeight = ImMax(ByteWeight, 1);
+			bOptionsChanged = true;
+		}
+		int32_t BeamWidth = CodeGenerationOptions.NonLinearBeamWidth;
+		ImGui::SetNextItemWidth(InputNumberWidth);
+		if (ImGui::InputInt("Search beam width", &BeamWidth))
+		{
+			CodeGenerationOptions.NonLinearBeamWidth = ImClamp(BeamWidth, 1, 32);
+			bOptionsChanged = true;
+		}
+		int32_t NonLinearProbeLimit = CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass;
+		ImGui::SetNextItemWidth(InputNumberWidth);
+		if (ImGui::InputInt("Pattern probe limit", &NonLinearProbeLimit))
+		{
+			CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass = ImClamp(NonLinearProbeLimit, 1, 1024);
 			bOptionsChanged = true;
 		}
 		CheckboxWithTooltip(
@@ -1036,8 +1050,22 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 			"Horizontal same byte: INC L",
 			&CodeGenerationOptions.EnableHorizontalSameByteIncL,
 			"Enables section 5: horizontal runs of the same byte using INC L\n This keeps the row on one page and is scored by the same cost formula.");
+		CheckboxWithTooltip(
+			"Vertical candidates",
+			&CodeGenerationOptions.EnableVerticalCandidates,
+			"Enables nonlinear screen-shape candidates:\n LD HL, addr\n LD (HL), n\n INC H\n ...\n and vertical repeated WORD writes with addr+#0100 steps.");
+		CheckboxWithTooltip(
+			"Reverse directions",
+			&CodeGenerationOptions.EnableReverseDirections,
+			"Allows reverse traversal candidates using DEC H and DEC L.\nUseful when the generated order can reuse a pointer from the opposite edge.");
+		CheckboxWithTooltip(
+			"Register constants: B/C",
+			&CodeGenerationOptions.EnableRegisterConstants,
+			"Counts dirty byte values, loads the best pair into BC, and allows candidates that write through B or C.\nThe one-time LD BC cost is included in the plan score.");
 
 		CodeGenerationOptions.MaxStackPairsToEnumerate = ImClamp(CodeGenerationOptions.MaxStackPairsToEnumerate, 2, 256);
+		CodeGenerationOptions.NonLinearBeamWidth = ImClamp(CodeGenerationOptions.NonLinearBeamWidth, 1, 32);
+		CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass = ImClamp(CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass, 1, 1024);
 		CodeGenerationOptions.CycleWeight = ImMax(CodeGenerationOptions.CycleWeight, 1LL);
 		CodeGenerationOptions.ByteWeight = ImMax(CodeGenerationOptions.ByteWeight, 1LL);
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.35f));
@@ -1208,7 +1236,7 @@ void FAppSprite::RefreshCodeGenerationPreview()
 	CodeGenerationOpcodeBytes = std::move(Result.ByteCode);
 	AppendLogLine(std::format("Source code size: {} bytes", CodeGenerationPreviewText.size()));
 	AppendLogLine(std::format("Opcode size: {} bytes", CodeGenerationOpcodeBytes.size()));
-	AppendLogLine(std::format("Code base address: 0x{:04X}", CodeGenerationOptions.CodeBaseAddress));
+	AppendLogLine(std::format("Stack top address: 0x{:04X}", CodeGenerationOptions.StackTopAddress));
 	AppendLogLine(std::format("Dirty bytes: {}", Result.DirtyBytes));
 	AppendLogLine(std::format("Operations: {}", Result.OperationCount));
 	AppendLogLine(std::format("Estimated cycles: {}", Result.Cycles));

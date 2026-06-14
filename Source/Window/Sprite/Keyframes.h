@@ -6,6 +6,7 @@
 namespace FPropertyTag
 {
 	inline constexpr const char* LimitArea = "Limit Area";
+	inline constexpr const char* ActiveAreaIgnoredPixels = "Active Area Ignored Pixels";
 }
 
 struct FTilemapCellData_Rect
@@ -19,6 +20,37 @@ struct FTilemapCellData_Rect
 	{}
 
 	static const FName StaticStructName() { return TEXT("FTilemapCellData_Rect"); }
+};
+
+struct FTilemapCellData_ByteValues
+{
+	std::vector<uint8_t> Values;
+
+	FTilemapCellData_ByteValues(const std::vector<uint8_t>& _Values = {})
+		: Values(_Values)
+	{}
+
+	bool Contains(uint8_t Value) const
+	{
+		for (uint8_t ExistingValue : Values)
+		{
+			if (ExistingValue == Value)
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	void AddUnique(uint8_t Value)
+	{
+		if (!Contains(Value))
+		{
+			Values.push_back(Value);
+		}
+	}
+
+	static const FName StaticStructName() { return TEXT("FTilemapCellData_ByteValues"); }
 };
 
 struct FKeyframes

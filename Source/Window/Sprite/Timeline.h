@@ -81,6 +81,7 @@ public:
 
 private:
 	void DrawTimeline(const char* Id, FTimelineState& State, float TimelineHeight = 180.0f, FTimelineDrawCellContentFn DrawCellContent = nullptr, void* DrawCellUserData = nullptr);
+	bool ShowModal_ActiveAreaIgnoredPixel();
 	void InitializeFromAseprite(std::weak_ptr<AsepriteFormat::FSprite> NewSprite, std::weak_ptr<FKeyframes> SpriteKeyframes);
 
 	// image 
@@ -94,6 +95,10 @@ private:
 	int32_t LayerCount;
 	int32_t PopupFrame;
 	int32_t PopupLayer;
+	bool bPendingIgnoredPixel00;
+	bool bPendingIgnoredPixelFF;
+	bool bPendingIgnoredPixelCustom;
+	int32_t PendingIgnoredPixelCustomValue;
 	EImageFormat Format;
 
 	FTimelineState TimelineState;

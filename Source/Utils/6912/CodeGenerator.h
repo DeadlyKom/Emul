@@ -21,6 +21,18 @@ namespace CodeGenerator
         RepeatWordStack,        // LD SP,end / LD HL,word / PUSH HL...
 
         HorizontalSameByteIncL, // LD HL,addr / LD A,n / LD (HL),A / INC L...
+
+        VerticalBytesIncH,      // LD HL,addr / LD (HL),n / INC H...
+        VerticalSameByteIncH,   // LD HL,addr / LD A,n / LD (HL),A / INC H...
+        VerticalRepeatWordAbsHL,// LD HL,word / LD (addr),HL / LD (addr+#100),HL...
+
+        HorizontalSameByteDecL,    // LD HL,addr / LD A,n / LD (HL),A / DEC L...
+        HorizontalSameByteRegIncL, // LD HL,addr / LD (HL),B|C / INC L...
+        HorizontalSameByteRegDecL, // LD HL,addr / LD (HL),B|C / DEC L...
+        VerticalBytesDecH,         // LD HL,addr / LD (HL),n / DEC H...
+        VerticalSameByteDecH,      // LD HL,addr / LD A,n / LD (HL),A / DEC H...
+        VerticalSameByteRegIncH,   // LD HL,addr / LD (HL),B|C / INC H...
+        VerticalSameByteRegDecH,   // LD HL,addr / LD (HL),B|C / DEC H...
     };
 
     struct FCandidate
@@ -38,10 +50,19 @@ namespace CodeGenerator
 
         uint8_t ByteValue;
         uint16_t WordValue;
+        char RegisterName;
+        bool RequiresBC;
 
         // Для первой версии оптимизатора все кандидаты линейные:
         // покрывают [StartOffset, EndOffset).
         bool Linear;
+
+        // Для нелинейных кандидатов: точный список байтов, которые будут записаны.
+        // Для линейных кандидатов может быть пустым, покрытие задается [StartOffset, EndOffset).
+        std::vector<int32_t> CoveredOffsets;
+        int32_t Stride;
+        int32_t Count;
+        int32_t Width;
 
         FCandidate()
             : Kind(EOpKind::ByteAbsA)
@@ -53,9 +74,13 @@ namespace CodeGenerator
             , CodeBytes(0)
             , ByteValue(0)
             , WordValue(0)
+            , RegisterName(0)
+            , RequiresBC(false)
             , Linear(true)
-        {
-        }
+            , Stride(1)
+            , Count(0)
+            , Width(1)
+        {}
     };
 
     struct FAnalysis
@@ -63,11 +88,17 @@ namespace CodeGenerator
         std::vector<uint8_t> Data;
         std::vector<uint8_t> Dirty;
         std::vector<FCandidate> Candidates;
+        bool bHasPreferredBC;
+        uint8_t PreferredB;
+        uint8_t PreferredC;
 
         // StartsAt[Offset] -> ID кандидатов, которые могут начаться с Offset.
         std::vector<std::vector<int32_t>> StartsAt;
 
         FAnalysis()
+            : bHasPreferredBC(false)
+            , PreferredB(0)
+            , PreferredC(0)
         {
         }
     };
@@ -77,10 +108,14 @@ namespace CodeGenerator
         std::vector<int32_t> CandidateIds;
         int TotalCycles;
         int TotalCodeBytes;
+        bool UsesBC;
+        bool UsesStack;
 
         FPlan()
             : TotalCycles(0)
             , TotalCodeBytes(0)
+            , UsesBC(false)
+            , UsesStack(false)
         {
         }
     };
@@ -91,6 +126,8 @@ namespace CodeGenerator
         // 16 пар = 32 экранных байта.
         // Большой цельный блок тоже добавляется отдельно.
         int32_t MaxStackPairsToEnumerate;
+        int32_t NonLinearBeamWidth;
+        int32_t MaxNonLinearCandidatesToEvaluatePerPass;
 
         // Если важнее скорость:
         // CycleWeight = 1000, ByteWeight = 1
@@ -105,26 +142,34 @@ namespace CodeGenerator
 
         bool PreserveSP;
         bool DisableInterruptsForStack;
-        uint16_t CodeBaseAddress;
+        uint16_t StackTopAddress;
 
         bool EnableByteCandidates;
         bool EnableWordCandidates;
         bool EnableStackBlocks;
         bool EnableRepeatWords;
         bool EnableHorizontalSameByteIncL;
+        bool EnableVerticalCandidates;
+        bool EnableReverseDirections;
+        bool EnableRegisterConstants;
 
         FOptions()
             : MaxStackPairsToEnumerate(16)
+            , NonLinearBeamWidth(4)
+            , MaxNonLinearCandidatesToEvaluatePerPass(96)
             , CycleWeight(1000)
             , ByteWeight(1)
             , PreserveSP(true)
             , DisableInterruptsForStack(true)
-            , CodeBaseAddress(0x8000)
+            , StackTopAddress(0xFF00)
             , EnableByteCandidates(true)
             , EnableWordCandidates(true)
             , EnableStackBlocks(true)
             , EnableRepeatWords(true)
             , EnableHorizontalSameByteIncL(true)
+            , EnableVerticalCandidates(true)
+            , EnableReverseDirections(true)
+            , EnableRegisterConstants(true)
         {
         }
     };
@@ -155,10 +200,10 @@ namespace CodeGenerator
     {
         std::ostringstream Preview;
         std::vector<uint8_t> Code;
-        uint16_t BaseAddress;
+        int32_t Cycles;
 
         FEmitOutput()
-            : BaseAddress(0)
+            : Cycles(0)
         {
         }
     };
@@ -191,6 +236,8 @@ namespace CodeGenerator
 
     void AddCandidate(FAnalysis& Analysis, const FCandidate& Candidate);
     bool RangeIsDirty(const std::vector<uint8_t>& Dirty, int32_t Start, int32_t End);
+    bool CandidateIsDirty(const std::vector<uint8_t>& Dirty, const FCandidate& Candidate);
+    bool CandidateCoversOffset(const FCandidate& Candidate, int32_t Offset);
 
     FCandidate MakeByteAbsA(const std::vector<uint8_t>& Data, int32_t Offset);
     FCandidate MakeByteHLImm(const std::vector<uint8_t>& Data, int32_t Offset);
@@ -199,6 +246,16 @@ namespace CodeGenerator
     FCandidate MakeRepeatWordAbsHL(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t PairCount);
     FCandidate MakeRepeatWordStack(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t PairCount);
     FCandidate MakeHorizontalSameByteIncL(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Length);
+    FCandidate MakeHorizontalSameByteDecL(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Length);
+    FCandidate MakeHorizontalSameByteRegIncL(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Length, char RegisterName);
+    FCandidate MakeHorizontalSameByteRegDecL(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Length, char RegisterName);
+    FCandidate MakeVerticalBytesIncH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count);
+    FCandidate MakeVerticalSameByteIncH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count);
+    FCandidate MakeVerticalRepeatWordAbsHL(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count);
+    FCandidate MakeVerticalBytesDecH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count);
+    FCandidate MakeVerticalSameByteDecH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count);
+    FCandidate MakeVerticalSameByteRegIncH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count, char RegisterName);
+    FCandidate MakeVerticalSameByteRegDecH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count, char RegisterName);
 
     bool BuildAnalysis(const std::vector<uint8_t>& Data, const std::vector<uint8_t>& DirtyMask, const FOptions& Options, FAnalysis& OutAnalysis, std::string& OutError);
     bool OptimizePlan(const FAnalysis& Analysis, const FOptions& Options, FPlan& OutPlan, std::string& OutError);
@@ -210,7 +267,7 @@ namespace CodeGenerator
     void EmitLdHL(FEmitOutput& Out, FEmitState& State, uint16_t Value);
     void EmitLdSP(FEmitOutput& Out, FEmitState& State, uint16_t Value);
     bool EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate, const std::vector<uint8_t>& Data, FEmitState& State, std::string& OutError);
-    bool EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::vector<uint8_t>& OutCode, std::string& OutError, const std::string& LabelName);
+    bool EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::vector<uint8_t>& OutCode, int32_t& OutCycles, std::string& OutError, const std::string& LabelName);
 
     void PrintPlanSummary(const FAnalysis& Analysis, const FPlan& Plan);
 }
