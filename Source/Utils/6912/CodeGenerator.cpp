@@ -5,6 +5,307 @@
 
 namespace
 {
+    enum class EStackPairLoadKind
+    {
+        None,
+        Full,
+        High,
+        Low,
+        Bytes,
+    };
+
+    struct FStackPairValue
+    {
+        bool bHasValue;
+        uint16_t Value;
+    };
+
+    struct FStackPairLoadChoice
+    {
+        int32_t PairIndex;
+        EStackPairLoadKind LoadKind;
+        bool bHighFromRegister;
+        bool bLowFromRegister;
+        char HighRegisterName;
+        char LowRegisterName;
+        int32_t Cycles;
+        int32_t CodeBytes;
+    };
+
+    static const char* StackPairName(int32_t PairIndex)
+    {
+        switch (PairIndex)
+        {
+        case 0: return "HL";
+        case 1: return "DE";
+        case 2: return "BC";
+        default: return "HL";
+        }
+    }
+
+    static uint8_t WordLow(uint16_t Value)
+    {
+        return static_cast<uint8_t>(Value & 0x00FF);
+    }
+
+    static uint8_t WordHigh(uint16_t Value)
+    {
+        return static_cast<uint8_t>((Value >> 8) & 0x00FF);
+    }
+
+    static char StackPairByteRegisterName(int32_t PairIndex, bool bHigh)
+    {
+        switch (PairIndex)
+        {
+        case 0: return bHigh ? 'H' : 'L';
+        case 1: return bHigh ? 'D' : 'E';
+        case 2: return bHigh ? 'B' : 'C';
+        default: return bHigh ? 'H' : 'L';
+        }
+    }
+
+    static char FindKnownByteRegister(const FStackPairValue* Pairs, uint8_t Value)
+    {
+        for (int32_t PairIndex = 0; PairIndex < 3; ++PairIndex)
+        {
+            if (!Pairs[PairIndex].bHasValue)
+            {
+                continue;
+            }
+
+            if (WordHigh(Pairs[PairIndex].Value) == Value)
+            {
+                return StackPairByteRegisterName(PairIndex, true);
+            }
+            if (WordLow(Pairs[PairIndex].Value) == Value)
+            {
+                return StackPairByteRegisterName(PairIndex, false);
+            }
+        }
+        return 0;
+    }
+
+    static int32_t StackByteLoadCycles(char SourceRegisterName)
+    {
+        return SourceRegisterName != 0 ? 4 : 7;
+    }
+
+    static int32_t StackByteLoadCodeBytes(char SourceRegisterName)
+    {
+        return SourceRegisterName != 0 ? 1 : 2;
+    }
+
+    static uint8_t RegisterCode(char RegisterName)
+    {
+        switch (RegisterName)
+        {
+        case 'B': return 0;
+        case 'C': return 1;
+        case 'D': return 2;
+        case 'E': return 3;
+        case 'H': return 4;
+        case 'L': return 5;
+        case 'A': return 7;
+        default: return 0;
+        }
+    }
+
+    static int32_t ZXPixelOffsetFromByteXY(int32_t ByteX, int32_t Y)
+    {
+        return ((Y & 0xC0) << 5) | ((Y & 0x07) << 8) | ((Y & 0x38) << 2) | ByteX;
+    }
+
+    static int32_t CountZXColumnAddressLoads(const std::vector<int32_t>& Offsets)
+    {
+        if (Offsets.empty())
+        {
+            return 0;
+        }
+
+        int32_t Loads = 1;
+        for (int32_t Index = 1; Index < (int32_t)Offsets.size(); ++Index)
+        {
+            if (Offsets[Index] != Offsets[Index - 1] + 0x0100)
+            {
+                ++Loads;
+            }
+        }
+        return Loads;
+    }
+
+    static int32_t FutureWordScore(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t NextPos, uint16_t Word)
+    {
+        int32_t Score = 0;
+        for (int32_t Pos = NextPos; Pos >= StartOffset; Pos -= 2)
+        {
+            const uint16_t FutureWord = CodeGenerator::ReadWordLE(Data, Pos);
+            if (FutureWord == Word)
+            {
+                Score += 4;
+            }
+            else
+            {
+                if (WordHigh(FutureWord) == WordHigh(Word))
+                {
+                    Score += 1;
+                }
+                if (WordLow(FutureWord) == WordLow(Word))
+                {
+                    Score += 1;
+                }
+            }
+        }
+        return Score;
+    }
+
+    static int32_t SelectPairToReplace(const FStackPairValue* Pairs, const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t NextPos)
+    {
+        for (int32_t PairIndex = 0; PairIndex < 3; ++PairIndex)
+        {
+            if (!Pairs[PairIndex].bHasValue)
+            {
+                return PairIndex;
+            }
+        }
+
+        int32_t BestPairIndex = 0;
+        int32_t BestScore = FutureWordScore(Data, StartOffset, NextPos, Pairs[0].Value);
+        for (int32_t PairIndex = 1; PairIndex < 3; ++PairIndex)
+        {
+            const int32_t Score = FutureWordScore(Data, StartOffset, NextPos, Pairs[PairIndex].Value);
+            if (Score < BestScore)
+            {
+                BestScore = Score;
+                BestPairIndex = PairIndex;
+            }
+        }
+        return BestPairIndex;
+    }
+
+    static FStackPairLoadChoice ChooseStackPairLoad(const FStackPairValue* Pairs, uint16_t Word, const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t NextPos)
+    {
+        for (int32_t PairIndex = 0; PairIndex < 3; ++PairIndex)
+        {
+            if (Pairs[PairIndex].bHasValue && Pairs[PairIndex].Value == Word)
+            {
+                return { PairIndex, EStackPairLoadKind::None, false, false, 0, 0, 0, 0 };
+            }
+        }
+
+        int32_t BestPartialPairIndex = INDEX_NONE;
+        EStackPairLoadKind BestPartialKind = EStackPairLoadKind::None;
+        char BestPartialSourceRegisterName = 0;
+        int32_t BestPartialPreserveScore = (std::numeric_limits<int32_t>::max)();
+        for (int32_t PairIndex = 0; PairIndex < 3; ++PairIndex)
+        {
+            if (!Pairs[PairIndex].bHasValue)
+            {
+                continue;
+            }
+
+            EStackPairLoadKind PartialKind = EStackPairLoadKind::None;
+            char SourceRegisterName = 0;
+            if (WordHigh(Pairs[PairIndex].Value) == WordHigh(Word))
+            {
+                PartialKind = EStackPairLoadKind::Low;
+                SourceRegisterName = FindKnownByteRegister(Pairs, WordLow(Word));
+            }
+            else if (WordLow(Pairs[PairIndex].Value) == WordLow(Word))
+            {
+                PartialKind = EStackPairLoadKind::High;
+                SourceRegisterName = FindKnownByteRegister(Pairs, WordHigh(Word));
+            }
+
+            if (PartialKind == EStackPairLoadKind::None)
+            {
+                continue;
+            }
+
+            const int32_t PreserveScore = FutureWordScore(Data, StartOffset, NextPos, Pairs[PairIndex].Value);
+            if (PreserveScore < BestPartialPreserveScore)
+            {
+                BestPartialPairIndex = PairIndex;
+                BestPartialKind = PartialKind;
+                BestPartialSourceRegisterName = SourceRegisterName;
+                BestPartialPreserveScore = PreserveScore;
+            }
+        }
+
+        if (BestPartialPairIndex != INDEX_NONE)
+        {
+            return
+            {
+                BestPartialPairIndex,
+                BestPartialKind,
+                BestPartialKind == EStackPairLoadKind::High && BestPartialSourceRegisterName != 0,
+                BestPartialKind == EStackPairLoadKind::Low && BestPartialSourceRegisterName != 0,
+                BestPartialKind == EStackPairLoadKind::High ? BestPartialSourceRegisterName : 0,
+                BestPartialKind == EStackPairLoadKind::Low ? BestPartialSourceRegisterName : 0,
+                StackByteLoadCycles(BestPartialSourceRegisterName),
+                StackByteLoadCodeBytes(BestPartialSourceRegisterName)
+            };
+        }
+
+        const char HighSourceRegisterName = FindKnownByteRegister(Pairs, WordHigh(Word));
+        const char LowSourceRegisterName = FindKnownByteRegister(Pairs, WordLow(Word));
+        if (HighSourceRegisterName != 0 && LowSourceRegisterName != 0)
+        {
+            const int32_t PairIndex = SelectPairToReplace(Pairs, Data, StartOffset, NextPos);
+            if (HighSourceRegisterName == StackPairByteRegisterName(PairIndex, false) &&
+                LowSourceRegisterName == StackPairByteRegisterName(PairIndex, true))
+            {
+                return { PairIndex, EStackPairLoadKind::Full, false, false, 0, 0, 10, 3 };
+            }
+            return
+            {
+                PairIndex,
+                EStackPairLoadKind::Bytes,
+                true,
+                true,
+                HighSourceRegisterName,
+                LowSourceRegisterName,
+                8,
+                2
+            };
+        }
+
+        const int32_t PairIndex = SelectPairToReplace(Pairs, Data, StartOffset, NextPos);
+        return { PairIndex, EStackPairLoadKind::Full, false, false, 0, 0, 10, 3 };
+    }
+
+    static void ApplyStackPairLoadChoice(FStackPairValue* Pairs, const FStackPairLoadChoice& Choice, uint16_t Word)
+    {
+        Pairs[Choice.PairIndex].bHasValue = true;
+        Pairs[Choice.PairIndex].Value = Word;
+    }
+
+    static char GetPreferredRegisterNameForValue(const CodeGenerator::FAnalysis& Analysis, uint8_t Value)
+    {
+        if (Analysis.bHasPreferredBC)
+        {
+            if (Value == Analysis.PreferredB)
+            {
+                return 'B';
+            }
+            if (Value == Analysis.PreferredC)
+            {
+                return 'C';
+            }
+        }
+        if (Analysis.bHasPreferredDE)
+        {
+            if (Value == Analysis.PreferredD)
+            {
+                return 'D';
+            }
+            if (Value == Analysis.PreferredE)
+            {
+                return 'E';
+            }
+        }
+        return 0;
+    }
+
     inline bool ProgressCancelled(const CodeGenerator::FProgressInfo* Progress)
     {
         return Progress && Progress->CancelRequested && Progress->CancelRequested->load(std::memory_order_relaxed);
@@ -51,6 +352,9 @@ const char* CodeGenerator::ToString(EOpKind Kind)
     case EOpKind::VerticalSameByteDecH:     return "VERTICAL_SAME_BYTE_DEC_H";
     case EOpKind::VerticalSameByteRegIncH:  return "VERTICAL_SAME_BYTE_REG_INC_H";
     case EOpKind::VerticalSameByteRegDecH:  return "VERTICAL_SAME_BYTE_REG_DEC_H";
+    case EOpKind::ZXColumnBytes:            return "ZX_COLUMN_BYTES";
+    case EOpKind::ZXColumnSameByte:         return "ZX_COLUMN_SAME_BYTE";
+    case EOpKind::ZXColumnSameByteReg:      return "ZX_COLUMN_SAME_BYTE_REG";
     default:                                return "UNKNOWN";
     }
 }
@@ -77,7 +381,7 @@ std::string CodeGenerator::Hex16(uint16_t Value)
 
 std::string CodeGenerator::MakeFrameLabelName(int32_t FrameIndex)
 {
-    return std::format("DrawFrame_{}:", FrameIndex);
+    return std::format("DrawFrame_{}", FrameIndex);
 }
 
 void CodeGenerator::AddCandidate(FAnalysis& Analysis, const FCandidate& Candidate)
@@ -215,24 +519,23 @@ CodeGenerator::FCandidate CodeGenerator::MakeStackBlock(const std::vector<uint8_
     C.Cycles = 10;
     C.CodeBytes = 3;
 
-    bool bHasHL = false;
-    uint16_t CurrentHL = 0;
+    FStackPairValue Pairs[3] =
+    {
+        { false, 0 },
+        { false, 0 },
+        { false, 0 },
+    };
 
     // PUSH пишет назад, поэтому пары читаем с конца блока.
     for (int32_t Pos = StartOffset + ByteLength - 2; Pos >= StartOffset; Pos -= 2)
     {
         const uint16_t Word = ReadWordLE(Data, Pos);
-        if (!bHasHL || CurrentHL != Word)
-        {
-            // LD HL, nn
-            C.Cycles += 10;
-            C.CodeBytes += 3;
+        const FStackPairLoadChoice Choice = ChooseStackPairLoad(Pairs, Word, Data, StartOffset, Pos - 2);
+        C.Cycles += Choice.Cycles;
+        C.CodeBytes += Choice.CodeBytes;
+        ApplyStackPairLoadChoice(Pairs, Choice, Word);
 
-            CurrentHL = Word;
-            bHasHL = true;
-        }
-
-        // PUSH HL
+        // PUSH rr
         C.Cycles += 11;
         C.CodeBytes += 1;
     }
@@ -323,7 +626,10 @@ CodeGenerator::FCandidate CodeGenerator::MakeHorizontalSameByteRegIncL(const std
     C.Count = Length;
     C.Stride = 1;
     C.RegisterName = RegisterName;
-    C.RequiresBC = true;
+    C.RequiresB = RegisterName == 'B';
+    C.RequiresC = RegisterName == 'C';
+    C.RequiresD = RegisterName == 'D';
+    C.RequiresE = RegisterName == 'E';
     C.Count = Length;
     C.Stride = 1;
 
@@ -490,7 +796,10 @@ CodeGenerator::FCandidate CodeGenerator::MakeVerticalSameByteRegIncH(const std::
     C.WriteBytes = Count;
     C.ByteValue = Data[StartOffset];
     C.RegisterName = RegisterName;
-    C.RequiresBC = true;
+    C.RequiresB = RegisterName == 'B';
+    C.RequiresC = RegisterName == 'C';
+    C.RequiresD = RegisterName == 'D';
+    C.RequiresE = RegisterName == 'E';
     C.Linear = false;
     C.Stride = 0x0100;
     C.Count = Count;
@@ -523,6 +832,58 @@ CodeGenerator::FCandidate CodeGenerator::MakeVerticalSameByteRegDecH(const std::
     {
         C.CoveredOffsets.push_back(StartOffset + i * C.Stride);
     }
+    return C;
+}
+
+CodeGenerator::FCandidate CodeGenerator::MakeZXColumnBytes(const std::vector<uint8_t>& Data, int32_t ByteX, int32_t StartY, int32_t Count)
+{
+    FCandidate C;
+    C.Kind = EOpKind::ZXColumnBytes;
+    C.StartOffset = ZXPixelOffsetFromByteXY(ByteX, StartY);
+    C.EndOffset = C.StartOffset + 1;
+    C.StartAddr = AddrOf(C.StartOffset);
+    C.WriteBytes = Count;
+    C.Linear = false;
+    C.Count = Count;
+    C.Width = 1;
+
+    C.CoveredOffsets.reserve(Count);
+    for (int32_t i = 0; i < Count; ++i)
+    {
+        C.CoveredOffsets.push_back(ZXPixelOffsetFromByteXY(ByteX, StartY + i));
+    }
+
+    const int32_t AddressLoads = CountZXColumnAddressLoads(C.CoveredOffsets);
+    C.Cycles = AddressLoads * 10 + Count * 10 + (Count - AddressLoads) * 4;
+    C.CodeBytes = AddressLoads * 3 + Count * 2 + (Count - AddressLoads);
+    return C;
+}
+
+CodeGenerator::FCandidate CodeGenerator::MakeZXColumnSameByte(const std::vector<uint8_t>& Data, int32_t ByteX, int32_t StartY, int32_t Count)
+{
+    FCandidate C = MakeZXColumnBytes(Data, ByteX, StartY, Count);
+    C.Kind = EOpKind::ZXColumnSameByte;
+    C.ByteValue = Data[C.CoveredOffsets[0]];
+
+    const int32_t AddressLoads = CountZXColumnAddressLoads(C.CoveredOffsets);
+    C.Cycles = AddressLoads * 10 + 7 + Count * 7 + (Count - AddressLoads) * 4;
+    C.CodeBytes = AddressLoads * 3 + 2 + Count + (Count - AddressLoads);
+    return C;
+}
+
+CodeGenerator::FCandidate CodeGenerator::MakeZXColumnSameByteReg(const std::vector<uint8_t>& Data, int32_t ByteX, int32_t StartY, int32_t Count, char RegisterName)
+{
+    FCandidate C = MakeZXColumnSameByte(Data, ByteX, StartY, Count);
+    C.Kind = EOpKind::ZXColumnSameByteReg;
+    C.RegisterName = RegisterName;
+    C.RequiresB = RegisterName == 'B';
+    C.RequiresC = RegisterName == 'C';
+    C.RequiresD = RegisterName == 'D';
+    C.RequiresE = RegisterName == 'E';
+
+    const int32_t AddressLoads = CountZXColumnAddressLoads(C.CoveredOffsets);
+    C.Cycles = AddressLoads * 10 + Count * 7 + (Count - AddressLoads) * 4;
+    C.CodeBytes = AddressLoads * 3 + Count + (Count - AddressLoads);
     return C;
 }
 
@@ -578,26 +939,50 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
             }
         }
 
-        int32_t BestB = 0;
-        int32_t BestC = 0;
+        int32_t BestValues[4] = { INDEX_NONE, INDEX_NONE, INDEX_NONE, INDEX_NONE };
         for (int32_t Value = 0; Value < 256; ++Value)
         {
-            if (Counts[Value] > Counts[BestB])
+            for (int32_t Index = 0; Index < 4; ++Index)
             {
-                BestC = BestB;
-                BestB = Value;
-            }
-            else if (Value != BestB && Counts[Value] > Counts[BestC])
-            {
-                BestC = Value;
+                if (BestValues[Index] != INDEX_NONE && Counts[Value] <= Counts[BestValues[Index]])
+                {
+                    continue;
+                }
+
+                bool bAlreadySelected = false;
+                for (int32_t ExistingIndex = 0; ExistingIndex < Index; ++ExistingIndex)
+                {
+                    if (BestValues[ExistingIndex] == Value)
+                    {
+                        bAlreadySelected = true;
+                        break;
+                    }
+                }
+                if (bAlreadySelected)
+                {
+                    break;
+                }
+
+                for (int32_t ShiftIndex = 3; ShiftIndex > Index; --ShiftIndex)
+                {
+                    BestValues[ShiftIndex] = BestValues[ShiftIndex - 1];
+                }
+                BestValues[Index] = Value;
+                break;
             }
         }
 
-        if (Counts[BestB] > 0)
+        if (BestValues[0] != INDEX_NONE && Counts[BestValues[0]] > 0)
         {
             Analysis.bHasPreferredBC = true;
-            Analysis.PreferredB = static_cast<uint8_t>(BestB);
-            Analysis.PreferredC = static_cast<uint8_t>(BestC);
+            Analysis.PreferredB = static_cast<uint8_t>(BestValues[0]);
+            Analysis.PreferredC = static_cast<uint8_t>(BestValues[1] == INDEX_NONE ? BestValues[0] : BestValues[1]);
+        }
+        if (BestValues[2] != INDEX_NONE && Counts[BestValues[2]] > 0)
+        {
+            Analysis.bHasPreferredDE = true;
+            Analysis.PreferredD = static_cast<uint8_t>(BestValues[2]);
+            Analysis.PreferredE = static_cast<uint8_t>(BestValues[3] == INDEX_NONE ? BestValues[2] : BestValues[3]);
         }
     }
 
@@ -816,18 +1201,9 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
                 }
             }
 
-            if (Options.EnableRegisterConstants && Analysis.bHasPreferredBC)
+            if (Options.EnableRegisterConstants && (Analysis.bHasPreferredBC || Analysis.bHasPreferredDE))
             {
-                char RegisterName = 0;
-                if (Value == Analysis.PreferredB)
-                {
-                    RegisterName = 'B';
-                }
-                else if (Value == Analysis.PreferredC)
-                {
-                    RegisterName = 'C';
-                }
-
+                const char RegisterName = GetPreferredRegisterNameForValue(Analysis, Value);
                 if (RegisterName != 0)
                 {
                     AddCandidate(Analysis, MakeHorizontalSameByteRegIncL(Data, Start, Length, RegisterName));
@@ -891,18 +1267,9 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
                         AddCandidate(Analysis, MakeVerticalSameByteDecH(Data, Start + (SameCount - 1) * 0x0100, SameCount));
                     }
 
-                    if (Options.EnableRegisterConstants && Analysis.bHasPreferredBC)
+                    if (Options.EnableRegisterConstants && (Analysis.bHasPreferredBC || Analysis.bHasPreferredDE))
                     {
-                        char RegisterName = 0;
-                        if (Value == Analysis.PreferredB)
-                        {
-                            RegisterName = 'B';
-                        }
-                        else if (Value == Analysis.PreferredC)
-                        {
-                            RegisterName = 'C';
-                        }
-
+                        const char RegisterName = GetPreferredRegisterNameForValue(Analysis, Value);
                         if (RegisterName != 0)
                         {
                             AddCandidate(Analysis, MakeVerticalSameByteRegIncH(Data, Start, SameCount, RegisterName));
@@ -933,6 +1300,63 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
             }
 
             if ((Start & 0x3FF) == 0 && ProgressCancelled(Progress))
+            {
+                OutError = "BuildAnalysis: cancelled";
+                return false;
+            }
+        }
+
+        for (int32_t ByteX = 0; ByteX < 32; ++ByteX)
+        {
+            int32_t Y = 0;
+            while (Y < 192)
+            {
+                while (Y < 192 && !Analysis.Dirty[ZXPixelOffsetFromByteXY(ByteX, Y)])
+                {
+                    ++Y;
+                }
+
+                const int32_t StartY = Y;
+                while (Y < 192 && Analysis.Dirty[ZXPixelOffsetFromByteXY(ByteX, Y)])
+                {
+                    ++Y;
+                }
+
+                const int32_t Count = Y - StartY;
+                if (Count >= 3)
+                {
+                    AddCandidate(Analysis, MakeZXColumnBytes(Data, ByteX, StartY, Count));
+
+                    for (int32_t SameStartY = StartY; SameStartY < StartY + Count; ++SameStartY)
+                    {
+                        const uint8_t Value = Data[ZXPixelOffsetFromByteXY(ByteX, SameStartY)];
+                        int32_t SameCount = 1;
+                        while (SameStartY + SameCount < StartY + Count &&
+                            Data[ZXPixelOffsetFromByteXY(ByteX, SameStartY + SameCount)] == Value)
+                        {
+                            ++SameCount;
+                        }
+
+                        if (SameCount >= 3)
+                        {
+                            AddCandidate(Analysis, MakeZXColumnSameByte(Data, ByteX, SameStartY, SameCount));
+
+                            if (Options.EnableRegisterConstants && (Analysis.bHasPreferredBC || Analysis.bHasPreferredDE))
+                            {
+                                const char RegisterName = GetPreferredRegisterNameForValue(Analysis, Value);
+                                if (RegisterName != 0)
+                                {
+                                    AddCandidate(Analysis, MakeZXColumnSameByteReg(Data, ByteX, SameStartY, SameCount, RegisterName));
+                                }
+                            }
+                        }
+
+                        SameStartY += max(0, SameCount - 1);
+                    }
+                }
+            }
+
+            if ((ByteX & 0x07) == 0 && ProgressCancelled(Progress))
             {
                 OutError = "BuildAnalysis: cancelled";
                 return false;
@@ -1013,11 +1437,15 @@ namespace
         return static_cast<int64_t>(Cycles) * Options.CycleWeight + static_cast<int64_t>(CodeBytes) * Options.ByteWeight;
     }
 
-    bool CandidateIdsUseBC(const CodeGenerator::FAnalysis& Analysis, const std::vector<int32_t>& CandidateIds)
+    bool CandidateIdsUseRegister(const CodeGenerator::FAnalysis& Analysis, const std::vector<int32_t>& CandidateIds, char RegisterName)
     {
         for (int32_t ID : CandidateIds)
         {
-            if (Analysis.Candidates[ID].RequiresBC)
+            const CodeGenerator::FCandidate& Candidate = Analysis.Candidates[ID];
+            if ((RegisterName == 'B' && Candidate.RequiresB) ||
+                (RegisterName == 'C' && Candidate.RequiresC) ||
+                (RegisterName == 'D' && Candidate.RequiresD) ||
+                (RegisterName == 'E' && Candidate.RequiresE))
             {
                 return true;
             }
@@ -1058,21 +1486,61 @@ namespace
         }
     }
 
-    int64_t ScorePlanWithBC(
-        int32_t Cycles,
-        int32_t CodeBytes,
-        bool bNeedsBC,
-        bool bBCAlreadyLoaded,
-        const CodeGenerator::FOptions& Options)
+    void AddPreferredRegisterOverheadIfNeeded(
+        int32_t& Cycles,
+        int32_t& CodeBytes,
+        bool bNeedsB,
+        bool bBAlreadyLoaded,
+        bool bNeedsC,
+        bool bCAlreadyLoaded,
+        bool bNeedsD,
+        bool bDAlreadyLoaded,
+        bool bNeedsE,
+        bool bEAlreadyLoaded)
     {
-        if (bNeedsBC && !bBCAlreadyLoaded)
+        if (bNeedsB && bNeedsC && (!bBAlreadyLoaded || !bCAlreadyLoaded))
         {
             // LD BC,nn
             Cycles += 10;
             CodeBytes += 3;
         }
+        else
+        {
+            if (bNeedsB && !bBAlreadyLoaded)
+            {
+                // LD B,n
+                Cycles += 7;
+                CodeBytes += 2;
+            }
+            if (bNeedsC && !bCAlreadyLoaded)
+            {
+                // LD C,n
+                Cycles += 7;
+                CodeBytes += 2;
+            }
+        }
 
-        return ScorePlan(Cycles, CodeBytes, Options);
+        if (bNeedsD && bNeedsE && (!bDAlreadyLoaded || !bEAlreadyLoaded))
+        {
+            // LD DE,nn
+            Cycles += 10;
+            CodeBytes += 3;
+        }
+        else
+        {
+            if (bNeedsD && !bDAlreadyLoaded)
+            {
+                // LD D,n
+                Cycles += 7;
+                CodeBytes += 2;
+            }
+            if (bNeedsE && !bEAlreadyLoaded)
+            {
+                // LD E,n
+                Cycles += 7;
+                CodeBytes += 2;
+            }
+        }
     }
 
     bool BuildLinearPlan(
@@ -1175,7 +1643,10 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
         int32_t RemainingCount = 0;
         int32_t Cycles = 0;
         int32_t CodeBytes = 0;
-        bool UsesBC = false;
+        bool UsesB = false;
+        bool UsesC = false;
+        bool UsesD = false;
+        bool UsesE = false;
         bool UsesStack = false;
     };
 
@@ -1233,7 +1704,10 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
                 return false;
             }
 
-            const bool bLinearNeedsBC = CandidateIdsUseBC(Analysis, LinearIds);
+            const bool bLinearNeedsB = CandidateIdsUseRegister(Analysis, LinearIds, 'B');
+            const bool bLinearNeedsC = CandidateIdsUseRegister(Analysis, LinearIds, 'C');
+            const bool bLinearNeedsD = CandidateIdsUseRegister(Analysis, LinearIds, 'D');
+            const bool bLinearNeedsE = CandidateIdsUseRegister(Analysis, LinearIds, 'E');
             const bool bLinearNeedsStack = CandidateIdsUseStack(Analysis, LinearIds);
 
             FSearchState Finished = State;
@@ -1241,12 +1715,21 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
             Finished.Cycles += LinearCycles;
             Finished.CodeBytes += LinearCodeBytes;
             Finished.RemainingCount = 0;
-            if (!Finished.UsesBC && bLinearNeedsBC)
-            {
-                Finished.Cycles += 10;
-                Finished.CodeBytes += 3;
-                Finished.UsesBC = true;
-            }
+            AddPreferredRegisterOverheadIfNeeded(
+                Finished.Cycles,
+                Finished.CodeBytes,
+                bLinearNeedsB,
+                Finished.UsesB,
+                bLinearNeedsC,
+                Finished.UsesC,
+                bLinearNeedsD,
+                Finished.UsesD,
+                bLinearNeedsE,
+                Finished.UsesE);
+            Finished.UsesB = Finished.UsesB || bLinearNeedsB;
+            Finished.UsesC = Finished.UsesC || bLinearNeedsC;
+            Finished.UsesD = Finished.UsesD || bLinearNeedsD;
+            Finished.UsesE = Finished.UsesE || bLinearNeedsE;
             if (!Finished.UsesStack && bLinearNeedsStack)
             {
                 AddStackOverheadIfNeeded(Finished.Cycles, Finished.CodeBytes, Options);
@@ -1325,12 +1808,21 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
                 Child.Cycles += Candidate.Cycles;
                 Child.CodeBytes += Candidate.CodeBytes;
 
-                if (!Child.UsesBC && Candidate.RequiresBC)
-                {
-                    Child.Cycles += 10;
-                    Child.CodeBytes += 3;
-                    Child.UsesBC = true;
-                }
+                AddPreferredRegisterOverheadIfNeeded(
+                    Child.Cycles,
+                    Child.CodeBytes,
+                    Candidate.RequiresB,
+                    Child.UsesB,
+                    Candidate.RequiresC,
+                    Child.UsesC,
+                    Candidate.RequiresD,
+                    Child.UsesD,
+                    Candidate.RequiresE,
+                    Child.UsesE);
+                Child.UsesB = Child.UsesB || Candidate.RequiresB;
+                Child.UsesC = Child.UsesC || Candidate.RequiresC;
+                Child.UsesD = Child.UsesD || Candidate.RequiresD;
+                Child.UsesE = Child.UsesE || Candidate.RequiresE;
                 if (!Child.UsesStack && CandidateUsesStack(Candidate))
                 {
                     AddStackOverheadIfNeeded(Child.Cycles, Child.CodeBytes, Options);
@@ -1380,7 +1872,10 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
     OutPlan.CandidateIds = std::move(BestFinished.CandidateIds);
     OutPlan.TotalCycles = BestFinished.Cycles;
     OutPlan.TotalCodeBytes = BestFinished.CodeBytes;
-    OutPlan.UsesBC = BestFinished.UsesBC;
+    OutPlan.UsesB = BestFinished.UsesB;
+    OutPlan.UsesC = BestFinished.UsesC;
+    OutPlan.UsesD = BestFinished.UsesD;
+    OutPlan.UsesE = BestFinished.UsesE;
     OutPlan.UsesStack = BestFinished.UsesStack;
     ProgressSet(Progress, InitialDirty, InitialDirty);
     return true;
@@ -1408,7 +1903,7 @@ void CodeGenerator::PatchWordLE(FEmitOutput& Out, size_t Offset, uint16_t Value)
     Out.Code[Offset + 1] = static_cast<uint8_t>((Value >> 8) & 0x00FF);
 }
 
-void CodeGenerator::EmitLdA(FEmitOutput& Out, FEmitState& State, uint8_t Value)
+void CodeGenerator::EmitLD_A(FEmitOutput& Out, FEmitState& State, uint8_t Value)
 {
     if (!State.bHasA || State.A != Value)
     {
@@ -1421,7 +1916,7 @@ void CodeGenerator::EmitLdA(FEmitOutput& Out, FEmitState& State, uint8_t Value)
     }
 }
 
-void CodeGenerator::EmitLdHL(FEmitOutput& Out, FEmitState& State, uint16_t Value)
+void CodeGenerator::EmitLD_HL(FEmitOutput& Out, FEmitState& State, uint16_t Value)
 {
     if (!State.bHasHL || State.HL != Value)
     {
@@ -1434,7 +1929,309 @@ void CodeGenerator::EmitLdHL(FEmitOutput& Out, FEmitState& State, uint16_t Value
     }
 }
 
-void CodeGenerator::EmitLdSP(FEmitOutput& Out, FEmitState& State, uint16_t Value)
+void CodeGenerator::EmitLD_BC(FEmitOutput& Out, FEmitState& State, uint16_t Value)
+{
+    if (!State.bHasBC || State.BC != Value)
+    {
+        Out.Preview << "                LD BC, " << Hex16(Value) << "\n";
+        EmitByte(Out, 0x01);
+        EmitWordLE(Out, Value);
+        Out.Cycles += 10;
+        State.BC = Value;
+        State.bHasBC = true;
+        State.bHasB = true;
+        State.bHasC = true;
+    }
+}
+
+void CodeGenerator::EmitLD_DE(FEmitOutput& Out, FEmitState& State, uint16_t Value)
+{
+    if (!State.bHasDE || State.DE != Value)
+    {
+        Out.Preview << "                LD DE, " << Hex16(Value) << "\n";
+        EmitByte(Out, 0x11);
+        EmitWordLE(Out, Value);
+        Out.Cycles += 10;
+        State.DE = Value;
+        State.bHasDE = true;
+        State.bHasD = true;
+        State.bHasE = true;
+    }
+}
+
+static void EmitLD_PairFull(CodeGenerator::FEmitOutput& Out, CodeGenerator::FEmitState& State, int32_t PairIndex, uint16_t Value)
+{
+    switch (PairIndex)
+    {
+    case 0:
+        CodeGenerator::EmitLD_HL(Out, State, Value);
+        break;
+    case 1:
+        CodeGenerator::EmitLD_DE(Out, State, Value);
+        break;
+    case 2:
+        CodeGenerator::EmitLD_BC(Out, State, Value);
+        break;
+    default:
+        CodeGenerator::EmitLD_HL(Out, State, Value);
+        break;
+    }
+}
+
+static void EmitLD_Register(CodeGenerator::FEmitOutput& Out, char TargetRegisterName, char SourceRegisterName)
+{
+    Out.Preview << "                LD " << TargetRegisterName << ", " << SourceRegisterName << "\n";
+    CodeGenerator::EmitByte(Out, static_cast<uint8_t>(0x40 + RegisterCode(TargetRegisterName) * 8 + RegisterCode(SourceRegisterName)));
+    Out.Cycles += 4;
+}
+
+static void EmitLD_RegisterImmediate(CodeGenerator::FEmitOutput& Out, char TargetRegisterName, uint8_t Value)
+{
+    uint8_t Opcode = 0x00;
+    switch (TargetRegisterName)
+    {
+    case 'B': Opcode = 0x06; break;
+    case 'C': Opcode = 0x0E; break;
+    case 'D': Opcode = 0x16; break;
+    case 'E': Opcode = 0x1E; break;
+    case 'H': Opcode = 0x26; break;
+    case 'L': Opcode = 0x2E; break;
+    case 'A': Opcode = 0x3E; break;
+    default: Opcode = 0x06; break;
+    }
+
+    Out.Preview << "                LD " << TargetRegisterName << ", " << CodeGenerator::Hex8(Value) << "\n";
+    CodeGenerator::EmitByte(Out, Opcode);
+    CodeGenerator::EmitByte(Out, Value);
+    Out.Cycles += 7;
+}
+
+static void SetStateRegisterByte(CodeGenerator::FEmitState& State, char RegisterName, uint8_t Value)
+{
+    switch (RegisterName)
+    {
+    case 'B':
+        State.BC = static_cast<uint16_t>((State.BC & 0x00FF) | (Value << 8));
+        State.bHasB = true;
+        State.bHasBC = State.bHasB && State.bHasC;
+        break;
+    case 'C':
+        State.BC = static_cast<uint16_t>((State.BC & 0xFF00) | Value);
+        State.bHasC = true;
+        State.bHasBC = State.bHasB && State.bHasC;
+        break;
+    case 'D':
+        State.DE = static_cast<uint16_t>((State.DE & 0x00FF) | (Value << 8));
+        State.bHasD = true;
+        State.bHasDE = State.bHasD && State.bHasE;
+        break;
+    case 'E':
+        State.DE = static_cast<uint16_t>((State.DE & 0xFF00) | Value);
+        State.bHasE = true;
+        State.bHasDE = State.bHasD && State.bHasE;
+        break;
+    case 'H':
+        State.HL = static_cast<uint16_t>((State.HL & 0x00FF) | (Value << 8));
+        State.bHasHL = true;
+        break;
+    case 'L':
+        State.HL = static_cast<uint16_t>((State.HL & 0xFF00) | Value);
+        State.bHasHL = true;
+        break;
+    case 'A':
+        State.A = Value;
+        State.bHasA = true;
+        break;
+    default:
+        break;
+    }
+}
+
+static uint8_t GetPreferredRegisterValue(const CodeGenerator::FEmitState& State, char RegisterName)
+{
+    switch (RegisterName)
+    {
+    case 'B': return WordHigh(State.PreferredBC);
+    case 'C': return WordLow(State.PreferredBC);
+    case 'D': return WordHigh(State.PreferredDE);
+    case 'E': return WordLow(State.PreferredDE);
+    default: return 0;
+    }
+}
+
+static bool RegisterHasPreferredValue(const CodeGenerator::FEmitState& State, char RegisterName)
+{
+    switch (RegisterName)
+    {
+    case 'B': return State.bHasB && WordHigh(State.BC) == WordHigh(State.PreferredBC);
+    case 'C': return State.bHasC && WordLow(State.BC) == WordLow(State.PreferredBC);
+    case 'D': return State.bHasD && WordHigh(State.DE) == WordHigh(State.PreferredDE);
+    case 'E': return State.bHasE && WordLow(State.DE) == WordLow(State.PreferredDE);
+    default: return false;
+    }
+}
+
+static void EmitLD_PairByte(CodeGenerator::FEmitOutput& Out, CodeGenerator::FEmitState& State, const FStackPairLoadChoice& Choice, uint16_t Value)
+{
+    if (Choice.LoadKind == EStackPairLoadKind::None)
+    {
+        return;
+    }
+
+    if (Choice.LoadKind == EStackPairLoadKind::Full)
+    {
+        EmitLD_PairFull(Out, State, Choice.PairIndex, Value);
+        return;
+    }
+
+    auto EmitByteLoad = [&](bool bHigh, bool bFromRegister, char SourceRegisterName)
+    {
+        const char TargetRegisterName = StackPairByteRegisterName(Choice.PairIndex, bHigh);
+        if (bFromRegister)
+        {
+            EmitLD_Register(Out, TargetRegisterName, SourceRegisterName);
+        }
+        else
+        {
+            EmitLD_RegisterImmediate(Out, TargetRegisterName, bHigh ? WordHigh(Value) : WordLow(Value));
+        }
+    };
+
+    if (Choice.LoadKind == EStackPairLoadKind::High)
+    {
+        EmitByteLoad(true, Choice.bHighFromRegister, Choice.HighRegisterName);
+    }
+    else if (Choice.LoadKind == EStackPairLoadKind::Low)
+    {
+        EmitByteLoad(false, Choice.bLowFromRegister, Choice.LowRegisterName);
+    }
+    else if (Choice.LoadKind == EStackPairLoadKind::Bytes)
+    {
+        const char TargetHighRegisterName = StackPairByteRegisterName(Choice.PairIndex, true);
+        if (Choice.LowRegisterName == TargetHighRegisterName)
+        {
+            EmitByteLoad(false, true, Choice.LowRegisterName);
+            EmitByteLoad(true, true, Choice.HighRegisterName);
+        }
+        else
+        {
+            EmitByteLoad(true, true, Choice.HighRegisterName);
+            EmitByteLoad(false, true, Choice.LowRegisterName);
+        }
+    }
+
+    switch (Choice.PairIndex)
+    {
+    case 0:
+        State.HL = Value;
+        State.bHasHL = true;
+        break;
+    case 1:
+        State.DE = Value;
+        State.bHasDE = true;
+        State.bHasD = true;
+        State.bHasE = true;
+        break;
+    case 2:
+        State.BC = Value;
+        State.bHasBC = true;
+        State.bHasB = true;
+        State.bHasC = true;
+        break;
+    default:
+        State.HL = Value;
+        State.bHasHL = true;
+        break;
+    }
+}
+
+static void EmitPUSH_Pair(CodeGenerator::FEmitOutput& Out, CodeGenerator::FEmitState& State, int32_t PairIndex)
+{
+    uint8_t Opcode = 0xE5;
+    switch (PairIndex)
+    {
+    case 0:
+        Opcode = 0xE5;
+        break;
+    case 1:
+        Opcode = 0xD5;
+        break;
+    case 2:
+        Opcode = 0xC5;
+        break;
+    default:
+        Opcode = 0xE5;
+        break;
+    }
+
+    Out.Preview << "                PUSH " << StackPairName(PairIndex) << "\n";
+    CodeGenerator::EmitByte(Out, Opcode);
+    Out.Cycles += 11;
+
+    State.SP = static_cast<uint16_t>(State.SP - 2);
+    State.bHasSP = true;
+}
+
+static void EmitEnsurePreferredRegister(CodeGenerator::FEmitOutput& Out, CodeGenerator::FEmitState& State, char RegisterName)
+{
+    const bool bHasPreferred =
+        ((RegisterName == 'B' || RegisterName == 'C') && State.bHasPreferredBC) ||
+        ((RegisterName == 'D' || RegisterName == 'E') && State.bHasPreferredDE);
+    if (!bHasPreferred || RegisterHasPreferredValue(State, RegisterName))
+    {
+        return;
+    }
+
+    const uint8_t Value = GetPreferredRegisterValue(State, RegisterName);
+    EmitLD_RegisterImmediate(Out, RegisterName, Value);
+    SetStateRegisterByte(State, RegisterName, Value);
+}
+
+static uint8_t StoreHLRegisterOpcode(char RegisterName)
+{
+    switch (RegisterName)
+    {
+    case 'B': return 0x70;
+    case 'C': return 0x71;
+    case 'D': return 0x72;
+    case 'E': return 0x73;
+    case 'H': return 0x74;
+    case 'L': return 0x75;
+    case 'A': return 0x77;
+    default: return 0x70;
+    }
+}
+
+static void EmitMoveHLToOffset(CodeGenerator::FEmitOutput& Out, CodeGenerator::FEmitState& State, uint16_t& HL, int32_t Offset)
+{
+    const uint16_t Target = CodeGenerator::AddrOf(Offset);
+    if (State.bHasHL && State.HL == Target)
+    {
+        HL = Target;
+        return;
+    }
+
+    CodeGenerator::EmitLD_HL(Out, State, Target);
+    HL = Target;
+}
+
+static void EmitStepHLToNextOffset(CodeGenerator::FEmitOutput& Out, CodeGenerator::FEmitState& State, uint16_t& HL, int32_t CurrentOffset, int32_t NextOffset)
+{
+    if (NextOffset == CurrentOffset + 0x0100)
+    {
+        Out.Preview << "                INC H\n";
+        CodeGenerator::EmitByte(Out, 0x24);
+        Out.Cycles += 4;
+        HL = static_cast<uint16_t>(HL + 0x0100);
+        State.HL = HL;
+        State.bHasHL = true;
+        return;
+    }
+
+    EmitMoveHLToOffset(Out, State, HL, NextOffset);
+}
+
+void CodeGenerator::EmitLD_SP(FEmitOutput& Out, FEmitState& State, uint16_t Value)
 {
     if (!State.bHasSP || State.SP != Value)
     {
@@ -1453,7 +2250,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
     {
     case EOpKind::ByteAbsA:
     {
-        EmitLdA(Out, State, Candidate.ByteValue);
+        EmitLD_A(Out, State, Candidate.ByteValue);
         Out.Preview << "                LD (" << Hex16(Candidate.StartAddr) << "), A\n";
         EmitByte(Out, 0x32);
         EmitWordLE(Out, Candidate.StartAddr);
@@ -1463,7 +2260,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
     case EOpKind::ByteHLImm:
     {
-        EmitLdHL(Out, State, Candidate.StartAddr);
+        EmitLD_HL(Out, State, Candidate.StartAddr);
         Out.Preview << "                LD (HL), " << Hex8(Candidate.ByteValue) << "\n";
         EmitByte(Out, 0x36);
         EmitByte(Out, Candidate.ByteValue);
@@ -1475,7 +2272,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
     case EOpKind::WordAbsHL:
     {
-        EmitLdHL(Out, State, Candidate.WordValue);
+        EmitLD_HL(Out, State, Candidate.WordValue);
         Out.Preview << "                LD (" << Hex16(Candidate.StartAddr) << "), HL\n";
         EmitByte(Out, 0x22);
         EmitWordLE(Out, Candidate.StartAddr);
@@ -1486,18 +2283,21 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
     case EOpKind::StackBlock:
     {
         const uint16_t endAddr = AddrOf(Candidate.EndOffset);
-        EmitLdSP(Out, State, endAddr);
+        EmitLD_SP(Out, State, endAddr);
 
+        FStackPairValue Pairs[3] =
+        {
+            { State.bHasHL, State.HL },
+            { State.bHasDE, State.DE },
+            { State.bHasBC, State.BC },
+        };
         for (int32_t Pos = Candidate.EndOffset - 2; Pos >= Candidate.StartOffset; Pos -= 2)
         {
             const uint16_t Word = ReadWordLE(Data, Pos);
-            EmitLdHL(Out, State, Word);
-            Out.Preview << "                PUSH HL\n";
-            EmitByte(Out, 0xE5);
-            Out.Cycles += 11;
-
-            State.SP = static_cast<uint16_t>(State.SP - 2);
-            State.bHasSP = true;
+            const FStackPairLoadChoice Choice = ChooseStackPairLoad(Pairs, Word, Data, Candidate.StartOffset, Pos - 2);
+            EmitLD_PairByte(Out, State, Choice, Word);
+            ApplyStackPairLoadChoice(Pairs, Choice, Word);
+            EmitPUSH_Pair(Out, State, Choice.PairIndex);
         }
 
         break;
@@ -1505,7 +2305,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
     case EOpKind::RepeatWordAbsHL:
     {
-        EmitLdHL(Out, State, Candidate.WordValue);
+        EmitLD_HL(Out, State, Candidate.WordValue);
 
         for (int32_t Pos = Candidate.StartOffset; Pos < Candidate.EndOffset; Pos += 2)
         {
@@ -1521,18 +2321,21 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
     case EOpKind::RepeatWordStack:
     {
         const uint16_t EndAddr = AddrOf(Candidate.EndOffset);
-        EmitLdSP(Out, State, EndAddr);
-        EmitLdHL(Out, State, Candidate.WordValue);
+        EmitLD_SP(Out, State, EndAddr);
+        FStackPairValue Pairs[3] =
+        {
+            { State.bHasHL, State.HL },
+            { State.bHasDE, State.DE },
+            { State.bHasBC, State.BC },
+        };
+        const FStackPairLoadChoice Choice = ChooseStackPairLoad(Pairs, Candidate.WordValue, Data, Candidate.StartOffset, Candidate.StartOffset - 2);
+        EmitLD_PairByte(Out, State, Choice, Candidate.WordValue);
+        ApplyStackPairLoadChoice(Pairs, Choice, Candidate.WordValue);
 
         const int32_t PairCount = Candidate.WriteBytes / 2;
         for (int32_t i = 0; i < PairCount; ++i)
         {
-            Out.Preview << "                PUSH HL\n";
-            EmitByte(Out, 0xE5);
-            Out.Cycles += 11;
-
-            State.SP = static_cast<uint16_t>(State.SP - 2);
-            State.bHasSP = true;
+            EmitPUSH_Pair(Out, State, Choice.PairIndex);
         }
 
         break;
@@ -1541,8 +2344,8 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
     case EOpKind::HorizontalSameByteIncL:
     case EOpKind::HorizontalSameByteDecL:
     {
-        EmitLdHL(Out, State, Candidate.StartAddr);
-        EmitLdA(Out, State, Candidate.ByteValue);
+        EmitLD_HL(Out, State, Candidate.StartAddr);
+        EmitLD_A(Out, State, Candidate.ByteValue);
 
         const bool bDec = Candidate.Kind == EOpKind::HorizontalSameByteDecL;
         const uint8_t StepOpcode = bDec ? 0x2D : 0x2C;
@@ -1572,9 +2375,10 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
     case EOpKind::HorizontalSameByteRegIncL:
     case EOpKind::HorizontalSameByteRegDecL:
     {
-        EmitLdHL(Out, State, Candidate.StartAddr);
+        EmitEnsurePreferredRegister(Out, State, Candidate.RegisterName);
+        EmitLD_HL(Out, State, Candidate.StartAddr);
 
-        const uint8_t StoreOpcode = Candidate.RegisterName == 'B' ? 0x70 : 0x71;
+        const uint8_t StoreOpcode = StoreHLRegisterOpcode(Candidate.RegisterName);
         const uint8_t StepOpcode = Candidate.Kind == EOpKind::HorizontalSameByteRegIncL ? 0x2C : 0x2D;
         const char* StepText = Candidate.Kind == EOpKind::HorizontalSameByteRegIncL ? "INC L" : "DEC L";
 
@@ -1602,7 +2406,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
     case EOpKind::VerticalBytesIncH:
     case EOpKind::VerticalBytesDecH:
     {
-        EmitLdHL(Out, State, Candidate.StartAddr);
+        EmitLD_HL(Out, State, Candidate.StartAddr);
 
         const bool bDec = Candidate.Kind == EOpKind::VerticalBytesDecH;
         const uint8_t StepOpcode = bDec ? 0x25 : 0x24;
@@ -1633,8 +2437,8 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
     case EOpKind::VerticalSameByteIncH:
     case EOpKind::VerticalSameByteDecH:
     {
-        EmitLdHL(Out, State, Candidate.StartAddr);
-        EmitLdA(Out, State, Candidate.ByteValue);
+        EmitLD_HL(Out, State, Candidate.StartAddr);
+        EmitLD_A(Out, State, Candidate.ByteValue);
 
         const bool bDec = Candidate.Kind == EOpKind::VerticalSameByteDecH;
         const uint8_t StepOpcode = bDec ? 0x25 : 0x24;
@@ -1663,10 +2467,11 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
     case EOpKind::VerticalSameByteRegIncH:
     case EOpKind::VerticalSameByteRegDecH:
     {
-        EmitLdHL(Out, State, Candidate.StartAddr);
+        EmitEnsurePreferredRegister(Out, State, Candidate.RegisterName);
+        EmitLD_HL(Out, State, Candidate.StartAddr);
 
         const bool bDec = Candidate.Kind == EOpKind::VerticalSameByteRegDecH;
-        const uint8_t StoreOpcode = Candidate.RegisterName == 'B' ? 0x70 : 0x71;
+        const uint8_t StoreOpcode = StoreHLRegisterOpcode(Candidate.RegisterName);
         const uint8_t StepOpcode = bDec ? 0x25 : 0x24;
         const char* StepText = bDec ? "DEC H" : "INC H";
 
@@ -1693,7 +2498,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
     case EOpKind::VerticalRepeatWordAbsHL:
     {
-        EmitLdHL(Out, State, Candidate.WordValue);
+        EmitLD_HL(Out, State, Candidate.WordValue);
 
         for (int32_t i = 0; i < Candidate.Count; ++i)
         {
@@ -1704,6 +2509,80 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
             Out.Cycles += 16;
         }
 
+        break;
+    }
+
+    case EOpKind::ZXColumnBytes:
+    {
+        uint16_t HL = Candidate.StartAddr;
+        EmitMoveHLToOffset(Out, State, HL, Candidate.CoveredOffsets[0]);
+
+        for (int32_t i = 0; i < Candidate.Count; ++i)
+        {
+            const int32_t Offset = Candidate.CoveredOffsets[i];
+            Out.Preview << "                LD (HL), " << Hex8(Data[Offset]) << "\n";
+            EmitByte(Out, 0x36);
+            EmitByte(Out, Data[Offset]);
+            Out.Cycles += 10;
+
+            if (i + 1 < Candidate.Count)
+            {
+                EmitStepHLToNextOffset(Out, State, HL, Offset, Candidate.CoveredOffsets[i + 1]);
+            }
+        }
+
+        State.HL = HL;
+        State.bHasHL = true;
+        break;
+    }
+
+    case EOpKind::ZXColumnSameByte:
+    {
+        uint16_t HL = Candidate.StartAddr;
+        EmitMoveHLToOffset(Out, State, HL, Candidate.CoveredOffsets[0]);
+        EmitLD_A(Out, State, Candidate.ByteValue);
+
+        for (int32_t i = 0; i < Candidate.Count; ++i)
+        {
+            const int32_t Offset = Candidate.CoveredOffsets[i];
+            Out.Preview << "                LD (HL), A\n";
+            EmitByte(Out, 0x77);
+            Out.Cycles += 7;
+
+            if (i + 1 < Candidate.Count)
+            {
+                EmitStepHLToNextOffset(Out, State, HL, Offset, Candidate.CoveredOffsets[i + 1]);
+            }
+        }
+
+        State.HL = HL;
+        State.bHasHL = true;
+        break;
+    }
+
+    case EOpKind::ZXColumnSameByteReg:
+    {
+        EmitEnsurePreferredRegister(Out, State, Candidate.RegisterName);
+
+        uint16_t HL = Candidate.StartAddr;
+        EmitMoveHLToOffset(Out, State, HL, Candidate.CoveredOffsets[0]);
+
+        const uint8_t StoreOpcode = StoreHLRegisterOpcode(Candidate.RegisterName);
+        for (int32_t i = 0; i < Candidate.Count; ++i)
+        {
+            const int32_t Offset = Candidate.CoveredOffsets[i];
+            Out.Preview << "                LD (HL), " << Candidate.RegisterName << "\n";
+            EmitByte(Out, StoreOpcode);
+            Out.Cycles += 7;
+
+            if (i + 1 < Candidate.Count)
+            {
+                EmitStepHLToNextOffset(Out, State, HL, Offset, Candidate.CoveredOffsets[i + 1]);
+            }
+        }
+
+        State.HL = HL;
+        State.bHasHL = true;
         break;
     }
 
@@ -1804,16 +2683,50 @@ bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const 
         Out.Cycles += 7;
 
         State.bHasHL = false;
+        State.bHasDE = false;
+        State.bHasBC = false;
+        State.bHasB = false;
+        State.bHasC = false;
+        State.bHasD = false;
+        State.bHasE = false;
         State.bHasSP = true;
         State.SP = Options.StackTopAddress;
     }
-    if (Plan.UsesBC && Analysis.bHasPreferredBC)
+    if ((Plan.UsesB || Plan.UsesC) && Analysis.bHasPreferredBC)
     {
-        const uint16_t BC = static_cast<uint16_t>((Analysis.PreferredB << 8) | Analysis.PreferredC);
-        Out.Preview << "                LD BC, " << Hex16(BC) << "\n";
-        EmitByte(Out, 0x01);
-        EmitWordLE(Out, BC);
-        Out.Cycles += 10;
+        State.bHasPreferredBC = true;
+        State.PreferredBC = static_cast<uint16_t>((Analysis.PreferredB << 8) | Analysis.PreferredC);
+
+        if (Plan.UsesB && Plan.UsesC)
+        {
+            EmitLD_BC(Out, State, State.PreferredBC);
+        }
+        else if (Plan.UsesB)
+        {
+            EmitEnsurePreferredRegister(Out, State, 'B');
+        }
+        else
+        {
+            EmitEnsurePreferredRegister(Out, State, 'C');
+        }
+    }
+    if ((Plan.UsesD || Plan.UsesE) && Analysis.bHasPreferredDE)
+    {
+        State.bHasPreferredDE = true;
+        State.PreferredDE = static_cast<uint16_t>((Analysis.PreferredD << 8) | Analysis.PreferredE);
+
+        if (Plan.UsesD && Plan.UsesE)
+        {
+            EmitLD_DE(Out, State, State.PreferredDE);
+        }
+        else if (Plan.UsesD)
+        {
+            EmitEnsurePreferredRegister(Out, State, 'D');
+        }
+        else
+        {
+            EmitEnsurePreferredRegister(Out, State, 'E');
+        }
     }
     Out.Preview << "\n";
 
@@ -1952,11 +2865,14 @@ void CodeGenerator::PrintPlanSummary(const FAnalysis& Analysis, const FPlan& Pla
         case EOpKind::VerticalSameByteRegIncH:
         case EOpKind::VerticalSameByteRegDecH:
         case EOpKind::VerticalRepeatWordAbsHL:
+        case EOpKind::ZXColumnBytes:
+        case EOpKind::ZXColumnSameByte:
+        case EOpKind::ZXColumnSameByteReg:
             ++VertCount;
             break;
         }
 
-        if (Candidate.RequiresBC)
+        if (Candidate.RequiresB || Candidate.RequiresC || Candidate.RequiresD || Candidate.RequiresE)
         {
             ++RegisterCount;
         }

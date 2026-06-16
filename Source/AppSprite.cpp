@@ -81,12 +81,59 @@ namespace
 		return 0;
 	}
 
-	std::wstring MakeFrameOutputFileName(const std::wstring& FileName, int32_t FrameIndex)
+	std::wstring MakeFrameOutputFileName(const std::wstring& FileName, int32_t FrameIndex, bool bOpcodeOutput = false)
 	{
 		std::filesystem::path FileNamePath(FileName);
-		FileNamePath.replace_filename(std::format(L"{} ({}){}", FileNamePath.stem().wstring(), FrameIndex, FileNamePath.extension().wstring()));
-		FileNamePath.replace_extension(".asm");
+		FileNamePath.replace_filename(std::format(L"{} ({}){}{}", FileNamePath.stem().wstring(), FrameIndex, bOpcodeOutput ? L" opcodes" : L"", FileNamePath.extension().wstring()));
+		FileNamePath.replace_extension(bOpcodeOutput ? ".bin" : ".asm");
 		return FileNamePath.wstring();
+	}
+
+	void ApplyCodeGenerationOutputModeToPath(std::filesystem::path& OutputPath, bool bOpcodeOutput)
+	{
+		if (!OutputPath.has_extension())
+		{
+			OutputPath.replace_extension(bOpcodeOutput ? ".bin" : ".asm");
+		}
+		else if (bOpcodeOutput && (OutputPath.extension() == L".asm" || OutputPath.extension() == L".txt"))
+		{
+			OutputPath.replace_extension(".bin");
+		}
+		else if (!bOpcodeOutput && OutputPath.extension() == L".bin")
+		{
+			OutputPath.replace_extension(".asm");
+		}
+
+		if (bOpcodeOutput)
+		{
+			const std::wstring Stem = OutputPath.stem().wstring();
+			if (!Stem.ends_with(L" opcodes"))
+			{
+				OutputPath.replace_filename(Stem + L" opcodes" + OutputPath.extension().wstring());
+			}
+		}
+		else
+		{
+			const std::wstring Stem = OutputPath.stem().wstring();
+			const std::wstring OpcodeSuffix = L" opcodes";
+			if (Stem.size() >= OpcodeSuffix.size() && Stem.ends_with(OpcodeSuffix))
+			{
+				OutputPath.replace_filename(Stem.substr(0, Stem.size() - OpcodeSuffix.size()) + OutputPath.extension().wstring());
+			}
+		}
+	}
+
+	void DrawReadOnlyMultilineText(const char* Label, const std::string& Text, const ImVec2& Size)
+	{
+		char EmptyText[] = "";
+		char* Buffer = Text.empty() ? EmptyText : const_cast<char*>(Text.c_str());
+		const size_t BufferSize = Text.empty() ? sizeof(EmptyText) : Text.size() + 1;
+		ImGui::InputTextMultiline(
+			Label,
+			Buffer,
+			BufferSize,
+			Size,
+			ImGuiInputTextFlags_ReadOnly | ImGuiInputTextFlags_NoUndoRedo);
 	}
 
 }
@@ -882,7 +929,7 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		const float PreTextHeight = ImGui::GetTextLineHeightWithSpacing();
 		const float PreLeftWidth = PreTextWidth * 72.0f;
 		const float PreCodeWidth = PreTextWidth * 80.0f;
-		const ImVec2 BaseMinSize(PreLeftWidth + Style.WindowPadding.x * 2.0f, PreTextHeight * 48.0f);
+		const ImVec2 BaseMinSize(PreLeftWidth + Style.WindowPadding.x * 2.0f, PreTextHeight * 52.0f);
 		const ImVec2 CodeMinSize(BaseMinSize.x + Style.ItemSpacing.x + PreCodeWidth, BaseMinSize.y);
 
 		if (CodeGenerationBaseWindowSize.x <= 0.0f || CodeGenerationBaseWindowSize.y <= 0.0f)
@@ -926,14 +973,17 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 			std::shared_ptr<SCanvas> Canvas = GetActiveCanvas();
 			std::wstring CanvasName = Canvas ? Canvas->GetWindowWName() : std::format(L"Export-{:04}", ++ExportCounter);
 			const int32_t FrameIndex = Canvas ? Canvas->GetSelectedFrameIndex() : 0;
-			std::wstring OutputFileNameW = MakeFrameOutputFileName(CanvasName, FrameIndex);
+			std::wstring OutputFileNameW = MakeFrameOutputFileName(CanvasName, FrameIndex, bCodeGenerationGenerateOpcode);
 			std::string OutputFileNameUtf8 = Utils::Utf16ToUtf8(OutputFileNameW);
 			Utils::CopyToBuffer(NewOutputFileNameBuffer, sizeof(NewOutputFileNameBuffer), OutputFileNameUtf8);
 			Utils::CopyToBuffer(CodeGenerationLabelNameBuffer, sizeof(CodeGenerationLabelNameBuffer), CodeGenerator::MakeFrameLabelName(FrameIndex));
 			bCodeGenerationPreviewValid = false;
 			CodeGenerationPreviewText.clear();
 			CodeGenerationOpcodeBytes.clear();
-			CodeGenerationLogText = "Press Generate to start.";
+			if (CodeGenerationLogText.empty())
+			{
+				CodeGenerationLogText = "Нажмите Generate для запуска.";
+			}
 			CodeGenerationBaseWindowSize = ImVec2(0.0f, 0.0f);
 			CodeGenerationCodeWindowSize = ImVec2(0.0f, 0.0f);
 			CodeGenerationWindowHeight = 0.0f;
@@ -943,7 +993,7 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		const float TextWidth = ImGui::CalcTextSize("A").x;
 		const float TextHeight = ImGui::GetTextLineHeightWithSpacing();
 		const ImVec2 AvailableSize = ImGui::GetContentRegionAvail();
-		const float LeftWidth = TextWidth * 72.0f;
+		const float LeftWidth = bShowCodeThisFrame ? TextWidth * 72.0f : AvailableSize.x;
 		const float PanelHeight = AvailableSize.y;
 		const float BottomButtonsHeight = TextHeight * 2.0f;
 		const float OptionsHeight = ImMax(TextHeight * 8.0f, PanelHeight - BottomButtonsHeight - ImGui::GetStyle().ItemSpacing.y);
@@ -1041,50 +1091,57 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		CheckboxWithTooltip(
 			"Preserve SP",
 			&CodeGenerationOptions.PreserveSP,
-			"Keeps SP stable around stack-based candidates when possible.\nThis changes the emitted sequence, not the scoring formula.");
+			"Сохраняет SP вокруг стековых кандидатов, когда это возможно.\nМеняется генерируемая последовательность, а не формула оценки.");
 		CheckboxWithTooltip(
 			"Disable interrupts for stack writes",
 			&CodeGenerationOptions.DisableInterruptsForStack,
-			"Adds DI/EI protection around stack write sequences.\nUseful when the generated block must not be interrupted.");
+			"Добавляет DI/EI вокруг стековых записей.\nПолезно, когда сгенерированный блок нельзя прерывать.");
+		const bool bPrevGenerateOpcode = bCodeGenerationGenerateOpcode;
 		CheckboxWithTooltip(
 			"Generate opcode instead of text file",
 			&bCodeGenerationGenerateOpcode,
-			"Changes export mode to binary opcode output instead of a .txt/.asm preview file.\nThe preview in the log stays readable assembly text.");
+			"Переключает экспорт в бинарные опкоды вместо текстового .asm файла.\nПревью остаётся читаемым Z80 asm.");
+		if (bPrevGenerateOpcode != bCodeGenerationGenerateOpcode)
+		{
+			std::filesystem::path OutputPath(Utils::Utf8ToUtf16(NewOutputFileNameBuffer));
+			ApplyCodeGenerationOutputModeToPath(OutputPath, bCodeGenerationGenerateOpcode);
+			Utils::CopyToBuffer(NewOutputFileNameBuffer, sizeof(NewOutputFileNameBuffer), Utils::Utf16ToUtf8(OutputPath.wstring()));
+		}
 
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.35f));
 		ImGui::SeparatorText("Code generation approaches : ");
 		CheckboxWithTooltip(
 			"Byte candidates",
 			&CodeGenerationOptions.EnableByteCandidates,
-			"Enables section 1: single-byte writes through:\n LD A, n\n LD (nn), A\n and\n LD HL, nn\n LD (HL), n\n Cost is still chosen by Cycle weight and Code byte weight.");
+			"Включает одиночные байтовые записи через:\n LD A, n\n LD (nn), A\n и\n LD HL, nn\n LD (HL), n\n Стоимость выбирается через Cycle weight и Code byte weight.");
 		CheckboxWithTooltip(
 			"Word candidates",
 			&CodeGenerationOptions.EnableWordCandidates,
-			"Enables section 2: 2-byte writes through:\n LD HL, word\n LD (nn), HL\n Useful when consecutive bytes share the same 16-bit word.");
+			"Включает 2-байтовые записи через:\n LD HL, word\n LD (nn), HL\n Полезно, когда соседние байты образуют одинаковое 16-битное слово.");
 		CheckboxWithTooltip(
 			"Stack blocks",
 			&CodeGenerationOptions.EnableStackBlocks,
-			"Enables section 3: stack-based blocks using:\n LD SP, end\n LD HL, word\n PUSH HL\n ...\n Usually fewer code bytes, often better cycle/code tradeoff.");
+			"Включает стековые блоки через:\n LD SP, end\n LD HL, word\n PUSH HL\n ...\n Обычно даёт меньше байт кода и хороший баланс тактов/размера.");
 		CheckboxWithTooltip(
 			"Repeat words",
 			&CodeGenerationOptions.EnableRepeatWords,
-			"Enables section 4: repeated 16-bit values with:\n LD (addr), HL\n ...\n or\n PUSH HL\n...\n Used for repeated WORD patterns in the dirty range.");
+			"Включает повторяющиеся 16-битные значения через:\n LD (addr), HL\n ...\n или\n PUSH HL\n...\n Используется для повторяющихся WORD-паттернов в dirty-области.");
 		CheckboxWithTooltip(
 			"Horizontal same byte: INC L",
 			&CodeGenerationOptions.EnableHorizontalSameByteIncL,
-			"Enables section 5: horizontal runs of the same byte using INC L\n This keeps the row on one page and is scored by the same cost formula.");
+			"Включает горизонтальные цепочки одинакового байта через INC L.\nСтрока остаётся на одной странице, оценка идёт той же формулой.");
 		CheckboxWithTooltip(
 			"Vertical candidates",
 			&CodeGenerationOptions.EnableVerticalCandidates,
-			"Enables nonlinear screen-shape candidates:\n LD HL, addr\n LD (HL), n\n INC H\n ...\n and vertical repeated WORD writes with addr+#0100 steps.");
+			"Включает нелинейные кандидаты по форме экрана:\n LD HL, addr\n LD (HL), n\n INC H\n ...\n и вертикальные повторяющиеся WORD-записи с шагом addr+#0100.");
 		CheckboxWithTooltip(
 			"Reverse directions",
 			&CodeGenerationOptions.EnableReverseDirections,
-			"Allows reverse traversal candidates using DEC H and DEC L.\nUseful when the generated order can reuse a pointer from the opposite edge.");
+			"Разрешает обратные проходы через DEC H и DEC L.\nПолезно, когда порядок генерации может переиспользовать указатель с другой стороны.");
 		CheckboxWithTooltip(
-			"Register constants: B/C",
+			"Register constants: B/C/D/E",
 			&CodeGenerationOptions.EnableRegisterConstants,
-			"Counts dirty byte values, loads the best pair into BC, and allows candidates that write through B or C.\nThe one-time LD BC cost is included in the plan score.");
+			"Считает частые dirty-байты, держит лучшие значения в B/C/D/E и разрешает записи через эти регистры.\nСтоимость LD r,n или LD rr,nn включается в оценку плана.");
 
 		if (bOptionsChanged)
 		{
@@ -1111,9 +1168,7 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		{
 			CodeGenerationLogText.clear();
 		}
-		ImGui::BeginChild("##CodeGenerationLog", ImVec2(0.0f, ImGui::GetContentRegionAvail().y), true, ImGuiWindowFlags_HorizontalScrollbar);
-		ImGui::TextUnformatted(CodeGenerationLogText.c_str());
-		ImGui::EndChild();
+		DrawReadOnlyMultilineText("##CodeGenerationLog", CodeGenerationLogText, ImVec2(0.0f, ImGui::GetContentRegionAvail().y));
 
 		ImGui::EndChild();
 		ImGui::SetCursorPosY(ImMax(ImGui::GetCursorPosY(), PanelHeight - BottomButtonsHeight));
@@ -1125,11 +1180,7 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 
 		if (ImGui::ButtonEx("Export", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
-			if (ExportCodeGenerationPreview())
-			{
-				bCodeGenerationOpen = false;
-				ImGui::CloseCurrentPopup();
-			}
+			ExportCodeGenerationPreview();
 		}
 
 		if (!bCodeGenerationPreviewValid)
@@ -1184,14 +1235,16 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 			ImGui::BeginChild("##CodeGenerationCodePanel", ImVec2(0.0f, PanelHeight), false);
 			ImGui::TextUnformatted("Code :");
 			ImGui::Separator();
-			ImGui::BeginChild("##CodeGenerationPreview", ImVec2(0.0f, 0.0f), true, ImGuiWindowFlags_HorizontalScrollbar);
-			if (CodeGenerationPreviewText.empty())
+			ImGui::BeginChild("##CodeGenerationPreviewPanel", ImVec2(0.0f, 0.0f), true, ImGuiWindowFlags_HorizontalScrollbar);
 			{
-				ImGui::TextDisabled("No generated code.");
-			}
-			else
-			{
-				ImGui::TextUnformatted(CodeGenerationPreviewText.c_str());
+				if (CodeGenerationPreviewText.empty())
+				{
+					ImGui::TextDisabled("No generated code.");
+				}
+				else
+				{
+					DrawReadOnlyMultilineText("##CodeGenerationPreview", CodeGenerationPreviewText, ImGui::GetContentRegionAvail());
+				}
 			}
 			ImGui::EndChild();
 			ImGui::EndChild();
@@ -1262,7 +1315,7 @@ void FAppSprite::StartCodeGenerationPreview()
 	}
 
 	const int32_t FrameIndex = Canvas->GetSelectedFrameIndex();
-	Utils::CopyToBuffer(NewOutputFileNameBuffer, sizeof(NewOutputFileNameBuffer), Utils::Utf16ToUtf8(MakeFrameOutputFileName(Canvas->GetWindowWName(), FrameIndex)));
+	Utils::CopyToBuffer(NewOutputFileNameBuffer, sizeof(NewOutputFileNameBuffer), Utils::Utf16ToUtf8(MakeFrameOutputFileName(Canvas->GetWindowWName(), FrameIndex, bCodeGenerationGenerateOpcode)));
 	Utils::CopyToBuffer(CodeGenerationLabelNameBuffer, sizeof(CodeGenerationLabelNameBuffer), CodeGenerator::MakeFrameLabelName(FrameIndex));
 
 	if (CodeGenerationWorker.joinable())
@@ -1451,15 +1504,7 @@ bool FAppSprite::ExportCodeGenerationPreview()
 		return false;
 	}
 
-	if (!OutputPath.has_extension())
-	{
-		OutputPath.replace_extension(bCodeGenerationGenerateOpcode ? ".bin" : ".asm");
-	}
-	else if (bCodeGenerationGenerateOpcode &&
-		(OutputPath.extension() == L".asm" || OutputPath.extension() == L".txt"))
-	{
-		OutputPath.replace_extension(".bin");
-	}
+	ApplyCodeGenerationOutputModeToPath(OutputPath, bCodeGenerationGenerateOpcode);
 
 	if (OutputPath.is_relative())
 	{
@@ -1485,6 +1530,7 @@ bool FAppSprite::ExportCodeGenerationPreview()
 		return false;
 	}
 
+	AppendLogLine(std::format("Exported: {}", Utils::Utf16ToUtf8(OutputPath.wstring())));
 	IO::OpenFolder(OutputPath.parent_path());
 	return true;
 }

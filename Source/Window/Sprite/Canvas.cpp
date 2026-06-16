@@ -840,7 +840,6 @@ void SCanvas::Draw_PopupMenu()
 						FPropertyBag* Property = Keyframes->GetMutableProperty(TimelineState.CurrentFrame, TimelineState.CurrentLayer);
 						if (Property != nullptr)
 						{
-							//Property->RemoveProperty(FPropertyTag::ActiveArea);
 							const FTilemapCellData_Rect LimitArea(ZXColorView->RectangleMarqueeRect);
 							if (!Property->SetStruct(FPropertyTag::LimitArea, LimitArea))
 							{

@@ -28,12 +28,15 @@ namespace CodeGenerator
         VerticalRepeatWordAbsHL,// LD HL,word / LD (addr),HL / LD (addr+#100),HL...
 
         HorizontalSameByteDecL,    // LD HL,addr / LD A,n / LD (HL),A / DEC L...
-        HorizontalSameByteRegIncL, // LD HL,addr / LD (HL),B|C / INC L...
-        HorizontalSameByteRegDecL, // LD HL,addr / LD (HL),B|C / DEC L...
+        HorizontalSameByteRegIncL, // LD HL,addr / LD (HL),B|C|D|E / INC L...
+        HorizontalSameByteRegDecL, // LD HL,addr / LD (HL),B|C|D|E / DEC L...
         VerticalBytesDecH,         // LD HL,addr / LD (HL),n / DEC H...
         VerticalSameByteDecH,      // LD HL,addr / LD A,n / LD (HL),A / DEC H...
-        VerticalSameByteRegIncH,   // LD HL,addr / LD (HL),B|C / INC H...
-        VerticalSameByteRegDecH,   // LD HL,addr / LD (HL),B|C / DEC H...
+        VerticalSameByteRegIncH,   // LD HL,addr / LD (HL),B|C|D|E / INC H...
+        VerticalSameByteRegDecH,   // LD HL,addr / LD (HL),B|C|D|E / DEC H...
+        ZXColumnBytes,             // LD HL,addr / LD (HL),n / next ZX raster row...
+        ZXColumnSameByte,          // LD HL,addr / LD A,n / LD (HL),A / next ZX raster row...
+        ZXColumnSameByteReg,       // LD HL,addr / LD (HL),B|C|D|E / next ZX raster row...
     };
 
     struct FResult
@@ -73,7 +76,10 @@ namespace CodeGenerator
         uint8_t ByteValue;
         uint16_t WordValue;
         char RegisterName;
-        bool RequiresBC;
+        bool RequiresB;
+        bool RequiresC;
+        bool RequiresD;
+        bool RequiresE;
 
         // Для первой версии оптимизатора все кандидаты линейные:
         // покрывают [StartOffset, EndOffset).
@@ -97,7 +103,10 @@ namespace CodeGenerator
             , ByteValue(0)
             , WordValue(0)
             , RegisterName(0)
-            , RequiresBC(false)
+            , RequiresB(false)
+            , RequiresC(false)
+            , RequiresD(false)
+            , RequiresE(false)
             , Linear(true)
             , Stride(1)
             , Count(0)
@@ -113,6 +122,9 @@ namespace CodeGenerator
         bool bHasPreferredBC;
         uint8_t PreferredB;
         uint8_t PreferredC;
+        bool bHasPreferredDE;
+        uint8_t PreferredD;
+        uint8_t PreferredE;
 
         // StartsAt[Offset] -> ID кандидатов, которые могут начаться с Offset.
         std::vector<std::vector<int32_t>> StartsAt;
@@ -121,6 +133,9 @@ namespace CodeGenerator
             : bHasPreferredBC(false)
             , PreferredB(0)
             , PreferredC(0)
+            , bHasPreferredDE(false)
+            , PreferredD(0)
+            , PreferredE(0)
         {
         }
     };
@@ -130,13 +145,19 @@ namespace CodeGenerator
         std::vector<int32_t> CandidateIds;
         int TotalCycles;
         int TotalCodeBytes;
-        bool UsesBC;
+        bool UsesB;
+        bool UsesC;
+        bool UsesD;
+        bool UsesE;
         bool UsesStack;
 
         FPlan()
             : TotalCycles(0)
             , TotalCodeBytes(0)
-            , UsesBC(false)
+            , UsesB(false)
+            , UsesC(false)
+            , UsesD(false)
+            , UsesE(false)
             , UsesStack(false)
         {
         }
@@ -204,16 +225,43 @@ namespace CodeGenerator
         bool bHasHL;
         uint16_t HL;
 
+        bool bHasBC;
+        uint16_t BC;
+        bool bHasB;
+        bool bHasC;
+
+        bool bHasDE;
+        uint16_t DE;
+        bool bHasD;
+        bool bHasE;
+
         bool bHasSP;
         uint16_t SP;
+
+        bool bHasPreferredBC;
+        uint16_t PreferredBC;
+        bool bHasPreferredDE;
+        uint16_t PreferredDE;
 
         FEmitState()
             : bHasA(false)
             , A(0)
             , bHasHL(false)
             , HL(0)
+            , bHasBC(false)
+            , BC(0)
+            , bHasB(false)
+            , bHasC(false)
+            , bHasDE(false)
+            , DE(0)
+            , bHasD(false)
+            , bHasE(false)
             , bHasSP(false)
             , SP(0)
+            , bHasPreferredBC(false)
+            , PreferredBC(0)
+            , bHasPreferredDE(false)
+            , PreferredDE(0)
         {
         }
     };
@@ -292,6 +340,9 @@ namespace CodeGenerator
     FCandidate MakeVerticalSameByteDecH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count);
     FCandidate MakeVerticalSameByteRegIncH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count, char RegisterName);
     FCandidate MakeVerticalSameByteRegDecH(const std::vector<uint8_t>& Data, int32_t StartOffset, int32_t Count, char RegisterName);
+    FCandidate MakeZXColumnBytes(const std::vector<uint8_t>& Data, int32_t ByteX, int32_t StartY, int32_t Count);
+    FCandidate MakeZXColumnSameByte(const std::vector<uint8_t>& Data, int32_t ByteX, int32_t StartY, int32_t Count);
+    FCandidate MakeZXColumnSameByteReg(const std::vector<uint8_t>& Data, int32_t ByteX, int32_t StartY, int32_t Count, char RegisterName);
 
     bool BuildAnalysis(const std::vector<uint8_t>& Data, const std::vector<uint8_t>& DirtyMask, const FOptions& Options, FAnalysis& OutAnalysis, std::string& OutError, const FProgressInfo* Progress = nullptr);
     bool OptimizePlan(const FAnalysis& Analysis, const FOptions& Options, FPlan& OutPlan, std::string& OutError, const FProgressInfo* Progress = nullptr);
@@ -299,9 +350,11 @@ namespace CodeGenerator
     void EmitByte(FEmitOutput& Out, uint8_t Value);
     void EmitWordLE(FEmitOutput& Out, uint16_t Value);
     void PatchWordLE(FEmitOutput& Out, size_t Offset, uint16_t Value);
-    void EmitLdA(FEmitOutput& Out, FEmitState& State, uint8_t Value);
-    void EmitLdHL(FEmitOutput& Out, FEmitState& State, uint16_t Value);
-    void EmitLdSP(FEmitOutput& Out, FEmitState& State, uint16_t Value);
+    void EmitLD_A(FEmitOutput& Out, FEmitState& State, uint8_t Value);
+    void EmitLD_HL(FEmitOutput& Out, FEmitState& State, uint16_t Value);
+    void EmitLD_BC(FEmitOutput& Out, FEmitState& State, uint16_t Value);
+    void EmitLD_DE(FEmitOutput& Out, FEmitState& State, uint16_t Value);
+    void EmitLD_SP(FEmitOutput& Out, FEmitState& State, uint16_t Value);
     bool EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate, const std::vector<uint8_t>& Data, FEmitState& State, std::string& OutError);
     bool EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const FOptions& Options, std::string& OutAsm, std::vector<uint8_t>& OutCode, int32_t& OutCycles, std::string& OutError, const std::string& LabelName, const FProgressInfo* Progress = nullptr);
 
