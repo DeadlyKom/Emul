@@ -72,6 +72,7 @@ namespace CodeGenerator
         int32_t WriteBytes;
         int32_t Cycles;
         int32_t CodeBytes;
+        int32_t FrequencyScore;
 
         uint8_t ByteValue;
         uint16_t WordValue;
@@ -100,6 +101,7 @@ namespace CodeGenerator
             , WriteBytes(0)
             , Cycles(0)
             , CodeBytes(0)
+            , FrequencyScore(0)
             , ByteValue(0)
             , WordValue(0)
             , RegisterName(0)
@@ -118,6 +120,8 @@ namespace CodeGenerator
     {
         std::vector<uint8_t> Data;
         std::vector<uint8_t> Dirty;
+        std::vector<int32_t> ByteFrequency;
+        std::vector<int32_t> WordFrequency;
         std::vector<FCandidate> Candidates;
         bool bHasPreferredBC;
         uint8_t PreferredB;

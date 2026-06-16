@@ -396,9 +396,97 @@ void CodeGenerator::AddCandidate(FAnalysis& Analysis, const FCandidate& Candidat
         return;
     }
 
+    FCandidate ScoredCandidate = Candidate;
+    auto AddByteFrequency = [&Analysis](int32_t Offset)
+    {
+        if (!IsValidOffset(Offset) || Analysis.ByteFrequency.size() != 256)
+        {
+            return 0;
+        }
+        return Analysis.ByteFrequency[Analysis.Data[Offset]];
+    };
+
+    auto AddWordFrequency = [&Analysis](int32_t Offset)
+    {
+        if (Offset < 0 || Offset + 1 >= ZX_SCREEN_SIZE || Analysis.WordFrequency.size() != 0x10000)
+        {
+            return 0;
+        }
+        return Analysis.WordFrequency[ReadWordLE(Analysis.Data, Offset)];
+    };
+
+    switch (ScoredCandidate.Kind)
+    {
+    case EOpKind::ByteAbsA:
+    case EOpKind::ByteHLImm:
+        ScoredCandidate.FrequencyScore = AddByteFrequency(ScoredCandidate.StartOffset);
+        break;
+
+    case EOpKind::WordAbsHL:
+        ScoredCandidate.FrequencyScore = AddWordFrequency(ScoredCandidate.StartOffset) * 2;
+        break;
+
+    case EOpKind::StackBlock:
+    {
+        int32_t Score = 0;
+        for (int32_t Offset = ScoredCandidate.StartOffset; Offset + 1 < ScoredCandidate.EndOffset; Offset += 2)
+        {
+            Score += AddWordFrequency(Offset) * 2;
+        }
+        ScoredCandidate.FrequencyScore = Score;
+        break;
+    }
+
+    case EOpKind::RepeatWordAbsHL:
+    case EOpKind::RepeatWordStack:
+    case EOpKind::VerticalRepeatWordAbsHL:
+        ScoredCandidate.FrequencyScore = AddWordFrequency(ScoredCandidate.StartOffset) * ScoredCandidate.WriteBytes;
+        break;
+
+    case EOpKind::HorizontalSameByteIncL:
+    case EOpKind::HorizontalSameByteDecL:
+    case EOpKind::HorizontalSameByteRegIncL:
+    case EOpKind::HorizontalSameByteRegDecL:
+    case EOpKind::VerticalSameByteIncH:
+    case EOpKind::VerticalSameByteDecH:
+    case EOpKind::VerticalSameByteRegIncH:
+    case EOpKind::VerticalSameByteRegDecH:
+    case EOpKind::ZXColumnSameByte:
+    case EOpKind::ZXColumnSameByteReg:
+        ScoredCandidate.FrequencyScore = AddByteFrequency(ScoredCandidate.StartOffset) * ScoredCandidate.WriteBytes;
+        break;
+
+    case EOpKind::VerticalBytesIncH:
+    case EOpKind::VerticalBytesDecH:
+    case EOpKind::ZXColumnBytes:
+    {
+        int32_t Score = 0;
+        if (ScoredCandidate.Linear)
+        {
+            for (int32_t Offset = ScoredCandidate.StartOffset; Offset < ScoredCandidate.EndOffset; ++Offset)
+            {
+                Score += AddByteFrequency(Offset);
+            }
+        }
+        else
+        {
+            for (int32_t Offset : ScoredCandidate.CoveredOffsets)
+            {
+                Score += AddByteFrequency(Offset);
+            }
+        }
+        ScoredCandidate.FrequencyScore = Score;
+        break;
+    }
+
+    default:
+        ScoredCandidate.FrequencyScore = 0;
+        break;
+    }
+
     const int32_t ID = static_cast<int32_t>(Analysis.Candidates.size());
-    Analysis.Candidates.push_back(Candidate);
-    Analysis.StartsAt[Candidate.StartOffset].push_back(ID);
+    Analysis.Candidates.push_back(ScoredCandidate);
+    Analysis.StartsAt[ScoredCandidate.StartOffset].push_back(ID);
 }
 
 bool CodeGenerator::RangeIsDirty(const std::vector<uint8_t>& Dirty, int32_t Start, int32_t End)
@@ -914,6 +1002,8 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
     }
 
     Analysis.StartsAt.resize(ZX_SCREEN_SIZE);
+    Analysis.ByteFrequency.assign(256, 0);
+    Analysis.WordFrequency.assign(0x10000, 0);
 
     ProgressSet(Progress, 0, 100);
     if (ProgressCancelled(Progress))
@@ -922,29 +1012,33 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
         return false;
     }
 
-    if (Options.EnableRegisterConstants)
+    for (int32_t Offset = 0; Offset < ZX_SCREEN_SIZE; ++Offset)
     {
-        int32_t Counts[256] = {};
-        for (int32_t Offset = 0; Offset < ZX_SCREEN_SIZE; ++Offset)
+        if (Analysis.Dirty[Offset])
         {
-            if (Analysis.Dirty[Offset])
-            {
-                ++Counts[Data[Offset]];
-            }
-
-            if ((Offset & 0x3FF) == 0 && ProgressCancelled(Progress))
-            {
-                OutError = "BuildAnalysis: cancelled";
-                return false;
-            }
+            ++Analysis.ByteFrequency[Data[Offset]];
         }
 
+        if (Offset + 1 < ZX_SCREEN_SIZE && RangeIsDirty(Analysis.Dirty, Offset, Offset + 2))
+        {
+            ++Analysis.WordFrequency[ReadWordLE(Data, Offset)];
+        }
+
+        if ((Offset & 0x3FF) == 0 && ProgressCancelled(Progress))
+        {
+            OutError = "BuildAnalysis: cancelled";
+            return false;
+        }
+    }
+
+    if (Options.EnableRegisterConstants)
+    {
         int32_t BestValues[4] = { INDEX_NONE, INDEX_NONE, INDEX_NONE, INDEX_NONE };
         for (int32_t Value = 0; Value < 256; ++Value)
         {
             for (int32_t Index = 0; Index < 4; ++Index)
             {
-                if (BestValues[Index] != INDEX_NONE && Counts[Value] <= Counts[BestValues[Index]])
+                if (BestValues[Index] != INDEX_NONE && Analysis.ByteFrequency[Value] <= Analysis.ByteFrequency[BestValues[Index]])
                 {
                     continue;
                 }
@@ -972,13 +1066,13 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
             }
         }
 
-        if (BestValues[0] != INDEX_NONE && Counts[BestValues[0]] > 0)
+        if (BestValues[0] != INDEX_NONE && Analysis.ByteFrequency[BestValues[0]] > 0)
         {
             Analysis.bHasPreferredBC = true;
             Analysis.PreferredB = static_cast<uint8_t>(BestValues[0]);
             Analysis.PreferredC = static_cast<uint8_t>(BestValues[1] == INDEX_NONE ? BestValues[0] : BestValues[1]);
         }
-        if (BestValues[2] != INDEX_NONE && Counts[BestValues[2]] > 0)
+        if (BestValues[2] != INDEX_NONE && Analysis.ByteFrequency[BestValues[2]] > 0)
         {
             Analysis.bHasPreferredDE = true;
             Analysis.PreferredD = static_cast<uint8_t>(BestValues[2]);
@@ -1556,6 +1650,8 @@ namespace
         const int64_t INF = (std::numeric_limits<int64_t>::max)() / 4;
 
         std::vector<int64_t> DP(N + 1, INF);
+        std::vector<int32_t> DPCycles(N + 1, 0);
+        std::vector<int32_t> DPCodeBytes(N + 1, 0);
         std::vector<int32_t> Choice(N + 1, -1);
 
         DP[N] = 0;
@@ -1565,6 +1661,8 @@ namespace
             if (!Dirty[i])
             {
                 DP[i] = DP[i + 1];
+                DPCycles[i] = DPCycles[i + 1];
+                DPCodeBytes[i] = DPCodeBytes[i + 1];
                 Choice[i] = -2;
                 continue;
             }
@@ -1593,9 +1691,21 @@ namespace
                 }
 
                 const int64_t Cost = CodeGenerator::ScoreCandidate(Candidate, Options) + DP[Candidate.EndOffset];
-                if (Cost < DP[i])
+                const int32_t Cycles = Candidate.Cycles + DPCycles[Candidate.EndOffset];
+                const int32_t CodeBytes = Candidate.CodeBytes + DPCodeBytes[Candidate.EndOffset];
+                const bool bBetterCost = Cost < DP[i];
+                bool bBetterTie = false;
+                if (Cost == DP[i] && Choice[i] >= 0)
+                {
+                    bBetterTie =
+                        CodeBytes < DPCodeBytes[i] ||
+                        (CodeBytes == DPCodeBytes[i] && Cycles < DPCycles[i]);
+                }
+                if (bBetterCost || bBetterTie)
                 {
                     DP[i] = Cost;
+                    DPCycles[i] = Cycles;
+                    DPCodeBytes[i] = CodeBytes;
                     Choice[i] = ID;
                 }
             }
@@ -1654,6 +1764,24 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
     {
         return ScorePlan(State.Cycles, State.CodeBytes, Options);
     };
+    auto IsBetterState = [&ScoreState](const FSearchState& A, const FSearchState& B)
+    {
+        const int64_t ScoreA = ScoreState(A);
+        const int64_t ScoreB = ScoreState(B);
+        if (ScoreA != ScoreB)
+        {
+            return ScoreA < ScoreB;
+        }
+        if (A.CodeBytes != B.CodeBytes)
+        {
+            return A.CodeBytes < B.CodeBytes;
+        }
+        if (A.Cycles != B.Cycles)
+        {
+            return A.Cycles < B.Cycles;
+        }
+        return false;
+    };
 
     const int32_t BeamWidth = max(1, Options.NonLinearBeamWidth);
     const int32_t MaxCandidatesToEvaluatePerPass = max(1, Options.MaxNonLinearCandidatesToEvaluatePerPass);
@@ -1666,7 +1794,6 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
 
     bool bHasBest = false;
     FSearchState BestFinished;
-    int64_t BestFinishedScore = (std::numeric_limits<int64_t>::max)() / 4;
 
     ProgressSet(Progress, 0, 100);
     while (!Beam.empty())
@@ -1686,11 +1813,9 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
 
             if (State.RemainingCount == 0)
             {
-                const int64_t StateScore = ScoreState(State);
-                if (!bHasBest || StateScore < BestFinishedScore)
+                if (!bHasBest || IsBetterState(State, BestFinished))
                 {
                     BestFinished = State;
-                    BestFinishedScore = StateScore;
                     bHasBest = true;
                 }
                 continue;
@@ -1736,11 +1861,9 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
                 Finished.UsesStack = true;
             }
 
-            const int64_t FinishedScore = ScoreState(Finished);
-            if (!bHasBest || FinishedScore < BestFinishedScore)
+            if (!bHasBest || IsBetterState(Finished, BestFinished))
             {
                 BestFinished = Finished;
-                BestFinishedScore = FinishedScore;
                 bHasBest = true;
             }
 
@@ -1748,6 +1871,8 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
             {
                 int32_t ID;
                 int64_t ApproxSaving;
+                int32_t CandidateCodeBytes;
+                int32_t CandidateCycles;
             };
 
             std::vector<FNonLinearProbe> Probes;
@@ -1783,13 +1908,25 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
                     continue;
                 }
 
-                Probes.push_back({ ID, OverlappedLinearCost - CandidateCost });
+                Probes.push_back({ ID, OverlappedLinearCost - CandidateCost, Candidate.CodeBytes, Candidate.Cycles });
             }
 
             std::sort(Probes.begin(), Probes.end(),
                 [](const FNonLinearProbe& A, const FNonLinearProbe& B)
                 {
-                    return A.ApproxSaving > B.ApproxSaving;
+                    if (A.ApproxSaving != B.ApproxSaving)
+                    {
+                        return A.ApproxSaving > B.ApproxSaving;
+                    }
+                    if (A.CandidateCodeBytes != B.CandidateCodeBytes)
+                    {
+                        return A.CandidateCodeBytes < B.CandidateCodeBytes;
+                    }
+                    if (A.CandidateCycles != B.CandidateCycles)
+                    {
+                        return A.CandidateCycles < B.CandidateCycles;
+                    }
+                    return A.ID < B.ID;
                 });
 
             const int32_t ProbeCount = min(MaxCandidatesToEvaluatePerPass, static_cast<int32_t>(Probes.size()));
@@ -1836,9 +1973,9 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
         }
 
         std::sort(NextBeam.begin(), NextBeam.end(),
-            [&ScoreState](const FSearchState& A, const FSearchState& B)
+            [&IsBetterState](const FSearchState& A, const FSearchState& B)
             {
-                return ScoreState(A) < ScoreState(B);
+                return IsBetterState(A, B);
             });
 
         if (static_cast<int32_t>(NextBeam.size()) > BeamWidth)
@@ -2200,6 +2337,184 @@ static uint8_t StoreHLRegisterOpcode(char RegisterName)
     case 'A': return 0x77;
     default: return 0x70;
     }
+}
+
+static bool CandidateUsesAF(const CodeGenerator::FCandidate& Candidate)
+{
+    switch (Candidate.Kind)
+    {
+    case CodeGenerator::EOpKind::ByteAbsA:
+    case CodeGenerator::EOpKind::HorizontalSameByteIncL:
+    case CodeGenerator::EOpKind::HorizontalSameByteDecL:
+    case CodeGenerator::EOpKind::VerticalSameByteIncH:
+    case CodeGenerator::EOpKind::VerticalSameByteDecH:
+    case CodeGenerator::EOpKind::ZXColumnSameByte:
+        return true;
+    default:
+        return false;
+    }
+}
+
+static bool CandidateUsesHL(const CodeGenerator::FCandidate& Candidate)
+{
+    return Candidate.Kind != CodeGenerator::EOpKind::ByteAbsA;
+}
+
+static void AppendRegisterName(std::ostringstream& Stream, bool& bFirst, const char* RegisterName)
+{
+    if (!bFirst)
+    {
+        Stream << ", ";
+    }
+    Stream << RegisterName;
+    bFirst = false;
+}
+
+static void EmitAsmHeader(
+    CodeGenerator::FEmitOutput& Out,
+    const CodeGenerator::FAnalysis& Analysis,
+    const CodeGenerator::FPlan& Plan,
+    const CodeGenerator::FOptions& Options)
+{
+    bool bUsesAF = false;
+    bool bUsesHL = false;
+    bool bUsesBC = Plan.UsesB || Plan.UsesC;
+    bool bUsesDE = Plan.UsesD || Plan.UsesE;
+
+    for (int32_t ID : Plan.CandidateIds)
+    {
+        const CodeGenerator::FCandidate& Candidate = Analysis.Candidates[ID];
+        bUsesAF = bUsesAF || CandidateUsesAF(Candidate);
+        bUsesHL = bUsesHL || CandidateUsesHL(Candidate);
+        bUsesBC = bUsesBC || Candidate.Kind == CodeGenerator::EOpKind::StackBlock || Candidate.Kind == CodeGenerator::EOpKind::RepeatWordStack;
+        bUsesDE = bUsesDE || Candidate.Kind == CodeGenerator::EOpKind::StackBlock || Candidate.Kind == CodeGenerator::EOpKind::RepeatWordStack;
+    }
+
+    const bool bUsesStack = Plan.UsesStack;
+    const bool bPreserveSP = Options.PreserveSP && bUsesStack;
+    bUsesHL = bUsesHL || bPreserveSP;
+    bUsesBC = bUsesBC || bPreserveSP;
+    bUsesDE = bUsesDE || bPreserveSP;
+
+    std::ostringstream Corrupt;
+    bool bFirstRegister = true;
+    if (bUsesHL)
+    {
+        AppendRegisterName(Corrupt, bFirstRegister, "HL");
+    }
+    if (bUsesDE)
+    {
+        AppendRegisterName(Corrupt, bFirstRegister, "DE");
+    }
+    if (bUsesBC)
+    {
+        AppendRegisterName(Corrupt, bFirstRegister, "BC");
+    }
+    if (bUsesAF)
+    {
+        AppendRegisterName(Corrupt, bFirstRegister, "AF");
+    }
+    if (bUsesStack && !bPreserveSP)
+    {
+        AppendRegisterName(Corrupt, bFirstRegister, "SP");
+    }
+    if (bFirstRegister)
+    {
+        Corrupt << "none";
+    }
+
+    std::vector<int32_t> FrequentBytes;
+    FrequentBytes.reserve(8);
+    for (int32_t Value = 0; Value < 256; ++Value)
+    {
+        if (Analysis.ByteFrequency.size() != 256 || Analysis.ByteFrequency[Value] <= 0)
+        {
+            continue;
+        }
+
+        const int32_t InsertIndex = static_cast<int32_t>(std::find_if(
+            FrequentBytes.begin(),
+            FrequentBytes.end(),
+            [&Analysis, Value](int32_t OtherValue)
+            {
+                return Analysis.ByteFrequency[Value] > Analysis.ByteFrequency[OtherValue];
+            }) - FrequentBytes.begin());
+
+        if (InsertIndex < 8)
+        {
+            FrequentBytes.insert(FrequentBytes.begin() + InsertIndex, Value);
+            if (FrequentBytes.size() > 8)
+            {
+                FrequentBytes.resize(8);
+            }
+        }
+    }
+
+    Out.Preview << "; -----------------------------------------\n";
+    Out.Preview << "; ZX Spectrum 6912 draw frame\n";
+    Out.Preview << "; In:\n";
+    Out.Preview << "; Out:\n";
+    Out.Preview << ";   Destination  - ZX memory destination " << CodeGenerator::Hex16(CodeGenerator::ZX_SCREEN_BASE)
+        << ".." << CodeGenerator::Hex16(CodeGenerator::ZX_SCREEN_END - 1) << "\n";
+    Out.Preview << ";   Value        - frame data, see generated operations below\n";
+    Out.Preview << ";   Size         - " << CountDirtyBytes(Analysis.Dirty) << " active bytes\n";
+    Out.Preview << ";   Code bytes   - " << Plan.TotalCodeBytes << "\n";
+    Out.Preview << ";   Cycles       - " << Plan.TotalCycles << "\n";
+    Out.Preview << ";   Operations   - " << Plan.CandidateIds.size() << "\n";
+    Out.Preview << "; Corrupt:\n";
+    Out.Preview << ";   " << Corrupt.str() << "\n";
+    Out.Preview << "; Note:\n";
+    Out.Preview << ";   Stack writes - " << (bUsesStack ? "yes" : "no")
+        << ", preserve SP - " << (bPreserveSP ? "yes" : "no")
+        << ", interrupts - " << (Options.DisableInterruptsForStack && bUsesStack ? "DI/EI" : "unchanged") << "\n";
+    Out.Preview << ";   Register constants - ";
+    if (Plan.UsesB || Plan.UsesC || Plan.UsesD || Plan.UsesE)
+    {
+        bool bFirst = true;
+        if (Plan.UsesB)
+        {
+            Out.Preview << "B=" << CodeGenerator::Hex8(Analysis.PreferredB);
+            bFirst = false;
+        }
+        if (Plan.UsesC)
+        {
+            Out.Preview << (bFirst ? "" : ", ") << "C=" << CodeGenerator::Hex8(Analysis.PreferredC);
+            bFirst = false;
+        }
+        if (Plan.UsesD)
+        {
+            Out.Preview << (bFirst ? "" : ", ") << "D=" << CodeGenerator::Hex8(Analysis.PreferredD);
+            bFirst = false;
+        }
+        if (Plan.UsesE)
+        {
+            Out.Preview << (bFirst ? "" : ", ") << "E=" << CodeGenerator::Hex8(Analysis.PreferredE);
+        }
+        Out.Preview << "\n";
+    }
+    else
+    {
+        Out.Preview << "none\n";
+    }
+    Out.Preview << ";   Frequent bytes - ";
+    if (FrequentBytes.empty())
+    {
+        Out.Preview << "none";
+    }
+    else
+    {
+        for (int32_t Index = 0; Index < static_cast<int32_t>(FrequentBytes.size()); ++Index)
+        {
+            const int32_t Value = FrequentBytes[Index];
+            if (Index > 0)
+            {
+                Out.Preview << ", ";
+            }
+            Out.Preview << CodeGenerator::Hex8(static_cast<uint8_t>(Value)) << " x" << Analysis.ByteFrequency[Value];
+        }
+    }
+    Out.Preview << "\n";
+    Out.Preview << "; -----------------------------------------\n\n";
 }
 
 static void EmitMoveHLToOffset(CodeGenerator::FEmitOutput& Out, CodeGenerator::FEmitState& State, uint16_t& HL, int32_t Offset)
@@ -2614,6 +2929,7 @@ bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const 
         return false;
     }
 
+    EmitAsmHeader(Out, Analysis, Plan, Options);
     Out.Preview << LabelName << ":\n";
     if (Options.DisableInterruptsForStack && bPlanUsesStack)
     {
@@ -2763,7 +3079,6 @@ bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const 
 
     if (bPreserveSP)
     {
-        Out.Preview << "._RestoreSP:\n";
         Out.Preview << "                LD SP, #0000\n";
         EmitByte(Out, 0x31);
         const size_t RestoreSPValueOffset = Out.Code.size();

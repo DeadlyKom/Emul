@@ -2226,7 +2226,7 @@ CodeGenerator::FResult SCanvas::CodeGeneration(
 	}
 
 	int32_t EmittedCycles = 0;
-	if (!EmitAsm(Analysis, Plan, Options, Result.AsmCode, Result.ByteCode, EmittedCycles, Result.Error, LabelName.empty() ? "DrawFrame:" : LabelName, Progress))
+	if (!EmitAsm(Analysis, Plan, Options, Result.AsmCode, Result.ByteCode, EmittedCycles, Result.Error, LabelName.empty() ? "DrawFrame" : LabelName, Progress))
 	{
 		return Result;
 	}
