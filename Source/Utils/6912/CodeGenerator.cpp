@@ -989,6 +989,53 @@ CodeGenerator::FCandidate CodeGenerator::MakeZXColumnSameByteReg(const std::vect
     return C;
 }
 
+static CodeGenerator::FCandidate MakeZXColumnBytesFromOffsets(const std::vector<uint8_t>& Data, const std::vector<int32_t>& Offsets)
+{
+    CodeGenerator::FCandidate C;
+    C.Kind = CodeGenerator::EOpKind::ZXColumnBytes;
+    C.StartOffset = Offsets.front();
+    C.EndOffset = C.StartOffset + 1;
+    C.StartAddr = CodeGenerator::AddrOf(C.StartOffset);
+    C.WriteBytes = static_cast<int32_t>(Offsets.size());
+    C.Linear = false;
+    C.Count = static_cast<int32_t>(Offsets.size());
+    C.Width = 1;
+    C.CoveredOffsets = Offsets;
+
+    const int32_t AddressLoads = CountZXColumnAddressLoads(C.CoveredOffsets);
+    C.Cycles = AddressLoads * 10 + C.Count * 10 + (C.Count - AddressLoads) * 4;
+    C.CodeBytes = AddressLoads * 3 + C.Count * 2 + (C.Count - AddressLoads);
+    return C;
+}
+
+static CodeGenerator::FCandidate MakeZXColumnSameByteFromOffsets(const std::vector<uint8_t>& Data, const std::vector<int32_t>& Offsets)
+{
+    CodeGenerator::FCandidate C = MakeZXColumnBytesFromOffsets(Data, Offsets);
+    C.Kind = CodeGenerator::EOpKind::ZXColumnSameByte;
+    C.ByteValue = Data[C.CoveredOffsets.front()];
+
+    const int32_t AddressLoads = CountZXColumnAddressLoads(C.CoveredOffsets);
+    C.Cycles = AddressLoads * 10 + (C.ByteValue == 0x00 ? 4 : 7) + C.Count * 7 + (C.Count - AddressLoads) * 4;
+    C.CodeBytes = AddressLoads * 3 + (C.ByteValue == 0x00 ? 1 : 2) + C.Count + (C.Count - AddressLoads);
+    return C;
+}
+
+static CodeGenerator::FCandidate MakeZXColumnSameByteRegFromOffsets(const std::vector<uint8_t>& Data, const std::vector<int32_t>& Offsets, char RegisterName)
+{
+    CodeGenerator::FCandidate C = MakeZXColumnSameByteFromOffsets(Data, Offsets);
+    C.Kind = CodeGenerator::EOpKind::ZXColumnSameByteReg;
+    C.RegisterName = RegisterName;
+    C.RequiresB = RegisterName == 'B';
+    C.RequiresC = RegisterName == 'C';
+    C.RequiresD = RegisterName == 'D';
+    C.RequiresE = RegisterName == 'E';
+
+    const int32_t AddressLoads = CountZXColumnAddressLoads(C.CoveredOffsets);
+    C.Cycles = AddressLoads * 10 + C.Count * 7 + (C.Count - AddressLoads) * 4;
+    C.CodeBytes = AddressLoads * 3 + C.Count + (C.Count - AddressLoads);
+    return C;
+}
+
 bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::vector<uint8_t>& DirtyMask, const FOptions& Options, FAnalysis& OutAnalysis, std::string& OutError, const FProgressInfo* Progress)
 {
     if (Data.size() != ZX_SCREEN_SIZE)
@@ -1460,6 +1507,68 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
                         }
 
                         SameStartY += max(0, SameCount - 1);
+                    }
+                }
+            }
+
+            static constexpr int32_t MaxSparseZXColumnCount = 12;
+            std::vector<int32_t> DirtyYs;
+            std::vector<int32_t> DirtyOffsets;
+            DirtyYs.reserve(192);
+            DirtyOffsets.reserve(192);
+            for (int32_t SparseY = 0; SparseY < 192; ++SparseY)
+            {
+                const int32_t Offset = ZXPixelOffsetFromByteXY(ByteX, SparseY);
+                if (Analysis.Dirty[Offset])
+                {
+                    DirtyYs.push_back(SparseY);
+                    DirtyOffsets.push_back(Offset);
+                }
+            }
+
+            for (int32_t StartIndex = 0; StartIndex < static_cast<int32_t>(DirtyOffsets.size()); ++StartIndex)
+            {
+                std::vector<int32_t> Offsets;
+                Offsets.reserve(MaxSparseZXColumnCount);
+                bool bAllSameByte = true;
+                const uint8_t FirstValue = Data[DirtyOffsets[StartIndex]];
+
+                for (int32_t EndIndex = StartIndex; EndIndex < static_cast<int32_t>(DirtyOffsets.size()) && EndIndex < StartIndex + MaxSparseZXColumnCount; ++EndIndex)
+                {
+                    Offsets.push_back(DirtyOffsets[EndIndex]);
+                    bAllSameByte = bAllSameByte && Data[DirtyOffsets[EndIndex]] == FirstValue;
+
+                    if (Offsets.size() < 3)
+                    {
+                        continue;
+                    }
+
+                    const bool bHasVisualGap = DirtyYs[EndIndex] - DirtyYs[StartIndex] + 1 != static_cast<int32_t>(Offsets.size());
+                    if (!bHasVisualGap)
+                    {
+                        continue;
+                    }
+
+                    const int32_t AddressLoads = CountZXColumnAddressLoads(Offsets);
+                    if (AddressLoads >= static_cast<int32_t>(Offsets.size()))
+                    {
+                        continue;
+                    }
+
+                    AddCandidate(Analysis, MakeZXColumnBytesFromOffsets(Data, Offsets));
+
+                    if (bAllSameByte)
+                    {
+                        AddCandidate(Analysis, MakeZXColumnSameByteFromOffsets(Data, Offsets));
+
+                        if (Options.EnableRegisterConstants && (Analysis.bHasPreferredBC || Analysis.bHasPreferredDE))
+                        {
+                            const char RegisterName = GetPreferredRegisterNameForValue(Analysis, FirstValue);
+                            if (RegisterName != 0)
+                            {
+                                AddCandidate(Analysis, MakeZXColumnSameByteRegFromOffsets(Data, Offsets, RegisterName));
+                            }
+                        }
                     }
                 }
             }
