@@ -1529,6 +1529,27 @@ namespace
         Out << (PercentTenths / 10) << "." << (PercentTenths % 10) << "%";
     }
 
+    void ReplacePreviewLine(std::string& Text, const std::string& Prefix, const std::string& NewLine)
+    {
+        const size_t Begin = Text.find(Prefix);
+        if (Begin == std::string::npos)
+        {
+            return;
+        }
+
+        size_t End = Text.find('\n', Begin);
+        if (End == std::string::npos)
+        {
+            End = Text.size();
+        }
+        else
+        {
+            ++End;
+        }
+
+        Text.replace(Begin, End - Begin, NewLine);
+    }
+
     int32_t MarkCandidateClean(std::vector<uint8_t>& Dirty, const CodeGenerator::FCandidate& Candidate)
     {
         int32_t Cleaned = 0;
@@ -2084,6 +2105,111 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
     {
         OutError = "OptimizePlan: failed to produce a plan";
         return false;
+    }
+
+    struct FByteAbsAPlanGroup
+    {
+        uint8_t Value = 0;
+        std::vector<int32_t> CandidateIds;
+    };
+
+    FByteAbsAPlanGroup ByteAbsAGroups[256];
+    for (int32_t Value = 0; Value < 256; ++Value)
+    {
+        ByteAbsAGroups[Value].Value = static_cast<uint8_t>(Value);
+    }
+
+    for (int32_t ID : BestFinished.CandidateIds)
+    {
+        const FCandidate& Candidate = Analysis.Candidates[ID];
+        if (Candidate.Kind == EOpKind::ByteAbsA)
+        {
+            ByteAbsAGroups[Candidate.ByteValue].CandidateIds.push_back(ID);
+        }
+    }
+
+    std::vector<int32_t> GroupedValues;
+    GroupedValues.reserve(256);
+    for (int32_t Value = 0; Value < 256; ++Value)
+    {
+        if (ByteAbsAGroups[Value].CandidateIds.size() >= 2)
+        {
+            GroupedValues.push_back(Value);
+        }
+    }
+
+    std::sort(GroupedValues.begin(), GroupedValues.end(),
+        [&ByteAbsAGroups, &Analysis](int32_t A, int32_t B)
+        {
+            const size_t CountA = ByteAbsAGroups[A].CandidateIds.size();
+            const size_t CountB = ByteAbsAGroups[B].CandidateIds.size();
+            if (CountA != CountB)
+            {
+                return CountA > CountB;
+            }
+
+            const int32_t FrequencyA = Analysis.ByteFrequency.size() == 256 ? Analysis.ByteFrequency[A] : 0;
+            const int32_t FrequencyB = Analysis.ByteFrequency.size() == 256 ? Analysis.ByteFrequency[B] : 0;
+            if (FrequencyA != FrequencyB)
+            {
+                return FrequencyA > FrequencyB;
+            }
+
+            return A < B;
+        });
+
+    if (!GroupedValues.empty())
+    {
+        bool bMoveByteAbsAValue[256] = {};
+        for (int32_t Value : GroupedValues)
+        {
+            bMoveByteAbsAValue[Value] = true;
+        }
+
+        std::vector<int32_t> ReorderedCandidateIds;
+        ReorderedCandidateIds.reserve(BestFinished.CandidateIds.size());
+        for (int32_t Value : GroupedValues)
+        {
+            const std::vector<int32_t>& CandidateIds = ByteAbsAGroups[Value].CandidateIds;
+            ReorderedCandidateIds.insert(ReorderedCandidateIds.end(), CandidateIds.begin(), CandidateIds.end());
+        }
+        for (int32_t ID : BestFinished.CandidateIds)
+        {
+            const FCandidate& Candidate = Analysis.Candidates[ID];
+            if (Candidate.Kind == EOpKind::ByteAbsA && bMoveByteAbsAValue[Candidate.ByteValue])
+            {
+                continue;
+            }
+            ReorderedCandidateIds.push_back(ID);
+        }
+
+        FSearchState ReorderedState;
+        if (Analysis.bHasPreferredBC)
+        {
+            ReorderedState.EmitState.bHasPreferredBC = true;
+            ReorderedState.EmitState.PreferredBC = static_cast<uint16_t>((Analysis.PreferredB << 8) | Analysis.PreferredC);
+        }
+        if (Analysis.bHasPreferredDE)
+        {
+            ReorderedState.EmitState.bHasPreferredDE = true;
+            ReorderedState.EmitState.PreferredDE = static_cast<uint16_t>((Analysis.PreferredD << 8) | Analysis.PreferredE);
+        }
+
+        bool bReorderedValid = true;
+        for (int32_t ID : ReorderedCandidateIds)
+        {
+            if (!ApplyCandidateTransition(ReorderedState, Analysis.Candidates[ID], OutError))
+            {
+                bReorderedValid = false;
+                break;
+            }
+            ReorderedState.CandidateIds.push_back(ID);
+        }
+
+        if (bReorderedValid && IsBetterState(ReorderedState, BestFinished))
+        {
+            BestFinished = std::move(ReorderedState);
+        }
     }
 
     OutPlan.CandidateIds = std::move(BestFinished.CandidateIds);
@@ -3478,6 +3604,24 @@ bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const 
     {
         OutAsm.replace(RestoreSPPreviewOffset, std::strlen(RestoreSPPreviewPlaceholder), "                LD BC, " + Hex16(RestoreSPRelativeOffset) + "\n");
     }
+
+    const int32_t ActiveBytes = CountDirtyBytes(Analysis.Dirty);
+    std::ostringstream OutputSizeLine;
+    OutputSizeLine << ";   Output size  - ";
+    AppendSizeDelta(OutputSizeLine, static_cast<int32_t>(Out.Code.size()), ActiveBytes);
+    OutputSizeLine << "\n";
+    ReplacePreviewLine(OutAsm, ";   Output size  - ", OutputSizeLine.str());
+
+    std::ostringstream CyclesLine;
+    CyclesLine << ";   Cycles       - " << Out.Cycles << "\n";
+    ReplacePreviewLine(OutAsm, ";   Cycles       - ", CyclesLine.str());
+
+    std::ostringstream FrameTimeLine;
+    FrameTimeLine << ";   Frame time   - ";
+    AppendPercentTenths(FrameTimeLine, Out.Cycles, 71680);
+    FrameTimeLine << " (Pentagon 71680 cycles)\n";
+    ReplacePreviewLine(OutAsm, ";   Frame time   - ", FrameTimeLine.str());
+
     OutCode = std::move(Out.Code);
     OutCycles = Out.Cycles;
     if (OutAsm.empty())

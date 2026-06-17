@@ -1016,6 +1016,15 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 				ImGui::EndTooltip();
 			}
 		};
+		auto DrawLastItemTooltip = [](const char* Tooltip)
+		{
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::BeginTooltip();
+				ImGui::TextUnformatted(Tooltip);
+				ImGui::EndTooltip();
+			}
+		};
 
 		ImGui::BeginChild("##CodeGenerationOptionsPanel", ImVec2(LeftWidth, PanelHeight), false);
 		ImGui::BeginChild("##CodeGenerationOptionsContent", ImVec2(0.0f, OptionsHeight), false);
@@ -1032,28 +1041,38 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		{
 			CodeGenerationOptions.CycleWeight = 1000;
 			CodeGenerationOptions.ByteWeight = 1;
+			CodeGenerationOptions.NonLinearBeamWidth = 2;
+			CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass = 64;
 			bOptionsChanged = true;
 		}
+		DrawLastItemTooltip("Скорость: планировщик почти всегда выбирает меньше тактов, даже если код станет больше.\nПоиск уже, генерация быстрее.");
 		ImGui::SameLine();
 		if (ImGui::Button("Balanced", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
 			CodeGenerationOptions.CycleWeight = 10;
 			CodeGenerationOptions.ByteWeight = 1;
+			CodeGenerationOptions.NonLinearBeamWidth = 4;
+			CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass = 96;
 			bOptionsChanged = true;
 		}
+		DrawLastItemTooltip("Баланс: такты важнее размера, но размер кода тоже влияет на выбор.");
 		ImGui::SameLine();
 		if (ImGui::Button("Small", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
 			CodeGenerationOptions.CycleWeight = 1;
-			CodeGenerationOptions.ByteWeight = 20;
+			CodeGenerationOptions.ByteWeight = 200;
+			CodeGenerationOptions.NonLinearBeamWidth = 8;
+			CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass = 192;
 			bOptionsChanged = true;
 		}
+		DrawLastItemTooltip("Размер: планировщик сильно штрафует каждый байт кода.\nПоиск шире, чтобы найти более короткие комбинации.");
 
 		CodeGenerationOptions.MaxStackPairsToEnumerate = ImMax(CodeGenerationOptions.MaxStackPairsToEnumerate, 2);
 		CodeGenerationOptions.CycleWeight = ImMax(CodeGenerationOptions.CycleWeight, 1LL);
 		CodeGenerationOptions.ByteWeight = ImMax(CodeGenerationOptions.ByteWeight, 1LL);
 		ImGui::SetNextItemWidth(InputNumberWidth);
 		bOptionsChanged |= ImGui::InputInt("Max stack pairs", &CodeGenerationOptions.MaxStackPairsToEnumerate);
+		DrawLastItemTooltip("Максимальная длина перебираемого стекового блока в 16-битных парах.\nБольше значение может найти длиннее PUSH-блоки, но увеличивает время поиска.");
 		int32_t StackTopAddress = CodeGenerationOptions.StackTopAddress;
 		ImGui::SetNextItemWidth(InputNumberWidth);
 		if (ImGui::InputInt("Stack top address", &StackTopAddress))
@@ -1061,6 +1080,7 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 			CodeGenerationOptions.StackTopAddress = static_cast<uint16_t>(ImClamp(StackTopAddress, 0, 0xFFFF));
 			bOptionsChanged = true;
 		}
+		DrawLastItemTooltip("Адрес временной вершины стека для PUSH-записей.\nИспользуется только если включены стековые блоки.");
 		int32_t CycleWeight = static_cast<int32_t>(CodeGenerationOptions.CycleWeight);
 		ImGui::SetNextItemWidth(InputNumberWidth);
 		if (ImGui::InputInt("Cycle weight", &CycleWeight))
@@ -1068,6 +1088,7 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 			CodeGenerationOptions.CycleWeight = ImMax(CycleWeight, 1);
 			bOptionsChanged = true;
 		}
+		DrawLastItemTooltip("Вес одного такта Z80 в оценке кандидата.\nЧем больше значение, тем сильнее генератор предпочитает быстрый код.");
 		int32_t ByteWeight = static_cast<int32_t>(CodeGenerationOptions.ByteWeight);
 		ImGui::SetNextItemWidth(InputNumberWidth);
 		if (ImGui::InputInt("Code byte weight", &ByteWeight))
@@ -1075,6 +1096,7 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 			CodeGenerationOptions.ByteWeight = ImMax(ByteWeight, 1);
 			bOptionsChanged = true;
 		}
+		DrawLastItemTooltip("Вес одного байта машинного кода в оценке кандидата.\nЧем больше значение, тем сильнее генератор предпочитает короткий код.");
 		int32_t BeamWidth = CodeGenerationOptions.NonLinearBeamWidth;
 		ImGui::SetNextItemWidth(InputNumberWidth);
 		if (ImGui::InputInt("Search beam width", &BeamWidth))
@@ -1082,6 +1104,7 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 			CodeGenerationOptions.NonLinearBeamWidth = ImClamp(BeamWidth, 1, 32);
 			bOptionsChanged = true;
 		}
+		DrawLastItemTooltip("Ширина поиска: сколько лучших промежуточных вариантов планировщик держит одновременно.\nБольше значение может улучшить результат, но замедляет генерацию.");
 		int32_t NonLinearProbeLimit = CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass;
 		ImGui::SetNextItemWidth(InputNumberWidth);
 		if (ImGui::InputInt("Pattern probe limit", &NonLinearProbeLimit))
@@ -1089,6 +1112,7 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 			CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass = ImClamp(NonLinearProbeLimit, 1, 1024);
 			bOptionsChanged = true;
 		}
+		DrawLastItemTooltip("Лимит проверки нелинейных паттернов за один шаг поиска.\nЭто вертикали, стековые блоки, повторы и другие варианты, которые конкурируют с линейной записью.");
 		CheckboxWithTooltip(
 			"Preserve SP",
 			&CodeGenerationOptions.PreserveSP,
@@ -1402,6 +1426,8 @@ void FAppSprite::PollCodeGenerationPreviewJob()
 		CodeGenerationOpcodeBytes = std::move(CodeGenerationJobResult.ByteCode);
 		AppendLogLine(std::format("Source code size: {} bytes", CodeGenerationPreviewText.size()));
 		AppendLogLine(std::format("Opcode size: {} bytes", CodeGenerationOpcodeBytes.size()));
+		AppendLogLine(std::format("Score weights: cycles={}, bytes={}", CodeGenerationOptions.CycleWeight, CodeGenerationOptions.ByteWeight));
+		AppendLogLine(std::format("Search: beam={}, probe limit={}", CodeGenerationOptions.NonLinearBeamWidth, CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass));
 		AppendLogLine(std::format("Stack top address: 0x{:04X}", CodeGenerationOptions.StackTopAddress));
 		AppendLogLine(std::format("Dirty bytes: {}", CodeGenerationJobResult.DirtyBytes));
 		AppendLogLine(std::format("Operations: {}", CodeGenerationJobResult.OperationCount));
