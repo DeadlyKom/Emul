@@ -1428,7 +1428,20 @@ void FAppSprite::PollCodeGenerationPreviewJob()
 		AppendLogLine(std::format("Opcode size: {} bytes", CodeGenerationOpcodeBytes.size()));
 		AppendLogLine(std::format("Score weights: cycles={}, bytes={}", CodeGenerationOptions.CycleWeight, CodeGenerationOptions.ByteWeight));
 		AppendLogLine(std::format("Search: beam={}, probe limit={}", CodeGenerationOptions.NonLinearBeamWidth, CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass));
-		AppendLogLine(std::format("Stack top address: 0x{:04X}", CodeGenerationOptions.StackTopAddress));
+		AppendLogLine(std::format("Stack options: max pairs={}, top=0x{:04X}, preserve SP={}, DI/EI={}",
+			CodeGenerationOptions.MaxStackPairsToEnumerate,
+			CodeGenerationOptions.StackTopAddress,
+			CodeGenerationOptions.PreserveSP ? "on" : "off",
+			CodeGenerationOptions.DisableInterruptsForStack ? "on" : "off"));
+		AppendLogLine(std::format("Candidates: byte={}, word={}, stack={}, repeat={}, horizontal={}, vertical={}, reverse={}, registers={}",
+			CodeGenerationOptions.EnableByteCandidates ? "on" : "off",
+			CodeGenerationOptions.EnableWordCandidates ? "on" : "off",
+			CodeGenerationOptions.EnableStackBlocks ? "on" : "off",
+			CodeGenerationOptions.EnableRepeatWords ? "on" : "off",
+			CodeGenerationOptions.EnableHorizontalSameByteIncL ? "on" : "off",
+			CodeGenerationOptions.EnableVerticalCandidates ? "on" : "off",
+			CodeGenerationOptions.EnableReverseDirections ? "on" : "off",
+			CodeGenerationOptions.EnableRegisterConstants ? "on" : "off"));
 		AppendLogLine(std::format("Dirty bytes: {}", CodeGenerationJobResult.DirtyBytes));
 		AppendLogLine(std::format("Operations: {}", CodeGenerationJobResult.OperationCount));
 		AppendLogLine(std::format("Estimated cycles: {}", CodeGenerationJobResult.Cycles));

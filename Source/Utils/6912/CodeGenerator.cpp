@@ -2966,6 +2966,20 @@ static void EmitAsmHeader(
     Out.Preview << ";   Stack writes - " << (bUsesStack ? "yes" : "no")
         << ", preserve SP - " << (bPreserveSP ? "yes" : "no")
         << ", interrupts - " << (Options.DisableInterruptsForStack && bUsesStack ? "DI/EI" : "unchanged") << "\n";
+    Out.Preview << ";   Options      - cycle weight " << Options.CycleWeight
+        << ", byte weight " << Options.ByteWeight
+        << ", beam " << Options.NonLinearBeamWidth
+        << ", probe limit " << Options.MaxNonLinearCandidatesToEvaluatePerPass << "\n";
+    Out.Preview << ";   Stack opts   - max pairs " << Options.MaxStackPairsToEnumerate
+        << ", top " << CodeGenerator::Hex16(Options.StackTopAddress) << "\n";
+    Out.Preview << ";   Candidates   - byte " << (Options.EnableByteCandidates ? "on" : "off")
+        << ", word " << (Options.EnableWordCandidates ? "on" : "off")
+        << ", stack " << (Options.EnableStackBlocks ? "on" : "off")
+        << ", repeat " << (Options.EnableRepeatWords ? "on" : "off") << "\n";
+    Out.Preview << ";   Patterns     - horizontal " << (Options.EnableHorizontalSameByteIncL ? "on" : "off")
+        << ", vertical " << (Options.EnableVerticalCandidates ? "on" : "off")
+        << ", reverse " << (Options.EnableReverseDirections ? "on" : "off")
+        << ", registers " << (Options.EnableRegisterConstants ? "on" : "off") << "\n";
     Out.Preview << ";   Register constants - ";
     if (Plan.UsesB || Plan.UsesC || Plan.UsesD || Plan.UsesE)
     {
