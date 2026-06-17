@@ -1682,6 +1682,8 @@ namespace
     }
 }
 
+static bool StateRegisterByte(const CodeGenerator::FEmitState& State, char RegisterName, uint8_t& OutValue);
+
 bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Options, FPlan& OutPlan, std::string& OutError, const FProgressInfo* Progress)
 {
     OutPlan = FPlan();
@@ -1859,6 +1861,73 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
             {
                 BestFinished = Finished;
                 bHasBest = true;
+            }
+
+            struct FByteAbsAGroup
+            {
+                uint8_t Value;
+                std::vector<int32_t> CandidateIds;
+                int64_t LinearScore = 0;
+            };
+
+            FByteAbsAGroup ByteGroups[256];
+            for (int32_t Value = 0; Value < 256; ++Value)
+            {
+                ByteGroups[Value].Value = static_cast<uint8_t>(Value);
+            }
+
+            for (int32_t LinearID : LinearIds)
+            {
+                const FCandidate& LinearCandidate = Analysis.Candidates[LinearID];
+                if (LinearCandidate.Kind != EOpKind::ByteAbsA)
+                {
+                    continue;
+                }
+
+                FByteAbsAGroup& Group = ByteGroups[LinearCandidate.ByteValue];
+                Group.CandidateIds.push_back(LinearID);
+                Group.LinearScore += ScoreCandidate(LinearCandidate, Options);
+            }
+
+            for (FByteAbsAGroup& Group : ByteGroups)
+            {
+                if (Group.CandidateIds.empty())
+                {
+                    continue;
+                }
+
+                uint8_t CurrentA = 0;
+                const bool bAAlreadyHasValue = StateRegisterByte(State.EmitState, 'A', CurrentA) && CurrentA == Group.Value;
+                if (Group.CandidateIds.size() < 2 && !bAAlreadyHasValue)
+                {
+                    continue;
+                }
+
+                FSearchState Child = State;
+                int32_t GroupCycles = 0;
+                int32_t GroupCodeBytes = 0;
+                for (int32_t GroupCandidateID : Group.CandidateIds)
+                {
+                    const FCandidate& GroupCandidate = Analysis.Candidates[GroupCandidateID];
+                    const int32_t BeforeCycles = Child.Cycles;
+                    const int32_t BeforeCodeBytes = Child.CodeBytes;
+                    Child.CandidateIds.push_back(GroupCandidateID);
+                    if (!ApplyCandidateTransition(Child, GroupCandidate, OutError))
+                    {
+                        return false;
+                    }
+                    GroupCycles += Child.Cycles - BeforeCycles;
+                    GroupCodeBytes += Child.CodeBytes - BeforeCodeBytes;
+                    const int32_t Cleaned = MarkCandidateClean(Child.Remaining, GroupCandidate);
+                    Child.RemainingCount = max(0, Child.RemainingCount - Cleaned);
+                }
+
+                if (ScorePlan(GroupCycles, GroupCodeBytes, Options) >= Group.LinearScore)
+                {
+                    continue;
+                }
+
+                NextBeam.push_back(std::move(Child));
             }
 
             struct FNonLinearProbe
