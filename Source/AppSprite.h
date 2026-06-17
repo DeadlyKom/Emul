@@ -156,6 +156,7 @@ private:
 	std::atomic<bool> bCodeGenerationGenerationInProgress;
 	bool bCodeGenerationProgressModalOpen;
 	bool bCodeGenerationProgressShouldClose;
+	bool bCodeGenerationLogScrollToBottom;
 	std::atomic<bool> bCodeGenerationCancelRequested;
 	std::atomic<int32_t> CodeGenerationProgressCurrent;
 	std::atomic<int32_t> CodeGenerationProgressTotal;

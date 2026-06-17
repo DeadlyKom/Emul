@@ -165,6 +165,7 @@ FAppSprite::FAppSprite()
 	, bCodeGenerationGenerationInProgress(false)
 	, bCodeGenerationProgressModalOpen(false)
 	, bCodeGenerationProgressShouldClose(false)
+	, bCodeGenerationLogScrollToBottom(false)
 	, bCodeGenerationCancelRequested(false)
 	, CodeGenerationProgressCurrent(0)
 	, CodeGenerationProgressTotal(0)
@@ -1167,8 +1168,19 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		if (ImGui::SmallButton("Clear log"))
 		{
 			CodeGenerationLogText.clear();
+			bCodeGenerationLogScrollToBottom = false;
 		}
-		DrawReadOnlyMultilineText("##CodeGenerationLog", CodeGenerationLogText, ImVec2(0.0f, ImGui::GetContentRegionAvail().y));
+		ImGui::BeginChild("##CodeGenerationLog", ImVec2(0.0f, ImGui::GetContentRegionAvail().y), true, ImGuiWindowFlags_HorizontalScrollbar);
+		ImGui::TextUnformatted(CodeGenerationLogText.c_str());
+		if (bCodeGenerationLogScrollToBottom)
+		{
+			ImGui::SetScrollHereY(1.0f);
+			if (ImGui::GetScrollY() >= ImGui::GetScrollMaxY() - 1.0f)
+			{
+				bCodeGenerationLogScrollToBottom = false;
+			}
+		}
+		ImGui::EndChild();
 
 		ImGui::EndChild();
 		ImGui::SetCursorPosY(ImMax(ImGui::GetCursorPosY(), PanelHeight - BottomButtonsHeight));
@@ -1295,6 +1307,7 @@ void FAppSprite::StartCodeGenerationPreview()
 			CodeGenerationLogText.push_back('\n');
 		}
 		CodeGenerationLogText += Line;
+		bCodeGenerationLogScrollToBottom = true;
 	};
 
 	CodeGenerationPreviewText.clear();
@@ -1368,6 +1381,7 @@ void FAppSprite::PollCodeGenerationPreviewJob()
 			CodeGenerationLogText.push_back('\n');
 		}
 		CodeGenerationLogText += Line;
+		bCodeGenerationLogScrollToBottom = true;
 	};
 
 	if (!CodeGenerationJobResult.bSuccess)
@@ -1489,6 +1503,7 @@ bool FAppSprite::ExportCodeGenerationPreview()
 			CodeGenerationLogText.push_back('\n');
 		}
 		CodeGenerationLogText += Line;
+		bCodeGenerationLogScrollToBottom = true;
 	};
 
 	if (!bCodeGenerationPreviewValid || (bCodeGenerationGenerateOpcode ? CodeGenerationOpcodeBytes.empty() : CodeGenerationPreviewText.empty()))
