@@ -183,7 +183,7 @@ namespace CodeGenerator
         // CycleWeight = 10, ByteWeight = 1
         //
         // Если хочешь минимальный код:
-        // CycleWeight = 1, ByteWeight = 20
+        // CycleWeight = 1, ByteWeight = 200
         int64_t CycleWeight;
         int64_t ByteWeight;
 

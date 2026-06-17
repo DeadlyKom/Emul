@@ -1603,6 +1603,29 @@ namespace
         return static_cast<int64_t>(Cycles) * Options.CycleWeight + static_cast<int64_t>(CodeBytes) * Options.ByteWeight;
     }
 
+    bool PreferCodeBytesTieBreak(const CodeGenerator::FOptions& Options)
+    {
+        return Options.ByteWeight >= Options.CycleWeight;
+    }
+
+    bool IsBetterTieBreak(int32_t CyclesA, int32_t CodeBytesA, int32_t CyclesB, int32_t CodeBytesB, const CodeGenerator::FOptions& Options)
+    {
+        if (PreferCodeBytesTieBreak(Options))
+        {
+            if (CodeBytesA != CodeBytesB)
+            {
+                return CodeBytesA < CodeBytesB;
+            }
+            return CyclesA < CyclesB;
+        }
+
+        if (CyclesA != CyclesB)
+        {
+            return CyclesA < CyclesB;
+        }
+        return CodeBytesA < CodeBytesB;
+    }
+
     bool CandidateUsesStack(const CodeGenerator::FCandidate& Candidate)
     {
         return Candidate.Kind == CodeGenerator::EOpKind::StackBlock ||
@@ -1684,9 +1707,7 @@ namespace
                 bool bBetterTie = false;
                 if (Cost == DP[i] && Choice[i] >= 0)
                 {
-                    bBetterTie =
-                        CodeBytes < DPCodeBytes[i] ||
-                        (CodeBytes == DPCodeBytes[i] && Cycles < DPCycles[i]);
+                    bBetterTie = IsBetterTieBreak(Cycles, CodeBytes, DPCycles[i], DPCodeBytes[i], Options);
                 }
                 if (bBetterCost || bBetterTie)
                 {
@@ -1754,7 +1775,7 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
     {
         return ScorePlan(State.Cycles, State.CodeBytes, Options);
     };
-    auto IsBetterState = [&ScoreState](const FSearchState& A, const FSearchState& B)
+    auto IsBetterState = [&ScoreState, &Options](const FSearchState& A, const FSearchState& B)
     {
         const int64_t ScoreA = ScoreState(A);
         const int64_t ScoreB = ScoreState(B);
@@ -1762,15 +1783,7 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
         {
             return ScoreA < ScoreB;
         }
-        if (A.CodeBytes != B.CodeBytes)
-        {
-            return A.CodeBytes < B.CodeBytes;
-        }
-        if (A.Cycles != B.Cycles)
-        {
-            return A.Cycles < B.Cycles;
-        }
-        return false;
+        return IsBetterTieBreak(A.Cycles, A.CodeBytes, B.Cycles, B.CodeBytes, Options);
     };
 
     auto AddStackPlanOverheadIfNeeded = [&Options](FSearchState& State)
@@ -2032,19 +2045,15 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
             }
 
             std::sort(Probes.begin(), Probes.end(),
-                [](const FNonLinearProbe& A, const FNonLinearProbe& B)
+                [&Options](const FNonLinearProbe& A, const FNonLinearProbe& B)
                 {
                     if (A.ApproxSaving != B.ApproxSaving)
                     {
                         return A.ApproxSaving > B.ApproxSaving;
                     }
-                    if (A.CandidateCodeBytes != B.CandidateCodeBytes)
+                    if (A.CandidateCodeBytes != B.CandidateCodeBytes || A.CandidateCycles != B.CandidateCycles)
                     {
-                        return A.CandidateCodeBytes < B.CandidateCodeBytes;
-                    }
-                    if (A.CandidateCycles != B.CandidateCycles)
-                    {
-                        return A.CandidateCycles < B.CandidateCycles;
+                        return IsBetterTieBreak(A.CandidateCycles, A.CandidateCodeBytes, B.CandidateCycles, B.CandidateCodeBytes, Options);
                     }
                     return A.ID < B.ID;
                 });
@@ -2853,6 +2862,23 @@ static int32_t ExtractFrameIndexFromLabelName(const std::string& LabelName)
     return FrameIndex;
 }
 
+static const char* GetCodeGenerationProfileName(const CodeGenerator::FOptions& Options)
+{
+    if (Options.CycleWeight == 1000 && Options.ByteWeight == 1)
+    {
+        return "speed";
+    }
+    if (Options.CycleWeight == 10 && Options.ByteWeight == 1)
+    {
+        return "balanced";
+    }
+    if (Options.CycleWeight == 1 && Options.ByteWeight >= 20)
+    {
+        return "small";
+    }
+    return "custom";
+}
+
 static void EmitAsmHeader(
     CodeGenerator::FEmitOutput& Out,
     const CodeGenerator::FAnalysis& Analysis,
@@ -2966,6 +2992,7 @@ static void EmitAsmHeader(
     Out.Preview << ";   Stack writes - " << (bUsesStack ? "yes" : "no")
         << ", preserve SP - " << (bPreserveSP ? "yes" : "no")
         << ", interrupts - " << (Options.DisableInterruptsForStack && bUsesStack ? "DI/EI" : "unchanged") << "\n";
+    Out.Preview << ";   Profile      - " << GetCodeGenerationProfileName(Options) << "\n";
     Out.Preview << ";   Options      - cycle weight " << Options.CycleWeight
         << ", byte weight " << Options.ByteWeight
         << ", beam " << Options.NonLinearBeamWidth
