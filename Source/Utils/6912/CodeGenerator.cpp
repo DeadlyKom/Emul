@@ -86,14 +86,19 @@ namespace
         return 0;
     }
 
-    static int32_t StackByteLoadCycles(char SourceRegisterName)
+    static bool CanIncDecByte(uint8_t From, uint8_t To)
     {
-        return SourceRegisterName != 0 ? 4 : 7;
+        return static_cast<uint8_t>(From + 1) == To || static_cast<uint8_t>(From - 1) == To;
     }
 
-    static int32_t StackByteLoadCodeBytes(char SourceRegisterName)
+    static int32_t StackByteLoadCycles(char SourceRegisterName, bool bCanIncDec)
     {
-        return SourceRegisterName != 0 ? 1 : 2;
+        return SourceRegisterName != 0 || bCanIncDec ? 4 : 7;
+    }
+
+    static int32_t StackByteLoadCodeBytes(char SourceRegisterName, bool bCanIncDec)
+    {
+        return SourceRegisterName != 0 || bCanIncDec ? 1 : 2;
     }
 
     static uint8_t RegisterCode(char RegisterName)
@@ -234,6 +239,14 @@ namespace
 
         if (BestPartialPairIndex != INDEX_NONE)
         {
+            const uint8_t CurrentByte = BestPartialKind == EStackPairLoadKind::High ?
+                WordHigh(Pairs[BestPartialPairIndex].Value) :
+                WordLow(Pairs[BestPartialPairIndex].Value);
+            const uint8_t TargetByte = BestPartialKind == EStackPairLoadKind::High ?
+                WordHigh(Word) :
+                WordLow(Word);
+            const bool bCanIncDec = CanIncDecByte(CurrentByte, TargetByte);
+
             return
             {
                 BestPartialPairIndex,
@@ -242,8 +255,8 @@ namespace
                 BestPartialKind == EStackPairLoadKind::Low && BestPartialSourceRegisterName != 0,
                 BestPartialKind == EStackPairLoadKind::High ? BestPartialSourceRegisterName : 0,
                 BestPartialKind == EStackPairLoadKind::Low ? BestPartialSourceRegisterName : 0,
-                StackByteLoadCycles(BestPartialSourceRegisterName),
-                StackByteLoadCodeBytes(BestPartialSourceRegisterName)
+                StackByteLoadCycles(BestPartialSourceRegisterName, bCanIncDec),
+                StackByteLoadCodeBytes(BestPartialSourceRegisterName, bCanIncDec)
             };
         }
 
@@ -869,8 +882,8 @@ CodeGenerator::FCandidate CodeGenerator::MakeVerticalSameByteDecH(const std::vec
         C.CoveredOffsets.push_back(StartOffset + i * C.Stride);
     }
 
-    C.Cycles = 10 + 7 + 7 + (Count - 1) * (4 + 7);
-    C.CodeBytes = 3 + 2 + 1 + (Count - 1) * 2;
+    C.Cycles = 10 + (C.ByteValue == 0x00 ? 4 : 7) + 7 + (Count - 1) * (4 + 7);
+    C.CodeBytes = 3 + (C.ByteValue == 0x00 ? 1 : 2) + 1 + (Count - 1) * 2;
 
     return C;
 }
@@ -1484,14 +1497,15 @@ namespace
         Out << OutputBytes << " bytes";
         if (BaseBytes <= 0)
         {
-            Out << " (n/a vs active)";
+            Out << " (n/a)";
             return;
         }
 
         const int32_t DeltaBytes = OutputBytes - BaseBytes;
+        const int64_t RatioHundredths = (static_cast<int64_t>(OutputBytes) * 100 + BaseBytes / 2) / BaseBytes;
         const int64_t DeltaPercentTenths = (static_cast<int64_t>(std::abs(DeltaBytes)) * 1000 + BaseBytes / 2) / BaseBytes;
 
-        Out << " (";
+        Out << " (x" << (RatioHundredths / 100) << "." << std::setw(2) << std::setfill('0') << (RatioHundredths % 100) << std::setfill(' ') << ", delta ";
         if (DeltaBytes > 0)
         {
             Out << "+";
@@ -1501,6 +1515,18 @@ namespace
             Out << "-";
         }
         Out << (DeltaPercentTenths / 10) << "." << (DeltaPercentTenths % 10) << "% vs active)";
+    }
+
+    void AppendPercentTenths(std::ostringstream& Out, int32_t Value, int32_t Base)
+    {
+        if (Base <= 0)
+        {
+            Out << "n/a";
+            return;
+        }
+
+        const int64_t PercentTenths = (static_cast<int64_t>(Value) * 1000 + Base / 2) / Base;
+        Out << (PercentTenths / 10) << "." << (PercentTenths % 10) << "%";
     }
 
     int32_t MarkCandidateClean(std::vector<uint8_t>& Dirty, const CodeGenerator::FCandidate& Candidate)
@@ -1739,6 +1765,8 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
         if (Options.PreserveSP)
         {
             State.EmitState.bHasHL = false;
+            State.EmitState.bHasH = false;
+            State.EmitState.bHasL = false;
             State.EmitState.bHasDE = false;
             State.EmitState.bHasBC = false;
             State.EmitState.bHasB = false;
@@ -2147,11 +2175,11 @@ static bool StateRegisterByte(const CodeGenerator::FEmitState& State, char Regis
         OutValue = WordLow(State.DE);
         return true;
     case 'H':
-        if (!State.bHasHL) { return false; }
+        if (!State.bHasH) { return false; }
         OutValue = WordHigh(State.HL);
         return true;
     case 'L':
-        if (!State.bHasHL) { return false; }
+        if (!State.bHasL) { return false; }
         OutValue = WordLow(State.HL);
         return true;
     default:
@@ -2272,6 +2300,8 @@ void CodeGenerator::EmitLD_HL(FEmitOutput& Out, FEmitState& State, uint16_t Valu
             EmitLoadRegisterByte(Out, State, 'L', WordLow(Value));
             State.HL = Value;
             State.bHasHL = true;
+            State.bHasH = true;
+            State.bHasL = true;
         }
         else
         {
@@ -2281,6 +2311,8 @@ void CodeGenerator::EmitLD_HL(FEmitOutput& Out, FEmitState& State, uint16_t Valu
             Out.Cycles += 10;
             State.HL = Value;
             State.bHasHL = true;
+            State.bHasH = true;
+            State.bHasL = true;
         }
     }
 }
@@ -2430,11 +2462,13 @@ static void SetStateRegisterByte(CodeGenerator::FEmitState& State, char Register
         break;
     case 'H':
         State.HL = static_cast<uint16_t>((State.HL & 0x00FF) | (Value << 8));
-        State.bHasHL = true;
+        State.bHasH = true;
+        State.bHasHL = State.bHasH && State.bHasL;
         break;
     case 'L':
         State.HL = static_cast<uint16_t>((State.HL & 0xFF00) | Value);
-        State.bHasHL = true;
+        State.bHasL = true;
+        State.bHasHL = State.bHasH && State.bHasL;
         break;
     case 'A':
         State.A = Value;
@@ -2529,7 +2563,7 @@ static void EmitLD_PairByte(CodeGenerator::FEmitOutput& Out, CodeGenerator::FEmi
         }
         else
         {
-            EmitLD_RegisterImmediate(Out, TargetRegisterName, bHigh ? WordHigh(Value) : WordLow(Value));
+            EmitLoadRegisterByte(Out, State, TargetRegisterName, bHigh ? WordHigh(Value) : WordLow(Value));
         }
     };
 
@@ -2561,6 +2595,8 @@ static void EmitLD_PairByte(CodeGenerator::FEmitOutput& Out, CodeGenerator::FEmi
     case 0:
         State.HL = Value;
         State.bHasHL = true;
+        State.bHasH = true;
+        State.bHasL = true;
         break;
     case 1:
         State.DE = Value;
@@ -2577,6 +2613,8 @@ static void EmitLD_PairByte(CodeGenerator::FEmitOutput& Out, CodeGenerator::FEmi
     default:
         State.HL = Value;
         State.bHasHL = true;
+        State.bHasH = true;
+        State.bHasL = true;
         break;
     }
 }
@@ -2785,10 +2823,16 @@ static void EmitAsmHeader(
     Out.Preview << ";   Value        - frame data, see generated operations below\n";
     const int32_t ActiveBytes = CountDirtyBytes(Analysis.Dirty);
     Out.Preview << ";   Size         - " << ActiveBytes << " active bytes\n";
+    Out.Preview << ";   Screen cover - ";
+    AppendPercentTenths(Out.Preview, ActiveBytes, CodeGenerator::ZX_SCREEN_SIZE);
+    Out.Preview << " of 6912 bytes\n";
     Out.Preview << ";   Output size  - ";
     AppendSizeDelta(Out.Preview, Plan.TotalCodeBytes, ActiveBytes);
     Out.Preview << "\n";
     Out.Preview << ";   Cycles       - " << Plan.TotalCycles << "\n";
+    Out.Preview << ";   Frame time   - ";
+    AppendPercentTenths(Out.Preview, Plan.TotalCycles, 71680);
+    Out.Preview << " (Pentagon 71680 cycles)\n";
     Out.Preview << ";   Operations   - " << Plan.CandidateIds.size() << "\n";
     Out.Preview << "; Corrupt:\n";
     Out.Preview << ";   " << Corrupt.str() << "\n";
@@ -2869,6 +2913,8 @@ static void EmitStepHLToNextOffset(CodeGenerator::FEmitOutput& Out, CodeGenerato
         HL = static_cast<uint16_t>(HL + 0x0100);
         State.HL = HL;
         State.bHasHL = true;
+        State.bHasH = true;
+        State.bHasL = true;
         return;
     }
 
@@ -3013,6 +3059,8 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
         State.HL = HL;
         State.bHasHL = true;
+        State.bHasH = true;
+        State.bHasL = true;
         break;
     }
 
@@ -3044,6 +3092,8 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
         State.HL = HL;
         State.bHasHL = true;
+        State.bHasH = true;
+        State.bHasL = true;
         break;
     }
 
@@ -3075,6 +3125,8 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
         State.HL = HL;
         State.bHasHL = true;
+        State.bHasH = true;
+        State.bHasL = true;
         break;
     }
 
@@ -3105,6 +3157,8 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
         State.HL = HL;
         State.bHasHL = true;
+        State.bHasH = true;
+        State.bHasL = true;
         break;
     }
 
@@ -3137,6 +3191,8 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
         State.HL = HL;
         State.bHasHL = true;
+        State.bHasH = true;
+        State.bHasL = true;
         break;
     }
 
@@ -3177,6 +3233,8 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
         State.HL = HL;
         State.bHasHL = true;
+        State.bHasH = true;
+        State.bHasL = true;
         break;
     }
 
@@ -3201,6 +3259,8 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
         State.HL = HL;
         State.bHasHL = true;
+        State.bHasH = true;
+        State.bHasL = true;
         break;
     }
 
@@ -3227,6 +3287,8 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
         State.HL = HL;
         State.bHasHL = true;
+        State.bHasH = true;
+        State.bHasL = true;
         break;
     }
 
@@ -3328,6 +3390,8 @@ bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const 
         Out.Cycles += 7;
 
         State.bHasHL = false;
+        State.bHasH = false;
+        State.bHasL = false;
         State.bHasDE = false;
         State.bHasBC = false;
         State.bHasB = false;

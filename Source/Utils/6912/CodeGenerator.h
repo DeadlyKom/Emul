@@ -228,6 +228,8 @@ namespace CodeGenerator
 
         bool bHasHL;
         uint16_t HL;
+        bool bHasH;
+        bool bHasL;
 
         bool bHasBC;
         uint16_t BC;
@@ -252,6 +254,8 @@ namespace CodeGenerator
             , A(0)
             , bHasHL(false)
             , HL(0)
+            , bHasH(false)
+            , bHasL(false)
             , bHasBC(false)
             , BC(0)
             , bHasB(false)
