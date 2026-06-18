@@ -1512,14 +1512,17 @@ bool FAppSprite::ShowModal_CodeGenerationProgress()
 		return false;
 	}
 
+	ImGuiWindow* CodeGenerationWindow = ImGui::FindWindowByName(Modal_CodeGenerationName);
+	ImGuiViewport* ParentViewport = CodeGenerationWindow && CodeGenerationWindow->Viewport
+		? CodeGenerationWindow->Viewport
+		: ImGui::GetMainViewport();
 	ImGuiWindowClass ProgressWindowClass;
-	ProgressWindowClass.ParentViewportId = 0;
+	ProgressWindowClass.ParentViewportId = ParentViewport->ID;
 	ProgressWindowClass.ViewportFlagsOverrideSet = ImGuiViewportFlags_NoAutoMerge |
-		ImGuiViewportFlags_TopMost |
 		ImGuiViewportFlags_NoTaskBarIcon |
 		ImGuiViewportFlags_NoFocusOnAppearing;
 	ImGui::SetNextWindowClass(&ProgressWindowClass);
-	ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
+	ImGui::SetNextWindowPos(ParentViewport->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
 	const ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_AlwaysAutoResize |
 		ImGuiWindowFlags_NoSavedSettings |
