@@ -1368,8 +1368,6 @@ void FAppSprite::StartCodeGenerationPreview()
 		bCodeGenerationLogScrollToBottom = true;
 	};
 
-	CodeGenerationPreviewText.clear();
-	CodeGenerationOpcodeBytes.clear();
 	CodeGenerationJobResult = CodeGenerator::FResult();
 	bCodeGenerationPreviewValid = false;
 	bCodeGenerationProgressShouldClose = false;
@@ -1507,34 +1505,31 @@ bool FAppSprite::ShowModal_CodeGenerationProgress()
 		return false;
 	}
 
-	if (bCodeGenerationProgressModalOpen)
+	if (bCodeGenerationProgressShouldClose)
 	{
-		ImGui::OpenPopup(Modal_CodeGenerationProgressName);
-	}
-
-	if (bCodeGenerationProgressShouldClose && !bCodeGenerationProgressModalOpen)
-	{
+		bCodeGenerationProgressModalOpen = false;
 		bCodeGenerationProgressShouldClose = false;
 		return false;
 	}
 
-	if (ImGui::IsWindowAppearing())
-	{
-		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
-	}
+	ImGuiWindowClass ProgressWindowClass;
+	ProgressWindowClass.ParentViewportId = 0;
+	ProgressWindowClass.ViewportFlagsOverrideSet = ImGuiViewportFlags_NoAutoMerge |
+		ImGuiViewportFlags_TopMost |
+		ImGuiViewportFlags_NoTaskBarIcon |
+		ImGuiViewportFlags_NoFocusOnAppearing;
+	ImGui::SetNextWindowClass(&ProgressWindowClass);
+	ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Always, ImVec2(0.5f, 0.5f));
 
-	const bool bVisible = ImGui::BeginPopupModal(Modal_CodeGenerationProgressName, nullptr, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoSavedSettings);
+	const ImGuiWindowFlags WindowFlags = ImGuiWindowFlags_AlwaysAutoResize |
+		ImGuiWindowFlags_NoSavedSettings |
+		ImGuiWindowFlags_NoDocking |
+		ImGuiWindowFlags_NoCollapse |
+		ImGuiWindowFlags_NoMove |
+		ImGuiWindowFlags_NoResize;
+	const bool bVisible = ImGui::Begin(Modal_CodeGenerationProgressName, nullptr, WindowFlags);
 	if (bVisible)
 	{
-		if (bCodeGenerationProgressShouldClose)
-		{
-			ImGui::CloseCurrentPopup();
-			bCodeGenerationProgressModalOpen = false;
-			bCodeGenerationProgressShouldClose = false;
-			ImGui::EndPopup();
-			return false;
-		}
-
 		const int32_t Current = CodeGenerationProgressCurrent.load(std::memory_order_relaxed);
 		const int32_t Total = ImMax(CodeGenerationProgressTotal.load(std::memory_order_relaxed), 1);
 		const float Fraction = ImClamp(static_cast<float>(Current) / static_cast<float>(Total), 0.0f, 1.0f);
@@ -1566,14 +1561,9 @@ bool FAppSprite::ShowModal_CodeGenerationProgress()
 			ImGui::EndDisabled();
 		}
 
-		ImGui::EndPopup();
-		return true;
 	}
-	if (!bVisible && !bCodeGenerationGenerationInProgress.load(std::memory_order_relaxed))
-	{
-		bCodeGenerationProgressModalOpen = false;
-	}
-	return false;
+	ImGui::End();
+	return true;
 }
 
 bool FAppSprite::ExportCodeGenerationPreview()
