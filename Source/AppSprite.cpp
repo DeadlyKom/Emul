@@ -1080,7 +1080,36 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 			CodeGenerationOptions.StackTopAddress = static_cast<uint16_t>(ImClamp(StackTopAddress, 0, 0xFFFF));
 			bOptionsChanged = true;
 		}
-		DrawLastItemTooltip("Адрес временной вершины стека для PUSH-записей.\nИспользуется только если включены стековые блоки.");
+		DrawLastItemTooltip("Адрес временной вершины стека для PUSH-записей и CALL-трамплина.\nПри сохранении SP временно портятся 4 байта: top-2, top-1, top и top+1.");
+		ImGui::SameLine();
+		if (ImGui::SmallButton("#5B02"))
+		{
+			CodeGenerationOptions.StackTopAddress = CodeGenerator::ZX_STACK_TRAMPOLINE_TOP;
+			bOptionsChanged = true;
+		}
+		DrawLastItemTooltip("Рекомендуемый адрес в printer buffer: используются #5B00..#5B03 сразу после экрана.");
+		ImGui::SameLine();
+		if (ImGui::SmallButton("#FF00"))
+		{
+			CodeGenerationOptions.StackTopAddress = 0xFF00;
+			bOptionsChanged = true;
+		}
+		DrawLastItemTooltip("Старый вариант во верхней памяти: используются #FEFE..#FF01.");
+		ImGui::TextUnformatted("Screen target");
+		ImGui::SameLine();
+		if (ImGui::RadioButton("Base #4000", CodeGenerationOptions.ScreenBaseAddress == CodeGenerator::ZX_SCREEN_BASE))
+		{
+			CodeGenerationOptions.ScreenBaseAddress = CodeGenerator::ZX_SCREEN_BASE;
+			bOptionsChanged = true;
+		}
+		DrawLastItemTooltip("Генерировать запись в основной экран ZX Spectrum: #4000..#5AFF.");
+		ImGui::SameLine();
+		if (ImGui::RadioButton("Shadow #C000", CodeGenerationOptions.ScreenBaseAddress == CodeGenerator::ZX_SHADOW_SCREEN_BASE))
+		{
+			CodeGenerationOptions.ScreenBaseAddress = CodeGenerator::ZX_SHADOW_SCREEN_BASE;
+			bOptionsChanged = true;
+		}
+		DrawLastItemTooltip("Генерировать запись в теневой экран ZX Spectrum: #C000..#DAFF.");
 		int32_t CycleWeight = static_cast<int32_t>(CodeGenerationOptions.CycleWeight);
 		ImGui::SetNextItemWidth(InputNumberWidth);
 		if (ImGui::InputInt("Cycle weight", &CycleWeight))
@@ -1178,6 +1207,11 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass = ImClamp(CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass, 1, 1024);
 		CodeGenerationOptions.CycleWeight = ImMax(CodeGenerationOptions.CycleWeight, 1LL);
 		CodeGenerationOptions.ByteWeight = ImMax(CodeGenerationOptions.ByteWeight, 1LL);
+		if (CodeGenerationOptions.ScreenBaseAddress != CodeGenerator::ZX_SCREEN_BASE &&
+			CodeGenerationOptions.ScreenBaseAddress != CodeGenerator::ZX_SHADOW_SCREEN_BASE)
+		{
+			CodeGenerationOptions.ScreenBaseAddress = CodeGenerator::ZX_SCREEN_BASE;
+		}
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.35f));
 		const bool bGenerationInProgress = bCodeGenerationGenerationInProgress.load(std::memory_order_relaxed);
 		const bool bGenerationBusy = bGenerationInProgress || bCodeGenerationProgressModalOpen || bCodeGenerationProgressShouldClose;
@@ -1428,11 +1462,20 @@ void FAppSprite::PollCodeGenerationPreviewJob()
 		AppendLogLine(std::format("Opcode size: {} bytes", CodeGenerationOpcodeBytes.size()));
 		AppendLogLine(std::format("Score weights: cycles={}, bytes={}", CodeGenerationOptions.CycleWeight, CodeGenerationOptions.ByteWeight));
 		AppendLogLine(std::format("Search: beam={}, probe limit={}", CodeGenerationOptions.NonLinearBeamWidth, CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass));
+		AppendLogLine(std::format("Screen target: 0x{:04X}..0x{:04X}",
+			CodeGenerationOptions.ScreenBaseAddress,
+			static_cast<uint16_t>(CodeGenerationOptions.ScreenBaseAddress + CodeGenerator::ZX_SCREEN_SIZE - 1)));
 		AppendLogLine(std::format("Stack options: max pairs={}, top=0x{:04X}, preserve SP={}, DI/EI={}",
 			CodeGenerationOptions.MaxStackPairsToEnumerate,
 			CodeGenerationOptions.StackTopAddress,
 			CodeGenerationOptions.PreserveSP ? "on" : "off",
 			CodeGenerationOptions.DisableInterruptsForStack ? "on" : "off"));
+		if (CodeGenerationOptions.PreserveSP)
+		{
+			AppendLogLine(std::format("Stack scratch: 0x{:04X}..0x{:04X}",
+				static_cast<uint16_t>(CodeGenerationOptions.StackTopAddress - 2),
+				static_cast<uint16_t>(CodeGenerationOptions.StackTopAddress + 1)));
+		}
 		AppendLogLine(std::format("Candidates: byte={}, word={}, stack={}, repeat={}, horizontal={}, vertical={}, reverse={}, registers={}",
 			CodeGenerationOptions.EnableByteCandidates ? "on" : "off",
 			CodeGenerationOptions.EnableWordCandidates ? "on" : "off",

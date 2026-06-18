@@ -411,6 +411,7 @@ void CodeGenerator::AddCandidate(FAnalysis& Analysis, const FCandidate& Candidat
     }
 
     FCandidate ScoredCandidate = Candidate;
+    ScoredCandidate.StartAddr = AddrOf(ScoredCandidate.StartOffset, Analysis.ScreenBaseAddress);
     auto AddByteFrequency = [&Analysis](int32_t Offset)
     {
         if (!IsValidOffset(Offset) || Analysis.ByteFrequency.size() != 256)
@@ -1046,6 +1047,7 @@ bool CodeGenerator::BuildAnalysis(const std::vector<uint8_t>& Data, const std::v
 
     FAnalysis Analysis;
     Analysis.Data = Data;
+    Analysis.ScreenBaseAddress = Options.ScreenBaseAddress;
 
     if (DirtyMask.empty())
     {
@@ -1968,6 +1970,7 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
     Beam.push_back(FSearchState{});
     Beam.back().Remaining = Analysis.Dirty;
     Beam.back().RemainingCount = InitialDirty;
+    Beam.back().EmitState.ScreenBaseAddress = Analysis.ScreenBaseAddress;
     if (Analysis.bHasPreferredBC)
     {
         Beam.back().EmitState.bHasPreferredBC = true;
@@ -2302,6 +2305,7 @@ bool CodeGenerator::OptimizePlan(const FAnalysis& Analysis, const FOptions& Opti
         }
 
         FSearchState ReorderedState;
+        ReorderedState.EmitState.ScreenBaseAddress = Analysis.ScreenBaseAddress;
         if (Analysis.bHasPreferredBC)
         {
             ReorderedState.EmitState.bHasPreferredBC = true;
@@ -3079,8 +3083,8 @@ static void EmitAsmHeader(
         Out.Preview << ";   Frame        - " << FrameIndex << "\n";
     }
     Out.Preview << ";   Function     - " << LabelName << "\n";
-    Out.Preview << ";   Destination  - ZX memory destination " << CodeGenerator::Hex16(CodeGenerator::ZX_SCREEN_BASE)
-        << ".." << CodeGenerator::Hex16(CodeGenerator::ZX_SCREEN_END - 1) << "\n";
+    Out.Preview << ";   Destination  - ZX memory destination " << CodeGenerator::Hex16(Options.ScreenBaseAddress)
+        << ".." << CodeGenerator::Hex16(Options.ScreenBaseAddress + CodeGenerator::ZX_SCREEN_SIZE - 1) << "\n";
     Out.Preview << ";   Value        - frame data, see generated operations below\n";
     const int32_t ActiveBytes = CountDirtyBytes(Analysis.Dirty);
     Out.Preview << ";   Size         - " << ActiveBytes << " active bytes\n";
@@ -3108,6 +3112,12 @@ static void EmitAsmHeader(
         << ", probe limit " << Options.MaxNonLinearCandidatesToEvaluatePerPass << "\n";
     Out.Preview << ";   Stack opts   - max pairs " << Options.MaxStackPairsToEnumerate
         << ", top " << CodeGenerator::Hex16(Options.StackTopAddress) << "\n";
+    if (bPreserveSP)
+    {
+        Out.Preview << ";   Stack scratch - " << CodeGenerator::Hex16(static_cast<uint16_t>(Options.StackTopAddress - 2))
+            << ".." << CodeGenerator::Hex16(static_cast<uint16_t>(Options.StackTopAddress + 1)) << "\n";
+    }
+    Out.Preview << ";   Screen base  - " << CodeGenerator::Hex16(Options.ScreenBaseAddress) << "\n";
     Out.Preview << ";   Candidates   - byte " << (Options.EnableByteCandidates ? "on" : "off")
         << ", word " << (Options.EnableWordCandidates ? "on" : "off")
         << ", stack " << (Options.EnableStackBlocks ? "on" : "off")
@@ -3168,7 +3178,7 @@ static void EmitAsmHeader(
 
 static void EmitMoveHLToOffset(CodeGenerator::FEmitOutput& Out, CodeGenerator::FEmitState& State, uint16_t& HL, int32_t Offset)
 {
-    const uint16_t Target = CodeGenerator::AddrOf(Offset);
+    const uint16_t Target = CodeGenerator::AddrOf(Offset, State.ScreenBaseAddress);
     if (State.bHasHL && State.HL == Target)
     {
         HL = Target;
@@ -3248,7 +3258,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
     case EOpKind::StackBlock:
     {
-        const uint16_t endAddr = AddrOf(Candidate.EndOffset);
+        const uint16_t endAddr = AddrOf(Candidate.EndOffset, State.ScreenBaseAddress);
         EmitLD_SP(Out, State, endAddr);
 
         FStackPairValue Pairs[3] =
@@ -3275,9 +3285,9 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
         for (int32_t Pos = Candidate.StartOffset; Pos < Candidate.EndOffset; Pos += 2)
         {
-            Out.Preview << "                LD (" << Hex16(AddrOf(Pos)) << "), HL\n";
+            Out.Preview << "                LD (" << Hex16(AddrOf(Pos, State.ScreenBaseAddress)) << "), HL\n";
             EmitByte(Out, 0x22);
-            EmitWordLE(Out, AddrOf(Pos));
+            EmitWordLE(Out, AddrOf(Pos, State.ScreenBaseAddress));
             Out.Cycles += 16;
         }
 
@@ -3286,7 +3296,7 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
 
     case EOpKind::RepeatWordStack:
     {
-        const uint16_t EndAddr = AddrOf(Candidate.EndOffset);
+        const uint16_t EndAddr = AddrOf(Candidate.EndOffset, State.ScreenBaseAddress);
         EmitLD_SP(Out, State, EndAddr);
         FStackPairValue Pairs[3] =
         {
@@ -3479,9 +3489,9 @@ bool CodeGenerator::EmitCandidate(FEmitOutput& Out, const FCandidate& Candidate,
         for (int32_t i = 0; i < Candidate.Count; ++i)
         {
             const int32_t Offset = Candidate.StartOffset + i * Candidate.Stride;
-            Out.Preview << "                LD (" << Hex16(AddrOf(Offset)) << "), HL\n";
+            Out.Preview << "                LD (" << Hex16(AddrOf(Offset, State.ScreenBaseAddress)) << "), HL\n";
             EmitByte(Out, 0x22);
-            EmitWordLE(Out, AddrOf(Offset));
+            EmitWordLE(Out, AddrOf(Offset, State.ScreenBaseAddress));
             Out.Cycles += 16;
         }
 
@@ -3580,6 +3590,7 @@ bool CodeGenerator::EmitAsm(const FAnalysis& Analysis, const FPlan& Plan, const 
 {
     FEmitOutput Out;
     FEmitState State;
+    State.ScreenBaseAddress = Options.ScreenBaseAddress;
     size_t RestoreSPOperandOffset = (std::numeric_limits<size_t>::max)();
     size_t CurrentAddressOffset = (std::numeric_limits<size_t>::max)();
     uint16_t RestoreSPRelativeOffset = 0;

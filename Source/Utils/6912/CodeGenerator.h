@@ -6,6 +6,9 @@
 namespace CodeGenerator
 {
     static constexpr uint16_t ZX_SCREEN_BASE = 0x4000;
+    static constexpr uint16_t ZX_SHADOW_SCREEN_BASE = 0xC000;
+    static constexpr uint16_t ZX_PRINTER_BUFFER_BASE = 0x5B00;
+    static constexpr uint16_t ZX_STACK_TRAMPOLINE_TOP = ZX_PRINTER_BUFFER_BASE + 2; // touches #5B00..#5B03
     static constexpr int32_t ZX_PIXEL_SIZE = 0x1800;
     static constexpr int32_t ZX_ATTRIBUTE_SIZE = 0x0300;
     static constexpr int32_t ZX_SCREEN_SIZE = 0x1B00;
@@ -129,6 +132,7 @@ namespace CodeGenerator
         bool bHasPreferredDE;
         uint8_t PreferredD;
         uint8_t PreferredE;
+        uint16_t ScreenBaseAddress;
 
         // StartsAt[Offset] -> ID кандидатов, которые могут начаться с Offset.
         std::vector<std::vector<int32_t>> StartsAt;
@@ -140,6 +144,7 @@ namespace CodeGenerator
             , bHasPreferredDE(false)
             , PreferredD(0)
             , PreferredE(0)
+            , ScreenBaseAddress(ZX_SCREEN_BASE)
         {
         }
     };
@@ -190,6 +195,7 @@ namespace CodeGenerator
         bool PreserveSP;
         bool DisableInterruptsForStack;
         uint16_t StackTopAddress;
+        uint16_t ScreenBaseAddress;
 
         bool EnableByteCandidates;
         bool EnableWordCandidates;
@@ -208,7 +214,8 @@ namespace CodeGenerator
             , ByteWeight(1)
             , PreserveSP(true)
             , DisableInterruptsForStack(true)
-            , StackTopAddress(0xFF00)
+            , StackTopAddress(ZX_STACK_TRAMPOLINE_TOP)
+            , ScreenBaseAddress(ZX_SCREEN_BASE)
             , EnableByteCandidates(true)
             , EnableWordCandidates(true)
             , EnableStackBlocks(true)
@@ -243,6 +250,7 @@ namespace CodeGenerator
 
         bool bHasSP;
         uint16_t SP;
+        uint16_t ScreenBaseAddress;
 
         bool bHasPreferredBC;
         uint16_t PreferredBC;
@@ -266,6 +274,7 @@ namespace CodeGenerator
             , bHasE(false)
             , bHasSP(false)
             , SP(0)
+            , ScreenBaseAddress(ZX_SCREEN_BASE)
             , bHasPreferredBC(false)
             , PreferredBC(0)
             , bHasPreferredDE(false)
@@ -308,6 +317,11 @@ namespace CodeGenerator
     inline uint16_t AddrOf(int Offset)
     {
         return static_cast<uint16_t>(ZX_SCREEN_BASE + Offset);
+    }
+
+    inline uint16_t AddrOf(int Offset, uint16_t ScreenBaseAddress)
+    {
+        return static_cast<uint16_t>(ScreenBaseAddress + Offset);
     }
 
     inline uint16_t ReadWordLE(const std::vector<uint8_t>& Data, int32_t Offset)
