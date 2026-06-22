@@ -183,6 +183,7 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	, Height(0)
 	, SelectedSpritesFrame(0)
 	, LastRebuiltSpriteFrame(INDEX_NONE)
+	, MaxFramesInSprites(0)
 	, FrameMode(EFrameMode::None)
 	, ImageFormat(EImageFormat::None)
 	, ImageFrameIndex(INDEX_NONE)
@@ -515,6 +516,19 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 		FEvent_ToolBar Event_ToolBar(FEventTag::RequestToolModeTag);
 		SendEvent(Event_ToolBar);
 	}
+}
+
+bool SCanvas::HasTimeline() const
+{
+	if (ImageFormat == EImageFormat::GIF)
+	{
+		return MaxFramesInSprites > 0;
+	}
+
+	return ImageFormat == EImageFormat::Aseprite &&
+		AsepriteSprite &&
+		AsepriteSprite->Layers.size() > 1 &&
+		AsepriteSprite->Frames.size() > 1;
 }
 
 void SCanvas::SetupHotKeys()
@@ -2032,7 +2046,7 @@ bool SCanvas::SplitSpriteName(const std::string& Name, std::string& Base, int32_
 	int32_t Index = (int32_t)Name.size() - 1;
 
 	// start from the end while there are numbers
-	while (Index >= 0 && std::isdigit(Name[Index]))
+	while (Index >= 0 && std::isdigit(static_cast<unsigned char>(Name[Index])))
 	{
 		--Index;
 	}

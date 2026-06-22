@@ -1710,9 +1710,7 @@ bool FAppSprite::HasCanvasWithTimeline() const
 {
 	for (std::shared_ptr<SCanvas> Canvas : ActiveCanvas)
 	{
-		const EImageFormat ImageFormat = Canvas->GetImageFormat();
-		if (ImageFormat == EImageFormat::GIF ||
-			ImageFormat == EImageFormat::Aseprite)
+		if (Canvas->HasTimeline())
 		{
 			return true;
 		}
