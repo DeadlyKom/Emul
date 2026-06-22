@@ -125,6 +125,7 @@ struct FSpriteMetaRegion
 {
 	ImRect Rect;
 	std::vector<FSpriteProperty> Properties;
+	bool bHasRegionRect = true;
 
 	// internal variable
 	bool bVisible = true;
@@ -133,20 +134,23 @@ struct FSpriteMetaRegion
 
 inline void to_json(nlohmann::ordered_json& j, const FSpriteMetaRegion& region)
 {
-	j = {
-		{"RegionRect", std::vector<int>{
+	j = nlohmann::ordered_json::object();
+	if (region.bHasRegionRect)
+	{
+		j["RegionRect"] = std::vector<int>{
 			static_cast<int>(region.Rect.Min.x),
 			static_cast<int>(region.Rect.Min.y),
 			static_cast<int>(region.Rect.Max.x),
 			static_cast<int>(region.Rect.Max.y)
-		}},
-		{"Metadata", region.Properties}
-	};
+		};
+	}
+	j["Metadata"] = region.Properties;
 }
 
 inline void from_json(const nlohmann::ordered_json& j, FSpriteMetaRegion& region)
 {
-	if (j.contains("RegionRect") && j["RegionRect"].is_array() && j["RegionRect"].size() == 4)
+	region.bHasRegionRect = j.contains("RegionRect") && j["RegionRect"].is_array() && j["RegionRect"].size() == 4;
+	if (region.bHasRegionRect)
 	{
 		region.Rect.Min.x = j["RegionRect"][0].get<float>();
 		region.Rect.Min.y = j["RegionRect"][1].get<float>();

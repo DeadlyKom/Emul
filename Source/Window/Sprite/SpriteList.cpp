@@ -857,6 +857,11 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 
 			for (FSpriteMetaRegion& Region : NewSprite->Regions)
 			{
+				if (!Region.bHasRegionRect)
+				{
+					continue;
+				}
+
 				Region.ZXColorView = std::make_shared<UI::FZXColorView>();
 				Region.ZXColorView->bOnlyNearestSampling = true;
 				Region.ZXColorView->Device = Data.Device;

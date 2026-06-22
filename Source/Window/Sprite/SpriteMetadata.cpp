@@ -115,24 +115,35 @@ void SSpriteMetadata::Draw_Regions(const ImVec2& Size)
 		{
 			const bool bIsSelectedRegion = RegionIndex == IndexSelectedRegion;
 			FSpriteMetaRegion& SpriteMetaRegion = SelectedSprite->Regions[RegionIndex];
+			const std::string HeaderName = SpriteMetaRegion.bHasRegionRect
+				? std::format(" {} Region #{} {}##Region{}", bIsSelectedRegion ? ">" : "", RegionIndex, bIsSelectedRegion ? "<" : "", RegionIndex)
+				: std::format(" {} Entire sprite {}##Region{}", bIsSelectedRegion ? ">" : "", bIsSelectedRegion ? "<" : "", RegionIndex);
 
-			if (ImGui::CollapsingHeader(
-				std::format(" {} Region #{} {}##Region", bIsSelectedRegion ? ">" : "", RegionIndex, bIsSelectedRegion ? "<" : "").c_str(),
+			const bool bHeaderOpen = ImGui::CollapsingHeader(
+				HeaderName.c_str(),
 				&SpriteMetaRegion.bVisible,
 				ImGuiTreeNodeFlags_OpenOnArrow |
 				ImGuiTreeNodeFlags_OpenOnDoubleClick |
 				ImGuiTreeNodeFlags_SpanFullWidth |
-				(bIsSelectedRegion ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None)))
-			{
-				if (ImGui::IsItemHovered())
-				{
-					ImGui::BeginTooltip();
-					ImGui::TextUnformatted("Region info:");
-					ImGui::Spacing();
-					ImGui::TextUnformatted(std::format(" - size: {} x {}", SpriteMetaRegion.Rect.GetSize().x, SpriteMetaRegion.Rect.GetSize().y).c_str());
-					ImGui::EndTooltip();
-				}
+				(bIsSelectedRegion ? ImGuiTreeNodeFlags_Selected : ImGuiTreeNodeFlags_None));
 
+			if (ImGui::IsItemClicked())
+			{
+				IndexSelectedRegion = RegionIndex;
+				IndexSelectedProperty = INDEX_NONE;
+			}
+
+			if (ImGui::IsItemHovered() && SpriteMetaRegion.bHasRegionRect)
+			{
+				ImGui::BeginTooltip();
+				ImGui::TextUnformatted("Region info:");
+				ImGui::Spacing();
+				ImGui::TextUnformatted(std::format(" - size: {} x {}", SpriteMetaRegion.Rect.GetSize().x, SpriteMetaRegion.Rect.GetSize().y).c_str());
+				ImGui::EndTooltip();
+			}
+
+			if (bHeaderOpen)
+			{
 				for (int32_t PropertyIndex = 0; PropertyIndex < SpriteMetaRegion.Properties.size(); ++PropertyIndex)
 				{
 					const std::string EditingPropertName = std::format("{}_PropertyName{}", RegionIndex, PropertyIndex);
@@ -181,6 +192,7 @@ void SSpriteMetadata::Draw_Regions(const ImVec2& Size)
 						const std::string PropertyName = std::format("{}##{}_PropertyName{}", Property.Name.c_str(), RegionIndex, PropertyIndex);
 						if (ImGui::Selectable(PropertyName.c_str(), bIsSelectedProperty))
 						{
+							IndexSelectedRegion = RegionIndex;
 							IndexSelectedProperty = PropertyIndex;
 						}
 
@@ -196,22 +208,11 @@ void SSpriteMetadata::Draw_Regions(const ImVec2& Size)
 			{
 				if (RemoveAtSwap(SelectedSprite->Regions, RegionIndex))
 				{
+					IndexSelectedRegion = INDEX_NONE;
+					IndexSelectedProperty = INDEX_NONE;
 					--RegionIndex;
 				}
-			}
-
-			if (ImGui::IsItemHovered())
-			{
-				ImGui::BeginTooltip();
-				ImGui::TextUnformatted("Region info:");
-				ImGui::Spacing();
-				ImGui::TextUnformatted(std::format(" - size: {} x {}", SpriteMetaRegion.Rect.GetSize().x, SpriteMetaRegion.Rect.GetSize().y).c_str());
-				ImGui::EndTooltip();
-			}
-
-			if (ImGui::IsItemClicked()/* && !ImGui::IsItemToggledOpen()*/)
-			{
-				IndexSelectedRegion = RegionIndex;
+				continue;
 			}
 		}
 	}
@@ -221,7 +222,9 @@ void SSpriteMetadata::Draw_Regions(const ImVec2& Size)
 void SSpriteMetadata::Draw_Sprite(const ImVec2& Size)
 {
 	UI::FButtonZXColorSpriteSettings::FLayer Layers = {};
-	if (IndexSelectedRegion != INDEX_NONE && SelectedSprite->Regions.size() > IndexSelectedRegion)
+	if (IndexSelectedRegion != INDEX_NONE &&
+		SelectedSprite->Regions.size() > IndexSelectedRegion &&
+		SelectedSprite->Regions[IndexSelectedRegion].bHasRegionRect)
 	{
 		FSpriteMetaRegion& SpriteMetaRegion = SelectedSprite->Regions[IndexSelectedRegion];
 		Layers = { SpriteMetaRegion.ZXColorView };
@@ -322,14 +325,27 @@ void SSpriteMetadata::Draw_Property(const ImVec2& Size)
 void SSpriteMetadata::Draw_Buttons(const ImVec2& Position, float HeightButton)
 {
 	ImGui::SetCursorPos(Position);
-	const bool bAddRemovePropertyButtons = SelectedSprite->Regions.size() > IndexSelectedRegion && IndexSelectedRegion != INDEX_NONE;
-	ImGui::BeginDisabled(!bAddRemovePropertyButtons);
-
 	if (ImGui::ButtonEx("+", ImVec2(HeightButton * 0.5f, HeightButton * 0.5f)))
 	{
+		if (IndexSelectedRegion == INDEX_NONE || IndexSelectedRegion >= SelectedSprite->Regions.size())
+		{
+			auto It = std::find_if(SelectedSprite->Regions.begin(), SelectedSprite->Regions.end(),
+				[](const FSpriteMetaRegion& Region) { return !Region.bHasRegionRect; });
+			if (It == SelectedSprite->Regions.end())
+			{
+				SelectedSprite->Regions.emplace_back(FSpriteMetaRegion{ .bHasRegionRect = false });
+				IndexSelectedRegion = static_cast<int32_t>(SelectedSprite->Regions.size() - 1);
+			}
+			else
+			{
+				IndexSelectedRegion = static_cast<int32_t>(std::distance(SelectedSprite->Regions.begin(), It));
+			}
+		}
+
 		FSpriteMetaRegion& SpriteMetaRegion = SelectedSprite->Regions[IndexSelectedRegion];
 		FSpriteProperty NewProperty(std::format("Property #{}", SpriteMetaRegion.Properties.size()).c_str(), false);
 		SpriteMetaRegion.Properties.push_back(NewProperty);
+		IndexSelectedProperty = static_cast<int32_t>(SpriteMetaRegion.Properties.size() - 1);
 	}
 
 	bool bHovered = false;
@@ -342,12 +358,19 @@ void SSpriteMetadata::Draw_Buttons(const ImVec2& Position, float HeightButton)
 	}
 
 	ImGui::SetCursorPos({ Position.x + HeightButton * 0.8f, Position.y});
+	const bool bCanRemoveProperty =
+		IndexSelectedRegion != INDEX_NONE &&
+		IndexSelectedRegion < SelectedSprite->Regions.size() &&
+		IndexSelectedProperty != INDEX_NONE &&
+		IndexSelectedProperty < SelectedSprite->Regions[IndexSelectedRegion].Properties.size();
+	ImGui::BeginDisabled(!bCanRemoveProperty);
 	if (ImGui::ButtonEx("-", ImVec2(HeightButton * 0.5f, HeightButton * 0.5f)))
 	{
 		FSpriteMetaRegion& SpriteMetaRegion = SelectedSprite->Regions[IndexSelectedRegion];
 		if (SpriteMetaRegion.Properties.size() > IndexSelectedProperty && IndexSelectedProperty != INDEX_NONE)
 		{
 			SpriteMetaRegion.Properties.erase(SpriteMetaRegion.Properties.begin() + IndexSelectedProperty);
+			IndexSelectedProperty = INDEX_NONE;
 		}
 	}
 	bHovered |= ImGui::IsItemHovered();
