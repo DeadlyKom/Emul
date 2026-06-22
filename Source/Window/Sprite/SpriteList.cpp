@@ -955,10 +955,15 @@ void SSpriteList::ExportSprites(
 
 	for (const std::shared_ptr<FSprite>& Sprite : SelectedSprites)
 	{
+		const auto MakeExportFilename = [&Sprite](std::string_view Extension)
+			{
+				return std::filesystem::path(Utils::Utf8ToUtf16(Sprite->Name + std::string(Extension)));
+			};
+
 		std::filesystem::path IndexedDataFilePath;
 		if (Sprite->ZXColorView->IndexedData.size() > 0)
 		{
-			IndexedDataFilePath = IO::NormalizePath(ExportPath / std::format("{}.png", Sprite->Name));
+			IndexedDataFilePath = IO::NormalizePath(ExportPath / MakeExportFilename(".png"));
 			const std::filesystem::path UniqueIndexedDataFilePath = bUniqueExportFilename ? IO::GetUniquePath(IndexedDataFilePath, ec) : IndexedDataFilePath;
 			if (ec)
 			{
@@ -997,21 +1002,21 @@ void SSpriteList::ExportSprites(
 		std::filesystem::path InkDataFilePath;
 		if (Sprite->ZXColorView->InkData.size() > 0)
 		{
-			InkDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("{}.ink", Sprite->Name)));
+			InkDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / MakeExportFilename(".ink")));
 			IO::SaveBinaryData(Sprite->ZXColorView->InkData, InkDataFilePath, bUniqueExportFilename);
 		}
 
 		std::filesystem::path AttributeDataFilePath;
 		if (Sprite->ZXColorView->AttributeData.size() > 0)
 		{
-			AttributeDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("{}.attr", Sprite->Name)));
+			AttributeDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / MakeExportFilename(".attr")));
 			IO::SaveBinaryData(Sprite->ZXColorView->AttributeData, AttributeDataFilePath, bUniqueExportFilename);
 		}
 
 		std::filesystem::path MaskDataFilePath;
 		if (Sprite->ZXColorView->MaskData.size() > 0)
 		{
-			MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / std::format("{}.mask", Sprite->Name)));
+			MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / MakeExportFilename(".mask")));
 			IO::SaveBinaryData(Sprite->ZXColorView->MaskData, MaskDataFilePath, bUniqueExportFilename);
 		}
 
