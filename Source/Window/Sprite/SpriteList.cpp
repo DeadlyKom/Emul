@@ -126,6 +126,11 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 				}
 			}
 		});
+	SubscribeEvent<FEvent_RequestSprites>(
+		[this](const FEvent_RequestSprites& Event)
+		{
+			Event.ExecuteCallback(Sprites);
+		});
 }
 
 void SSpriteList::Initialize(const std::vector<std::any>& Args)

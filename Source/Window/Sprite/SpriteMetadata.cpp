@@ -3,7 +3,12 @@
 #include "SpriteList.h"
 
 #include <Utils/Array.h>
+#include <Utils/Char.h>
+#include <Utils/IO.h>
 #include <Utils/UI/Draw.h>
+#include <Core/AppFramework.h>
+#include <Settings/SpriteSettings.h>
+#include <json/json.hpp>
 
 namespace
 {
@@ -17,6 +22,9 @@ SSpriteMetadata::SSpriteMetadata(EFont::Type _FontName, std::string _DockSlot /*
 		.SetFontName(_FontName)
 		.SetDockSlot(_DockSlot)
 		.SetIncludeInWindows(false))
+	, HeverTooltip(0.0f)
+	, IndexSelectedRegion(INDEX_NONE)
+	, IndexSelectedProperty(INDEX_NONE)
 {}
 
 void SSpriteMetadata::NativeInitialize(const FNativeDataInitialize& Data)
@@ -28,9 +36,189 @@ void SSpriteMetadata::NativeInitialize(const FNativeDataInitialize& Data)
 		{
 			if (Event.Tag == FEventTag::SelectedSpritesChangedTag)
 			{
+				if (SelectedSprite != Event.Sprite)
+				{
+					IndexSelectedRegion = INDEX_NONE;
+					IndexSelectedProperty = INDEX_NONE;
+					EditingProperty.clear();
+				}
 				SelectedSprite = Event.Sprite;
 			}
 		});
+}
+
+void SSpriteMetadata::Initialize(const std::vector<std::any>& Args)
+{
+	Super::Initialize(Args);
+
+	constexpr const char* DefaultPresetsPath = "Saved/Properties";
+	FSpriteSettings& Settings = FSpriteSettings::Get();
+	const auto ConfiguredPath = Settings.GetValue<std::string>(FSpriteSettings::MetadataPresetsPathTag);
+	const bool bMigrateOldPath = ConfiguredPath.has_value() && *ConfiguredPath == "Properties";
+	if (ConfiguredPath.has_value() && !ConfiguredPath->empty() && !bMigrateOldPath)
+	{
+		MetadataPresetsPath = Utils::Utf8ToUtf16(*ConfiguredPath);
+	}
+	else
+	{
+		MetadataPresetsPath = DefaultPresetsPath;
+		Settings.SetValue<std::string>(FSpriteSettings::MetadataPresetsPathTag, DefaultPresetsPath);
+		const std::filesystem::path SettingsPath = FAppFramework::GetPath(EPathType::Config) / FAppFramework::GetFilename(EFilenameType::Config);
+		Settings.Save(IO::NormalizePath(SettingsPath));
+	}
+
+	if (MetadataPresetsPath.is_relative())
+	{
+		std::wstring ExecutablePath(32768, L'\0');
+		const DWORD PathLength = GetModuleFileNameW(nullptr, ExecutablePath.data(), static_cast<DWORD>(ExecutablePath.size()));
+		if (PathLength > 0 && PathLength < ExecutablePath.size())
+		{
+			ExecutablePath.resize(PathLength);
+			MetadataPresetsPath = std::filesystem::path(ExecutablePath).parent_path() / MetadataPresetsPath;
+		}
+		else
+		{
+			MetadataPresetsPath = std::filesystem::current_path() / MetadataPresetsPath;
+		}
+	}
+	MetadataPresetsPath = IO::NormalizePath(MetadataPresetsPath);
+	LoadMetadataPresets();
+}
+
+void SSpriteMetadata::LoadMetadataPresets()
+{
+	MetadataPresets.clear();
+	PresetError.clear();
+	std::error_code Error;
+	if (!std::filesystem::exists(MetadataPresetsPath, Error))
+	{
+		std::filesystem::create_directories(MetadataPresetsPath, Error);
+	}
+	if (Error)
+	{
+		PresetError = std::format("Cannot open preset directory: {}", Error.message());
+		return;
+	}
+
+	for (const std::filesystem::directory_entry& Entry : std::filesystem::directory_iterator(MetadataPresetsPath, Error))
+	{
+		if (Error || !Entry.is_regular_file() || Entry.path().extension() != L".json")
+		{
+			continue;
+		}
+
+		try
+		{
+			std::ifstream File(Entry.path(), std::ios::binary);
+			nlohmann::ordered_json Json;
+			File >> Json;
+			if (!Json.is_object() || !Json.contains("Name") || !Json.contains("Properties") || !Json["Properties"].is_array())
+			{
+				continue;
+			}
+
+			FMetadataPreset Preset;
+			Preset.Name = Json["Name"].get<std::string>();
+			Preset.FilePath = Entry.path();
+			for (const nlohmann::ordered_json& PropertyJson : Json["Properties"])
+			{
+				if (!PropertyJson.contains("Name") || !PropertyJson.contains("Type"))
+				{
+					continue;
+				}
+				FSpriteProperty Property(PropertyJson["Name"].get<std::string>());
+				const std::string Type = PropertyJson["Type"].get<std::string>();
+				const auto TypeIt = std::find_if(std::begin(FSpriteProperty::TypeNames), std::end(FSpriteProperty::TypeNames),
+					[&Type](const char* Name) { return Type == Name; });
+				if (TypeIt == std::end(FSpriteProperty::TypeNames))
+				{
+					continue;
+				}
+				const int32_t TypeIndex = static_cast<int32_t>(std::distance(std::begin(FSpriteProperty::TypeNames), TypeIt));
+				Property.TypeByIndex(TypeIndex);
+				if (PropertyJson.contains("Value"))
+				{
+					switch (TypeIndex)
+					{
+					case 0: Property.Variant = PropertyJson["Value"].get<bool>(); break;
+					case 1: Property.Variant = PropertyJson["Value"].get<int>(); break;
+					case 2: Property.Variant = PropertyJson["Value"].get<float>(); break;
+					case 3: Property.Variant = PropertyJson["Value"].get<std::string>(); break;
+					}
+				}
+				Preset.Properties.push_back(std::move(Property));
+			}
+			if (!Preset.Name.empty() && !Preset.Properties.empty())
+			{
+				MetadataPresets.push_back(std::move(Preset));
+			}
+		}
+		catch (const std::exception& Exception)
+		{
+			LOG_ERROR("[{}]\t Failed to load metadata preset '{}': {}", (__FUNCTION__), Entry.path().string(), Exception.what());
+		}
+	}
+
+	std::sort(MetadataPresets.begin(), MetadataPresets.end(),
+		[](const FMetadataPreset& Left, const FMetadataPreset& Right) { return Left.Name < Right.Name; });
+}
+
+bool SSpriteMetadata::SaveMetadataPreset()
+{
+	PresetError.clear();
+	const std::string PresetName = NewPresetName;
+	if (PresetName.empty())
+	{
+		PresetError = "Preset name is required.";
+		return false;
+	}
+	if (NewPresetProperties.empty() || std::any_of(NewPresetProperties.begin(), NewPresetProperties.end(),
+		[](const FSpriteProperty& Property) { return Property.Name.empty(); }))
+	{
+		PresetError = "Add at least one named property.";
+		return false;
+	}
+
+	nlohmann::ordered_json Json;
+	Json["Name"] = PresetName;
+	Json["Properties"] = nlohmann::ordered_json::array();
+	for (const FSpriteProperty& Property : NewPresetProperties)
+	{
+		nlohmann::ordered_json PropertyJson;
+		PropertyJson["Name"] = Property.Name;
+		PropertyJson["Type"] = std::string(Property.GetTypeName());
+		std::visit([&PropertyJson](const auto& Value) { PropertyJson["Value"] = Value; }, Property.Variant);
+		Json["Properties"].push_back(std::move(PropertyJson));
+	}
+
+	std::string FileName = PresetName;
+	for (char& Character : FileName)
+	{
+		if (Character == '<' || Character == '>' || Character == ':' || Character == '"' || Character == '/' ||
+			Character == '\\' || Character == '|' || Character == '?' || Character == '*')
+		{
+			Character = '_';
+		}
+	}
+	const std::filesystem::path FilePath = MetadataPresetsPath / (Utils::Utf8ToUtf16(FileName) + L".json");
+	std::error_code Error;
+	std::filesystem::create_directories(MetadataPresetsPath, Error);
+	if (Error)
+	{
+		PresetError = Error.message();
+		return false;
+	}
+
+	std::ofstream File(FilePath, std::ios::binary | std::ios::trunc);
+	if (!File.is_open())
+	{
+		PresetError = "Cannot write preset file.";
+		return false;
+	}
+	File << Json.dump(4);
+	File.close();
+	LoadMetadataPresets();
+	return true;
 }
 
 void SSpriteMetadata::Render()
@@ -74,6 +262,21 @@ void SSpriteMetadata::Draw_Metadata()
 		ImGui::SetWindowSize(ImVec2(850.0f, 420.0f));
 		ImGui::SetWindowCollapsed(false);
 		IndexSelectedRegion = INDEX_NONE;
+		IndexSelectedProperty = INDEX_NONE;
+	}
+
+	const bool bValidSelectedProperty =
+		IndexSelectedRegion >= 0 &&
+		IndexSelectedRegion < static_cast<int32_t>(SelectedSprite->Regions.size()) &&
+		IndexSelectedProperty >= 0 &&
+		IndexSelectedProperty < static_cast<int32_t>(SelectedSprite->Regions[IndexSelectedRegion].Properties.size());
+	const bool bEditingAnyProperty = std::any_of(EditingProperty.begin(), EditingProperty.end(),
+		[](const auto& Pair) { return Pair.second; });
+	if (bValidSelectedProperty && !bEditingAnyProperty && !ImGui::IsAnyItemActive() &&
+		ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsKeyPressed(ImGuiKey_Delete))
+	{
+		auto& Properties = SelectedSprite->Regions[IndexSelectedRegion].Properties;
+		Properties.erase(Properties.begin() + IndexSelectedProperty);
 		IndexSelectedProperty = INDEX_NONE;
 	}
 
@@ -167,21 +370,13 @@ void SSpriteMetadata::Draw_Regions(const ImVec2& Size)
 						InputBuffer[sizeof(InputBuffer) - 1] = '\0';
 
 						if (ImGui::InputText(std::format("##PropertyName{}", PropertyIndex).c_str(), InputBuffer, sizeof(InputBuffer),
-							ImGuiInputTextFlags_EnterReturnsTrue |
-							ImGuiInputTextFlags_AutoSelectAll |
-							ImGuiInputTextFlags_AlwaysOverwrite))
+							ImGuiInputTextFlags_AutoSelectAll))
 						{
 							Property.Name = InputBuffer;
-							EditingProperty[EditingPropertName] = false; // save and exit editing mode
 						}
 
-						// If you press ESC, you cancel editing
-						if (ImGui::IsKeyPressed(ImGuiKey_Escape))
-						{
-							EditingProperty[EditingPropertName] = false;
-						}
-						// Click outside the field - we also finish editing
-						if (!ImGui::IsItemHovered() && ImGui::IsMouseClicked(0))
+						// Keep the edited name and finish editing when the field loses focus.
+						if (ImGui::IsItemDeactivated() || ImGui::IsKeyPressed(ImGuiKey_Enter) || ImGui::IsKeyPressed(ImGuiKey_Escape))
 						{
 							EditingProperty[EditingPropertName] = false;
 						}
@@ -265,59 +460,33 @@ void SSpriteMetadata::Draw_Property(const ImVec2& Size)
 
 		ImGui::Dummy(ImVec2(0.0f, ImGui::GetTextLineHeightWithSpacing() * 1.0f));
 		ImGui::SeparatorText("Value : ");
-		char ValueBuffer[128];
-		snprintf(ValueBuffer, sizeof(ValueBuffer), "%s", Property.ToString().c_str());
-
-		//ImGui::PushItemWidth(200.0f);
-		if (ImGui::InputText(std::format("##Value{}_{}",IndexSelectedRegion, IndexSelectedProperty).c_str(), ValueBuffer, sizeof(ValueBuffer)))
-		{
-			try
+		const std::string ValueID = std::format("##Value{}_{}", IndexSelectedRegion, IndexSelectedProperty);
+		std::visit([&ValueID](auto& Value)
 			{
-				std::string_view Buf(ValueBuffer);
-				std::visit([&](auto&& Arg)
+				using TValue = std::decay_t<decltype(Value)>;
+				if constexpr (std::is_same_v<TValue, bool>)
+				{
+					ImGui::Checkbox(ValueID.c_str(), &Value);
+				}
+				else if constexpr (std::is_same_v<TValue, int>)
+				{
+					ImGui::InputInt(ValueID.c_str(), &Value);
+				}
+				else if constexpr (std::is_same_v<TValue, float>)
+				{
+					ImGui::InputFloat(ValueID.c_str(), &Value);
+				}
+				else if constexpr (std::is_same_v<TValue, std::string>)
+				{
+					char ValueBuffer[256];
+					std::strncpy(ValueBuffer, Value.c_str(), sizeof(ValueBuffer));
+					ValueBuffer[sizeof(ValueBuffer) - 1] = '\0';
+					if (ImGui::InputText(ValueID.c_str(), ValueBuffer, sizeof(ValueBuffer)))
 					{
-						using T = std::decay_t<decltype(Arg)>;
-						if constexpr (std::is_same_v<T, int>)
-						{
-							Arg = std::stoi(std::string(Buf));
-						}
-						else if constexpr (std::is_same_v<T, float>)
-						{
-							Arg = std::stof(std::string(Buf));
-						}
-						else if constexpr (std::is_same_v<T, bool>)
-						{
-							Arg = (Buf == "true");
-						}
-						else if constexpr (std::is_same_v<T, std::string>)
-						{
-							Arg = std::string(Buf);
-						}
-					}, Property.Variant);
-
-				//if (std::holds_alternative<int>(Property.Variant))
-				//{
-				//	Property.Variant = std::stoi(ValueBuffer);
-				//}
-				//else if (std::holds_alternative<float>(Property.Variant))
-				//{
-				//	Property.Variant = std::stof(ValueBuffer);
-				//}
-				//else if (std::holds_alternative<std::string>(Property.Variant))
-				//{
-				//	Property.Variant = std::string(ValueBuffer);
-				//}
-				//else if (std::holds_alternative<bool>(Property.Variant))
-				//{
-				//	Property.Variant = (std::string(ValueBuffer) == "true");
-				//}
-			}
-			catch (...)
-			{
-				// If the conversion failed, leave the old value
-			}
-		}
-		//ImGui::PopItemWidth();
+						Value = ValueBuffer;
+					}
+				}
+			}, Property.Variant);
 	}
 	ImGui::EndChild();
 }
@@ -327,25 +496,7 @@ void SSpriteMetadata::Draw_Buttons(const ImVec2& Position, float HeightButton)
 	ImGui::SetCursorPos(Position);
 	if (ImGui::ButtonEx("+", ImVec2(HeightButton * 0.5f, HeightButton * 0.5f)))
 	{
-		if (IndexSelectedRegion == INDEX_NONE || IndexSelectedRegion >= SelectedSprite->Regions.size())
-		{
-			auto It = std::find_if(SelectedSprite->Regions.begin(), SelectedSprite->Regions.end(),
-				[](const FSpriteMetaRegion& Region) { return !Region.bHasRegionRect; });
-			if (It == SelectedSprite->Regions.end())
-			{
-				SelectedSprite->Regions.emplace_back(FSpriteMetaRegion{ .bHasRegionRect = false });
-				IndexSelectedRegion = static_cast<int32_t>(SelectedSprite->Regions.size() - 1);
-			}
-			else
-			{
-				IndexSelectedRegion = static_cast<int32_t>(std::distance(SelectedSprite->Regions.begin(), It));
-			}
-		}
-
-		FSpriteMetaRegion& SpriteMetaRegion = SelectedSprite->Regions[IndexSelectedRegion];
-		FSpriteProperty NewProperty(std::format("Property #{}", SpriteMetaRegion.Properties.size()).c_str(), false);
-		SpriteMetaRegion.Properties.push_back(NewProperty);
-		IndexSelectedProperty = static_cast<int32_t>(SpriteMetaRegion.Properties.size() - 1);
+		ImGui::OpenPopup("Add metadata##AddMetadata");
 	}
 
 	bool bHovered = false;
@@ -386,4 +537,290 @@ void SSpriteMetadata::Draw_Buttons(const ImVec2& Position, float HeightButton)
 	{
 		HeverTooltip = 0.0f;
 	}
+
+	Draw_AddPropertyPopup();
+}
+
+void SSpriteMetadata::ApplyProperties(const std::vector<FSpriteProperty>& Properties)
+{
+	if (!SelectedSprite || Properties.empty())
+	{
+		return;
+	}
+
+	auto AddUnique = [&Properties](FSpriteMetaRegion& Region)
+		{
+			for (const FSpriteProperty& Property : Properties)
+			{
+				const bool bExists = std::any_of(Region.Properties.begin(), Region.Properties.end(),
+					[&Property](const FSpriteProperty& Existing) { return Existing.Name == Property.Name; });
+				if (!bExists)
+				{
+					Region.Properties.push_back(Property);
+				}
+			}
+		};
+	auto AddToEntireSprite = [&AddUnique](const std::shared_ptr<FSprite>& Sprite)
+		{
+			if (!Sprite)
+			{
+				return;
+			}
+			auto It = std::find_if(Sprite->Regions.begin(), Sprite->Regions.end(),
+				[](const FSpriteMetaRegion& Region) { return !Region.bHasRegionRect; });
+			if (It == Sprite->Regions.end())
+			{
+				Sprite->Regions.emplace_back(FSpriteMetaRegion{ .bHasRegionRect = false });
+				It = std::prev(Sprite->Regions.end());
+			}
+			AddUnique(*It);
+		};
+
+	if (MetadataApplyTarget == 0)
+	{
+		if (IndexSelectedRegion == INDEX_NONE || IndexSelectedRegion >= static_cast<int32_t>(SelectedSprite->Regions.size()))
+		{
+			AddToEntireSprite(SelectedSprite);
+			auto It = std::find_if(SelectedSprite->Regions.begin(), SelectedSprite->Regions.end(),
+				[](const FSpriteMetaRegion& Region) { return !Region.bHasRegionRect; });
+			IndexSelectedRegion = static_cast<int32_t>(std::distance(SelectedSprite->Regions.begin(), It));
+		}
+		else
+		{
+			AddUnique(SelectedSprite->Regions[IndexSelectedRegion]);
+		}
+		return;
+	}
+
+	bool bAppliedToSelected = false;
+	FEvent_RequestSprites Event;
+	Event.Callback = [&](const std::vector<std::shared_ptr<FSprite>>& Sprites)
+		{
+			for (const std::shared_ptr<FSprite>& Sprite : Sprites)
+			{
+				if (MetadataApplyTarget == 1 && !Sprite->bSelected)
+				{
+					continue;
+				}
+				AddToEntireSprite(Sprite);
+				bAppliedToSelected = true;
+			}
+		};
+	SendEvent(Event);
+	if (MetadataApplyTarget == 1 && !bAppliedToSelected)
+	{
+		AddToEntireSprite(SelectedSprite);
+	}
+}
+
+void SSpriteMetadata::AddCustomProperty()
+{
+	if (!SelectedSprite)
+	{
+		return;
+	}
+	if (IndexSelectedRegion < 0 || IndexSelectedRegion >= static_cast<int32_t>(SelectedSprite->Regions.size()))
+	{
+		auto It = std::find_if(SelectedSprite->Regions.begin(), SelectedSprite->Regions.end(),
+			[](const FSpriteMetaRegion& Region) { return !Region.bHasRegionRect; });
+		if (It == SelectedSprite->Regions.end())
+		{
+			SelectedSprite->Regions.emplace_back(FSpriteMetaRegion{ .bHasRegionRect = false });
+			It = std::prev(SelectedSprite->Regions.end());
+		}
+		IndexSelectedRegion = static_cast<int32_t>(std::distance(SelectedSprite->Regions.begin(), It));
+	}
+	if (IndexSelectedRegion < 0 || IndexSelectedRegion >= static_cast<int32_t>(SelectedSprite->Regions.size()))
+	{
+		return;
+	}
+
+	FSpriteMetaRegion& Region = SelectedSprite->Regions[IndexSelectedRegion];
+	Region.Properties.emplace_back(std::format("Property #{}", Region.Properties.size()), false);
+	IndexSelectedProperty = static_cast<int32_t>(Region.Properties.size() - 1);
+	EditingProperty[std::format("{}_PropertyName{}", IndexSelectedRegion, IndexSelectedProperty)] = true;
+}
+
+void SSpriteMetadata::Draw_AddPropertyPopup()
+{
+	Draw_CreatePresetPopup();
+	if (!ImGui::BeginPopup("Add metadata##AddMetadata"))
+	{
+		return;
+	}
+
+	static constexpr const char* ApplyTargets[] = { "Current region", "Selected sprites", "All sprites" };
+	ImGui::SetNextItemWidth(180.0f);
+	ImGui::Combo("Apply to", &MetadataApplyTarget, ApplyTargets, IM_ARRAYSIZE(ApplyTargets));
+	if (MetadataApplyTarget != 0)
+	{
+		ImGui::TextDisabled("Batch fields are added to Entire sprite.");
+	}
+
+	auto AddAndClose = [this](std::vector<FSpriteProperty> Properties)
+		{
+			ApplyProperties(Properties);
+			ImGui::CloseCurrentPopup();
+		};
+
+	ImGui::SeparatorText("Presets");
+	if (MetadataPresets.empty())
+	{
+		ImGui::TextDisabled("No presets in:");
+		ImGui::TextDisabled("%s", MetadataPresetsPath.string().c_str());
+	}
+	for (const FMetadataPreset& Preset : MetadataPresets)
+	{
+		const std::string PresetLabel = std::format("{}##{}", Preset.Name, Preset.FilePath.string());
+		if (ImGui::MenuItem(PresetLabel.c_str()))
+		{
+			AddAndClose(Preset.Properties);
+		}
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::BeginTooltip();
+			ImGui::TextUnformatted(Preset.Name.c_str());
+			ImGui::Separator();
+			for (const FSpriteProperty& Property : Preset.Properties)
+			{
+				ImGui::BulletText("%s : %s", Property.Name.c_str(), Property.GetTypeName().data());
+			}
+			ImGui::EndTooltip();
+		}
+	}
+
+	ImGui::Separator();
+	if (ImGui::MenuItem("New preset..."))
+	{
+		NewPresetName[0] = '\0';
+		NewPresetProperties = { FSpriteProperty("Property", false) };
+		PresetError.clear();
+		bOpenCreatePresetPopup = true;
+		ImGui::CloseCurrentPopup();
+	}
+	if (ImGui::MenuItem("Reload presets"))
+	{
+		LoadMetadataPresets();
+	}
+	ImGui::Separator();
+	if (ImGui::MenuItem("Custom...", "current region"))
+	{
+		AddCustomProperty();
+		ImGui::CloseCurrentPopup();
+	}
+
+	const bool bHasCurrentRegion = SelectedSprite && IndexSelectedRegion >= 0 && IndexSelectedRegion < static_cast<int32_t>(SelectedSprite->Regions.size());
+	if (ImGui::MenuItem("Copy current region", nullptr, false, bHasCurrentRegion))
+	{
+		CopiedProperties = SelectedSprite->Regions[IndexSelectedRegion].Properties;
+	}
+	if (ImGui::MenuItem("Paste metadata", nullptr, false, !CopiedProperties.empty()))
+	{
+		AddAndClose(CopiedProperties);
+	}
+
+	ImGui::EndPopup();
+}
+
+void SSpriteMetadata::Draw_CreatePresetPopup()
+{
+	static constexpr const char* PopupName = "Create metadata preset##CreateMetadataPreset";
+	if (bOpenCreatePresetPopup)
+	{
+		bOpenCreatePresetPopup = false;
+		ImGui::OpenPopup(PopupName);
+	}
+	if (!ImGui::BeginPopupModal(PopupName, nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		return;
+	}
+
+	ImGui::SetNextItemWidth(320.0f);
+	ImGui::InputText("Preset name", NewPresetName, IM_ARRAYSIZE(NewPresetName));
+	ImGui::TextDisabled("Directory: %s", MetadataPresetsPath.string().c_str());
+	ImGui::SeparatorText("Properties");
+
+	for (int32_t Index = 0; Index < static_cast<int32_t>(NewPresetProperties.size()); ++Index)
+	{
+		FSpriteProperty& Property = NewPresetProperties[Index];
+		ImGui::PushID(Index);
+
+		char PropertyName[128];
+		std::strncpy(PropertyName, Property.Name.c_str(), sizeof(PropertyName));
+		PropertyName[sizeof(PropertyName) - 1] = '\0';
+		ImGui::SetNextItemWidth(180.0f);
+		if (ImGui::InputText("Name", PropertyName, IM_ARRAYSIZE(PropertyName)))
+		{
+			Property.Name = PropertyName;
+		}
+
+		int32_t TypeIndex = Property.IndexByType();
+		ImGui::SetNextItemWidth(100.0f);
+		if (ImGui::Combo("Type", &TypeIndex, FSpriteProperty::TypeNames, IM_ARRAYSIZE(FSpriteProperty::TypeNames)))
+		{
+			Property.TypeByIndex(TypeIndex);
+		}
+
+		std::visit([](auto& Value)
+			{
+				using TValue = std::decay_t<decltype(Value)>;
+				if constexpr (std::is_same_v<TValue, bool>)
+				{
+					ImGui::Checkbox("Default", &Value);
+				}
+				else if constexpr (std::is_same_v<TValue, int>)
+				{
+					ImGui::InputInt("Default", &Value);
+				}
+				else if constexpr (std::is_same_v<TValue, float>)
+				{
+					ImGui::InputFloat("Default", &Value);
+				}
+				else if constexpr (std::is_same_v<TValue, std::string>)
+				{
+					char Buffer[256];
+					std::strncpy(Buffer, Value.c_str(), sizeof(Buffer));
+					Buffer[sizeof(Buffer) - 1] = '\0';
+					if (ImGui::InputText("Default", Buffer, IM_ARRAYSIZE(Buffer)))
+					{
+						Value = Buffer;
+					}
+				}
+			}, Property.Variant);
+
+		if (ImGui::Button("Remove"))
+		{
+			NewPresetProperties.erase(NewPresetProperties.begin() + Index);
+			ImGui::PopID();
+			--Index;
+			continue;
+		}
+		ImGui::Separator();
+		ImGui::PopID();
+	}
+
+	if (ImGui::Button("Add property"))
+	{
+		NewPresetProperties.emplace_back("Property", false);
+	}
+	if (!PresetError.empty())
+	{
+		ImGui::TextColored(ImVec4(1.0f, 0.3f, 0.3f, 1.0f), "%s", PresetError.c_str());
+	}
+	ImGui::Separator();
+	if (ImGui::Button("Save and use", ImVec2(120.0f, 0.0f)))
+	{
+		const std::vector<FSpriteProperty> Properties = NewPresetProperties;
+		if (SaveMetadataPreset())
+		{
+			ApplyProperties(Properties);
+			ImGui::CloseCurrentPopup();
+		}
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Cancel", ImVec2(120.0f, 0.0f)))
+	{
+		ImGui::CloseCurrentPopup();
+	}
+	ImGui::EndPopup();
 }

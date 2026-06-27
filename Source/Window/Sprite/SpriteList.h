@@ -31,7 +31,7 @@ struct FSpriteProperty
 		case 3: Variant = std::string("");	break;
 		}
 	}
-	int32_t IndexByType()
+	int32_t IndexByType() const
 	{
 		return (int32_t)Variant.index();
 	}

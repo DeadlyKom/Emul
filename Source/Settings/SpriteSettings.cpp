@@ -2,6 +2,7 @@
 
 
 const char* FSpriteSettings::ScriptFilesTag = TEXT("ScriptFiles");
+const char* FSpriteSettings::MetadataPresetsPathTag = TEXT("MetadataPresetsPath");
 
 FSpriteSettings& FSpriteSettings::Get()
 {

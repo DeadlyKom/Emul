@@ -10,4 +10,5 @@ public:
 	static FSpriteSettings& Get(); 
 
 	static const char* ScriptFilesTag;
+	static const char* MetadataPresetsPathTag;
 };

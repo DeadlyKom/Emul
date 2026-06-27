@@ -70,13 +70,17 @@ public:
 	template<typename T>
 	void SetValue(const FSettingKey& Key, const T& Value)
 	{
+		if (!Container.contains(Key))
+		{
+			KeyOrder.push_back(Key);
+		}
 		Container[Key] = Value;
 	}
 
 	template<typename T>
 	void SetValue(const std::string& Name, const T& Value)
 	{
-		Container[{ Name, typeid(T) }] = Value;
+		SetValue<T>({ Name, typeid(T) }, Value);
 	}
 
 protected:

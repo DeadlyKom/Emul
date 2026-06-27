@@ -37,6 +37,7 @@ namespace FEventTag
 
 	// callback request
 	static const FName RequestTimelineStateTag = TEXT("RequestTimelineState");
+	static const FName RequestSpritesTag = TEXT("RequestSprites");
 
 	// notification
 	static const FName NotificationAddCanvasTag = TEXT("NotificationAddCanvas");
@@ -135,6 +136,13 @@ struct FEvent_SelectedSprite : public IEvent
 struct FEvent_ImportJSON : public IEvent
 {
 	std::filesystem::path FilePath;
+};
+
+struct FEvent_RequestSprites : public TEvent<const std::vector<std::shared_ptr<FSprite>>&>
+{
+	FEvent_RequestSprites()
+		: TEvent(FEventTag::RequestSpritesTag)
+	{}
 };
 
 struct FEvent_Timeline : public IEvent
