@@ -157,6 +157,7 @@ namespace
 }
 
 int32_t SCanvas::SpriteCounter = 0;
+std::string SCanvas::LastSelectedSpriteNameBase;
 
 SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::filesystem::path& _SourcePathFile)
 	: Super(FWindowInitializer()
@@ -882,12 +883,22 @@ void SCanvas::Draw_PopupMenu_CreateSprite()
 	bool bUpdateSize = false;
 	if (ImGui::BeginPopupModal(CreateSpriteName, NULL, ImGuiWindowFlags_AlwaysAutoResize))
 	{
+		std::vector<FSpriteNameOption> SpriteNameOptions;
 		if (ImGui::IsWindowAppearing())
 		{
 			CreateSpriteSize = ZXColorView->RectangleMarqueeRect.GetSize();
 
-			const std::string NextSpriteName = GetNextSpriteName(SpriteNames);
-			sprintf(CreateSpriteNameBuffer, NextSpriteName.c_str());
+			SpriteNames.clear();
+			FEvent_Sprite RequestNames(FEventTag::RequestAllSpritesTag);
+			SendEvent(RequestNames);
+			SpriteNameOptions = GetSpriteNameOptions();
+			auto LastSelected = std::find_if(SpriteNameOptions.begin(), SpriteNameOptions.end(),
+				[](const FSpriteNameOption& Option) { return Option.Base == LastSelectedSpriteNameBase; });
+			SelectedSpriteNameBase = LastSelected != SpriteNameOptions.end()
+				? LastSelected->Base
+				: (SpriteNameOptions.empty() ? std::string{} : SpriteNameOptions.front().Base);
+			const std::string NextSpriteName = GetNextSpriteName(SpriteNameOptions, SelectedSpriteNameBase);
+			snprintf(CreateSpriteNameBuffer, IM_ARRAYSIZE(CreateSpriteNameBuffer), "%s", NextSpriteName.c_str());
 			sprintf(CreateSpriteWidthBuffer, "%i\n", int(CreateSpriteSize.x));
 			sprintf(CreateSpriteHeightBuffer, "%i\n", int(CreateSpriteSize.y));
 
@@ -899,6 +910,10 @@ void SCanvas::Draw_PopupMenu_CreateSprite()
 
 			bUpdateSize = true;
 		}
+		else
+		{
+			SpriteNameOptions = GetSpriteNameOptions();
+		}
 
 		const float TextWidth = ImGui::CalcTextSize("A").x;
 		const float TextHeight = ImGui::GetTextLineHeightWithSpacing();
@@ -908,6 +923,32 @@ void SCanvas::Draw_PopupMenu_CreateSprite()
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
 		ImGui::Text("Name : ");
 		ImGui::SameLine(50.0f);
+		if (SpriteNameOptions.size() > 1)
+		{
+			ImGui::SetNextItemWidth(TextWidth * 18.0f);
+			const std::string PreviewBase = SelectedSpriteNameBase.empty() ? "Select name" : SelectedSpriteNameBase;
+			if (ImGui::BeginCombo("##SpriteNameBase", PreviewBase.c_str()))
+			{
+				for (const FSpriteNameOption& Option : SpriteNameOptions)
+				{
+					const bool bSelected = Option.Base == SelectedSpriteNameBase;
+					const std::string OptionLabel = std::format("{} ({})##{}", Option.Base, Option.Count, Option.Base);
+					if (ImGui::Selectable(OptionLabel.c_str(), bSelected))
+					{
+						SelectedSpriteNameBase = Option.Base;
+						LastSelectedSpriteNameBase = Option.Base;
+						const std::string NextSpriteName = GetNextSpriteName(SpriteNameOptions, Option.Base);
+						snprintf(CreateSpriteNameBuffer, IM_ARRAYSIZE(CreateSpriteNameBuffer), "%s", NextSpriteName.c_str());
+					}
+					if (bSelected)
+					{
+						ImGui::SetItemDefaultFocus();
+					}
+				}
+				ImGui::EndCombo();
+			}
+			ImGui::SameLine();
+		}
 		ImGui::InputTextEx("##Name", NULL, CreateSpriteNameBuffer, IM_ARRAYSIZE(CreateSpriteNameBuffer), ImVec2(TextWidth * 20.0f, TextHeight), ImGuiInputTextFlags_None);
 		ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
 		ImGui::SeparatorText("Size : ");
@@ -985,6 +1026,13 @@ void SCanvas::Draw_PopupMenu_CreateSprite()
 
 		if (ImGui::ButtonEx("OK", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 		{
+			std::string SelectedBase;
+			int32_t SelectedNumber = 0;
+			if (SplitSpriteName(CreateSpriteNameBuffer, SelectedBase, SelectedNumber))
+			{
+				SelectedSpriteNameBase = SelectedBase;
+				LastSelectedSpriteNameBase = SelectedBase;
+			}
 			ImRect SpriteRect(ZXColorView->RectangleMarqueeRect.Min, ZXColorView->RectangleMarqueeRect.Min + CreateSpriteSize);
 			{	
 				// clamp right-down
@@ -2036,7 +2084,7 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 	bRefreshCanvas = true;
 }
 
-bool SCanvas::SplitSpriteName(const std::string& Name, std::string& Base, int32_t& Number)
+bool SCanvas::SplitSpriteName(const std::string& Name, std::string& Base, int32_t& Number) const
 {
 	if (Name.empty())
 	{
@@ -2065,32 +2113,62 @@ bool SCanvas::SplitSpriteName(const std::string& Name, std::string& Base, int32_
 	return true;
 }
 
-std::string SCanvas::GetNextSpriteName(const std::map<int32_t, std::string>& Sprites)
+std::vector<SCanvas::FSpriteNameOption> SCanvas::GetSpriteNameOptions() const
 {
-	std::string BestBase;
-	int32_t MaxIndex = -1;
+	std::map<std::string, FSpriteNameOption> OptionsByBase;
 
-	for (const auto& [ID, Name] : Sprites)
+	for (const auto& [ID, Name] : SpriteNames)
 	{
 		int32_t Number;
 		std::string Base;
-
 		if (SplitSpriteName(Name, Base, Number))
 		{
-			if (Number > MaxIndex)
-			{
-				MaxIndex = Number;
-				BestBase = Base;
-			}
+			FSpriteNameOption& Option = OptionsByBase[Base];
+			Option.Base = Base;
+			++Option.Count;
+			Option.MaxNumber = max(Option.MaxNumber, Number);
 		}
 	}
 
-	if (BestBase.empty())
+	std::vector<FSpriteNameOption> Options;
+	Options.reserve(OptionsByBase.size());
+	for (auto& [Base, Option] : OptionsByBase)
+	{
+		Options.push_back(std::move(Option));
+	}
+	std::sort(Options.begin(), Options.end(),
+		[](const FSpriteNameOption& Left, const FSpriteNameOption& Right)
+		{
+			if (Left.Count != Right.Count)
+			{
+				return Left.Count > Right.Count;
+			}
+			return Left.Base < Right.Base;
+		});
+	return Options;
+}
+
+std::string SCanvas::GetNextSpriteName(const std::vector<FSpriteNameOption>& Options, const std::string& Base /*= ""*/)
+{
+	const auto Selected = Base.empty()
+		? Options.end()
+		: std::find_if(Options.begin(), Options.end(), [&Base](const FSpriteNameOption& Option) { return Option.Base == Base; });
+	if (Selected != Options.end())
+	{
+		return Selected->Base + std::to_string(Selected->MaxNumber + 1);
+	}
+	if (!Options.empty())
+	{
+		return Options.front().Base + std::to_string(Options.front().MaxNumber + 1);
+	}
+	if (!Base.empty())
+	{
+		return Base + "0";
+	}
+	else
 	{
 		return std::format("Sprite {}", ++SpriteCounter);
 	}
-
-	return BestBase + std::to_string(MaxIndex + 1);
 }
 
 CodeGenerator::FResult SCanvas::BuildCodeGenerationResult(const CodeGenerator::FOptions& Options, const std::string& LabelName, const CodeGenerator::FProgressInfo* Progress)

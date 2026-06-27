@@ -107,8 +107,15 @@ private:
 	// undo/redo
 	void UndoSwapPixel(FPixelToCanvas& Param);
 
-	bool SplitSpriteName(const std::string& Name, std::string& Base, int32_t& Number);
-	std::string GetNextSpriteName(const std::map<int32_t, std::string>& Sprites);
+	struct FSpriteNameOption
+	{
+		std::string Base;
+		int32_t Count = 0;
+		int32_t MaxNumber = -1;
+	};
+	bool SplitSpriteName(const std::string& Name, std::string& Base, int32_t& Number) const;
+	std::vector<FSpriteNameOption> GetSpriteNameOptions() const;
+	std::string GetNextSpriteName(const std::vector<FSpriteNameOption>& Options, const std::string& Base = "");
 
 	// 6912
 	CodeGenerator::FResult CodeGeneration(
@@ -163,6 +170,8 @@ private:
 	ImVec2 CreateSpriteSize;
 	ImVec2 Log2SpriteSize;
 	static int32_t SpriteCounter;
+	static std::string LastSelectedSpriteNameBase;
+	std::string SelectedSpriteNameBase;
 	char CreateSpriteNameBuffer[BUFFER_SIZE_INPUT];
 	char CreateSpriteWidthBuffer[BUFFER_SIZE_INPUT];
 	char CreateSpriteHeightBuffer[BUFFER_SIZE_INPUT];
