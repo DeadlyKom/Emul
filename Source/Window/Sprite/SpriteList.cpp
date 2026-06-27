@@ -8,6 +8,8 @@
 #include <Utils/IO.h>
 #include <AppSprite.h>
 #include <Window/Sprite/Events.h>
+#include <Utils/Aseprite/Format.h>
+#include <Core/Image.h>
 #include "Canvas.h"
 
 #define STB_IMAGE_WRITE_IMPLEMENTATION
@@ -46,9 +48,10 @@ SSpriteList::SSpriteList(EFont::Type _FontName, std::string _DockSlot /*= ""*/)
 		.SetIncludeInWindows(true))
 	, bNeedKeptOpened_ExportPopup(false)
 	, ScaleVisible(2)
-	, bUniqueExportFilename(false)
 	, IndexSelectedSprite(INDEX_NONE)
 	, IndexRenameSprite(INDEX_NONE)
+	, bNeedOpenImportRepairPopup(false)
+	, bUniqueExportFilename(false)
 	, IndexSelectedScript(INDEX_NONE)
 {}
 
@@ -92,6 +95,14 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 	SubscribeEvent<FEvent_ImportJSON>(
 		[this](const FEvent_ImportJSON& Event)
 		{
+			if (HasMissingImportData(Event.FilePath))
+			{
+				PendingImportFilePath = Event.FilePath;
+				ImportRepairOptions = {};
+				bNeedOpenImportRepairPopup = true;
+				return;
+			}
+
 			std::vector<std::shared_ptr<FSprite>> ReadSprites;
 			if (ImportSprites(Event.FilePath, ReadSprites))
 			{
@@ -206,6 +217,8 @@ void SSpriteList::Render()
 			UI::TextAligned(std::format("x{}", VisibleSizeArray[ScaleVisible].x).c_str(), { 1.0f, 0.5f });
 			ImGui::PopStyleColor();
 		}
+
+		Draw_ImportRepair();
 		ImGui::End();
 	}
 
@@ -782,6 +795,291 @@ std::vector<std::shared_ptr<FSprite>> SSpriteList::UpdateSprite(
 	return std::move(UpdatedSprites);
 }
 
+bool SSpriteList::HasMissingImportData(const std::filesystem::path& FilePath) const
+{
+	nlohmann::ordered_json Json;
+	std::ifstream JsonFile(FilePath, std::ios::binary);
+	if (!JsonFile.is_open())
+	{
+		return false;
+	}
+
+	try
+	{
+		JsonFile >> Json;
+	}
+	catch (const nlohmann::json::parse_error&)
+	{
+		return false;
+	}
+
+	if (!Json.is_array())
+	{
+		return false;
+	}
+
+	auto FromUtf8 = [](const std::string& String) -> std::filesystem::path
+		{
+			std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> Convert;
+			return Convert.from_bytes(String);
+		};
+	const std::filesystem::path ImportPath = FilePath.parent_path();
+	auto ResolvePath = [&ImportPath](const std::filesystem::path& Path)
+		{
+			return Path.empty() || Path.is_absolute() ? Path : ImportPath / Path;
+		};
+
+	for (const auto& SpriteJson : Json)
+	{
+		const std::filesystem::path PNGFile = ImportPath / FromUtf8(SpriteJson.value("SprName", std::string{})).concat(L".png");
+		if (!std::filesystem::exists(PNGFile))
+		{
+			return true;
+		}
+
+		for (const char* Field : { "InkData", "AttributeData", "MaskData" })
+		{
+			const std::filesystem::path DataFile = FromUtf8(SpriteJson.value(Field, std::string{}));
+			if (DataFile.empty() || !std::filesystem::exists(ResolvePath(DataFile)))
+			{
+				return true;
+			}
+		}
+	}
+
+	return false;
+}
+
+bool SSpriteList::RepairImportData(const std::filesystem::path& FilePath, const FImportRepairOptions& Options) const
+{
+	nlohmann::ordered_json Json;
+	std::ifstream JsonFile(FilePath, std::ios::binary);
+	if (!JsonFile.is_open())
+	{
+		return false;
+	}
+
+	try
+	{
+		JsonFile >> Json;
+	}
+	catch (const nlohmann::json::parse_error& e)
+	{
+		LOG("JSON parsing error: {}", e.what());
+		return false;
+	}
+	JsonFile.close();
+
+	if (!Json.is_array())
+	{
+		return false;
+	}
+
+	auto FromUtf8 = [](const std::string& String) -> std::filesystem::path
+		{
+			std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> Convert;
+			return Convert.from_bytes(String);
+		};
+	auto ToUtf8 = [](const std::wstring& String) -> std::string
+		{
+			std::wstring_convert<std::codecvt_utf8_utf16<wchar_t>> Convert;
+			return Convert.to_bytes(String);
+		};
+
+	struct FSourceImage
+	{
+		int32_t Width = 0;
+		int32_t Height = 0;
+		std::vector<std::vector<uint8_t>> Frames;
+		bool bLoaded = false;
+		bool bValid = false;
+	};
+
+	const std::filesystem::path ImportPath = FilePath.parent_path();
+	auto ResolvePath = [&ImportPath](const std::filesystem::path& Path)
+		{
+			return Path.empty() || Path.is_absolute() ? Path : ImportPath / Path;
+		};
+	std::unordered_map<std::wstring, FSourceImage> SourceImages;
+	auto LoadSourceImage = [&SourceImages](const std::filesystem::path& SourcePath) -> FSourceImage&
+		{
+			FSourceImage& Source = SourceImages[SourcePath.wstring()];
+			if (Source.bLoaded)
+			{
+				return Source;
+			}
+			Source.bLoaded = true;
+
+			const EImageFormat Format = FAppSprite::SupportImageFormat(SourcePath);
+			if (Format == EImageFormat::PNG)
+			{
+				uint8_t* ImageData = FImageBase::LoadToMemory(SourcePath, Source.Width, Source.Height);
+				if (ImageData != nullptr && Source.Width > 0 && Source.Height > 0)
+				{
+					Source.Frames.emplace_back(ImageData, ImageData + static_cast<size_t>(Source.Width) * Source.Height * 4);
+					Source.bValid = true;
+				}
+				FImageBase::ReleaseLoadedIntoMemory(ImageData);
+			}
+			else if (Format == EImageFormat::Aseprite)
+			{
+				AsepriteFormat::FSprite Aseprite;
+				if (AsepriteFormat::Load(SourcePath, Aseprite) && !Aseprite.Frames.empty())
+				{
+					Source.Width = Aseprite.Width;
+					Source.Height = Aseprite.Height;
+					Source.Frames = std::move(Aseprite.Frames);
+					Source.bValid = true;
+				}
+			}
+			return Source;
+		};
+
+	bool bJsonChanged = false;
+	bool bAllSucceeded = true;
+	for (auto& SpriteJson : Json)
+	{
+		const std::string SpriteName = SpriteJson.value("SprName", std::string{});
+		const int32_t Width = SpriteJson.value("SprWidth", 0);
+		const int32_t Height = SpriteJson.value("SprHeight", 0);
+		const int32_t PositionX = SpriteJson.value("PoxImgX", 0);
+		const int32_t PositionY = SpriteJson.value("PoxImgY", 0);
+		const int32_t FrameIndex = SpriteJson.value("AsepriteIndex", INDEX_NONE);
+
+		const std::filesystem::path PNGFile = ImportPath / FromUtf8(SpriteName).concat(L".png");
+		auto DataIsMissing = [&SpriteJson, &FromUtf8, &ResolvePath](const char* Field)
+			{
+				const std::filesystem::path DataFile = FromUtf8(SpriteJson.value(Field, std::string{}));
+				return DataFile.empty() || !std::filesystem::exists(ResolvePath(DataFile));
+			};
+		const bool bNeedPNG = Options.bPNG && !std::filesystem::exists(PNGFile);
+		const bool bNeedInk = Options.bInk && DataIsMissing("InkData");
+		const bool bNeedAttribute = Options.bAttribute && DataIsMissing("AttributeData");
+		const bool bNeedMask = Options.bMask && DataIsMissing("MaskData");
+		if (!bNeedPNG && !bNeedInk && !bNeedAttribute && !bNeedMask)
+		{
+			continue;
+		}
+
+		const std::filesystem::path SourcePath = ResolvePath(FromUtf8(SpriteJson.value("FileImg", std::string{})));
+		FSourceImage& Source = LoadSourceImage(SourcePath);
+		const int32_t EffectiveFrame = FrameIndex >= 0 && FrameIndex < static_cast<int32_t>(Source.Frames.size()) ? FrameIndex : 0;
+		if (!Source.bValid || EffectiveFrame >= static_cast<int32_t>(Source.Frames.size()) ||
+			Width <= 0 || Height <= 0 || PositionX < 0 || PositionY < 0 ||
+			PositionX + Width > Source.Width || PositionY + Height > Source.Height ||
+			Source.Frames[EffectiveFrame].size() < static_cast<size_t>(Source.Width) * Source.Height * 4)
+		{
+			LOG_ERROR("[{}]\t Cannot restore sprite '{}' from '{}'.", (__FUNCTION__), SpriteName, SourcePath.string());
+			bAllSucceeded = false;
+			continue;
+		}
+
+		std::vector<uint8_t> CroppedRGBA(static_cast<size_t>(Width) * Height * 4);
+		const std::vector<uint8_t>& SourceRGBA = Source.Frames[EffectiveFrame];
+		for (int32_t Y = 0; Y < Height; ++Y)
+		{
+			const size_t SourceOffset = (static_cast<size_t>(PositionY + Y) * Source.Width + PositionX) * 4;
+			const size_t DestinationOffset = static_cast<size_t>(Y) * Width * 4;
+			std::memcpy(CroppedRGBA.data() + DestinationOffset, SourceRGBA.data() + SourceOffset, static_cast<size_t>(Width) * 4);
+		}
+
+		if (bNeedPNG && !stbi_write_png(PNGFile.string().c_str(), Width, Height, 4, CroppedRGBA.data(), Width * 4))
+		{
+			LOG_ERROR("[{}]\t Failed to restore '{}'.", (__FUNCTION__), PNGFile.string());
+			bAllSucceeded = false;
+		}
+
+		if (bNeedInk || bNeedAttribute || bNeedMask)
+		{
+			std::vector<uint8_t> IndexedData;
+			std::vector<uint8_t> InkData;
+			std::vector<uint8_t> AttributeData;
+			std::vector<uint8_t> MaskData;
+			UI::QuantizeToZX(CroppedRGBA.data(), Width, Height, 4, IndexedData, UI::ToU32(COLOR(0, 0, 0, 0)));
+			const UI::FConversationSettings Settings
+			{
+				.InkAlways = EZXColor::Black_,
+				.TransparentIndex = EZXColor::Transparent,
+				.ReplaceTransparent = EZXColor::Black,
+			};
+			UI::ZXIndexColorToZXAttributeColor(IndexedData, Width, Height, InkData, AttributeData, MaskData, Settings);
+
+			auto SaveData = [&](const char* Field, const wchar_t* Extension, const std::vector<uint8_t>& Data)
+				{
+					const std::filesystem::path DataFile = IO::NormalizePath(std::filesystem::absolute(ImportPath / FromUtf8(SpriteName).concat(Extension)));
+					const std::error_code Error = IO::SaveBinaryData(Data, DataFile, false);
+					if (Error)
+					{
+						LOG_ERROR("[{}]\t Failed to restore '{}': {}.", (__FUNCTION__), DataFile.string(), Error.message());
+						bAllSucceeded = false;
+						return;
+					}
+					SpriteJson[Field] = ToUtf8(DataFile.wstring());
+					bJsonChanged = true;
+				};
+			if (bNeedInk) SaveData("InkData", L".ink", InkData);
+			if (bNeedAttribute) SaveData("AttributeData", L".attr", AttributeData);
+			if (bNeedMask) SaveData("MaskData", L".mask", MaskData);
+		}
+	}
+
+	if (bJsonChanged)
+	{
+		std::ofstream OutputJson(FilePath, std::ios::binary | std::ios::trunc);
+		if (!OutputJson.is_open())
+		{
+			return false;
+		}
+		OutputJson << Json.dump(4);
+	}
+
+	return bAllSucceeded;
+}
+
+void SSpriteList::Draw_ImportRepair()
+{
+	static const char* PopupName = "Restore missing sprite data##ImportRepair";
+	if (bNeedOpenImportRepairPopup)
+	{
+		bNeedOpenImportRepairPopup = false;
+		ImGui::OpenPopup(PopupName);
+	}
+
+	if (!ImGui::BeginPopupModal(PopupName, nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		return;
+	}
+
+	ImGui::TextUnformatted("Some exported sprite files are missing.");
+	ImGui::TextUnformatted("Restore selected files from FileImg and sprite coordinates:");
+	ImGui::Separator();
+	ImGui::Checkbox("PNG", &ImportRepairOptions.bPNG);
+	ImGui::Checkbox("Ink", &ImportRepairOptions.bInk);
+	ImGui::Checkbox("Attribute", &ImportRepairOptions.bAttribute);
+	ImGui::Checkbox("Mask", &ImportRepairOptions.bMask);
+	ImGui::Separator();
+
+	if (ImGui::Button("Import", ImVec2(100.0f, 0.0f)))
+	{
+		RepairImportData(PendingImportFilePath, ImportRepairOptions);
+		std::vector<std::shared_ptr<FSprite>> ReadSprites;
+		if (ImportSprites(PendingImportFilePath, ReadSprites))
+		{
+			CurrentPath = PendingImportFilePath.parent_path();
+			ApplyImportSprites(ReadSprites);
+		}
+		PendingImportFilePath.clear();
+		ImGui::CloseCurrentPopup();
+	}
+	ImGui::SameLine();
+	if (ImGui::Button("Cancel", ImVec2(100.0f, 0.0f)))
+	{
+		PendingImportFilePath.clear();
+		ImGui::CloseCurrentPopup();
+	}
+	ImGui::EndPopup();
+}
+
 bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vector<std::shared_ptr<FSprite>>& OutputSprites)
 {
 	nlohmann::ordered_json Json;
@@ -809,6 +1107,11 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 		};
 
 	OutputSprites.clear();
+	const std::filesystem::path ImportPath = FilePath.parent_path();
+	auto ResolvePath = [&ImportPath](const std::filesystem::path& Path)
+		{
+			return Path.empty() || Path.is_absolute() ? Path : ImportPath / Path;
+		};
 	for (const auto& SpriteJson : Json)
 	{
 		std::shared_ptr<FSprite> NewSprite = std::make_shared<FSprite>();
@@ -828,13 +1131,13 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 		NewSprite->Height = SpriteJson.value("SprHeight", 0);
 		NewSprite->SpritePositionToImageX = SpriteJson.value("PoxImgX", 0);
 		NewSprite->SpritePositionToImageY = SpriteJson.value("PoxImgY", 0);
-		NewSprite->SourcePathFile = FromUtf8(SpriteJson.value("FileImg", ""));
+		NewSprite->SourcePathFile = ResolvePath(FromUtf8(SpriteJson.value("FileImg", "")));
 		NewSprite->AsepriteIndex = SpriteJson.value("AsepriteIndex", INDEX_NONE);
 
 		// data files
-		std::filesystem::path InkDataFile = FromUtf8(SpriteJson.value("InkData", ""));
-		std::filesystem::path AttributeDataFile = FromUtf8(SpriteJson.value("AttributeData", ""));
-		std::filesystem::path MaskDataFile = FromUtf8(SpriteJson.value("MaskData", ""));
+		std::filesystem::path InkDataFile = ResolvePath(FromUtf8(SpriteJson.value("InkData", "")));
+		std::filesystem::path AttributeDataFile = ResolvePath(FromUtf8(SpriteJson.value("AttributeData", "")));
+		std::filesystem::path MaskDataFile = ResolvePath(FromUtf8(SpriteJson.value("MaskData", "")));
 
 		// reading binary data
 		if (std::filesystem::exists(InkDataFile))
@@ -889,12 +1192,18 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 				}
 			}
 		}
+		const size_t ExpectedPixelDataSize = static_cast<size_t>(NewSprite->Width >> 3) * NewSprite->Height;
+		const size_t ExpectedAttributeDataSize = static_cast<size_t>(NewSprite->Width >> 3) * (NewSprite->Height >> 3);
+		const bool bValidZXDimensions = NewSprite->Width >= 8 && NewSprite->Height >= 8 && NewSprite->Width % 8 == 0 && NewSprite->Height % 8 == 0;
+		const uint8_t* InkData = bValidZXDimensions && NewSprite->ZXColorView->InkData.size() >= ExpectedPixelDataSize ? NewSprite->ZXColorView->InkData.data() : nullptr;
+		const uint8_t* AttributeData = bValidZXDimensions && NewSprite->ZXColorView->AttributeData.size() >= ExpectedAttributeDataSize ? NewSprite->ZXColorView->AttributeData.data() : nullptr;
+		const uint8_t* MaskData = bValidZXDimensions && NewSprite->ZXColorView->MaskData.size() >= ExpectedPixelDataSize ? NewSprite->ZXColorView->MaskData.data() : nullptr;
 		UI::ZXAttributeColorToImage(
 			NewSprite->ZXColorView->Image,
 			NewSprite->Width, NewSprite->Height,
-			NewSprite->ZXColorView->InkData.data(),
-			NewSprite->ZXColorView->AttributeData.data(),
-			NewSprite->ZXColorView->MaskData.data(),
+			InkData,
+			AttributeData,
+			MaskData,
 			true,
 			&NewSprite->ZXColorView->IndexedData,
 			true /* ????????!!!!!!!*/);

@@ -231,6 +231,14 @@ public:
 	virtual void Destroy() override;
 
 private:
+	struct FImportRepairOptions
+	{
+		bool bPNG = true;
+		bool bInk = true;
+		bool bAttribute = false;
+		bool bMask = false;
+	};
+
 	void Input_HotKeys();
 	void Input_Mouse();
 
@@ -262,7 +270,10 @@ private:
 		const std::vector<uint8_t>& MaskData,
 		int32_t AsepriteIndex = INDEX_NONE);
 
+	bool HasMissingImportData(const std::filesystem::path& FilePath) const;
+	bool RepairImportData(const std::filesystem::path& FilePath, const FImportRepairOptions& Options) const;
 	bool ImportSprites(const std::filesystem::path& FilePath, std::vector<std::shared_ptr<FSprite>>& OutputSprites);
+	void Draw_ImportRepair();
 	void ExportSprites(
 		const std::filesystem::path& ScriptFilePath,
 		const std::filesystem::path& ExportPath,
@@ -281,6 +292,11 @@ private:
 	std::filesystem::path CurrentPath;
 	std::vector<std::shared_ptr<FSprite>> Sprites;
 	std::unordered_map<std::string, bool> EditingSprites;
+
+	// popup menu 'Restore missing import data'
+	bool bNeedOpenImportRepairPopup;
+	std::filesystem::path PendingImportFilePath;
+	FImportRepairOptions ImportRepairOptions;
 
 	// popup menu 'Export'
 	bool bUniqueExportFilename;
