@@ -2,6 +2,7 @@
 
 #include <CoreMinimal.h>
 #include <Core/ViewerBase.h>
+#include <set>
 #include "SpriteList.h"
 
 class SSpriteMetadata : public SViewerChildBase
@@ -28,6 +29,9 @@ private:
 	void Draw_CreatePresetPopup();
 	void ApplyProperties(const std::vector<FSpriteProperty>& Properties);
 	void AddCustomProperty();
+	void CopySelectedProperties(bool bCut);
+	void PasteProperties();
+	void DeleteSelectedProperties();
 	void LoadMetadataPresets();
 	bool SaveMetadataPreset();
 
@@ -41,6 +45,8 @@ private:
 	float HeverTooltip;
 	int32_t IndexSelectedRegion;
 	int32_t IndexSelectedProperty;
+	int32_t PropertySelectionAnchor = INDEX_NONE;
+	std::set<int32_t> SelectedPropertyIndices;
 	int32_t MetadataApplyTarget = 0;
 	std::shared_ptr<FSprite> SelectedSprite;
 	std::unordered_map<std::string, bool> EditingProperty;

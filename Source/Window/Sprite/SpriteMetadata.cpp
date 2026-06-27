@@ -40,6 +40,8 @@ void SSpriteMetadata::NativeInitialize(const FNativeDataInitialize& Data)
 				{
 					IndexSelectedRegion = INDEX_NONE;
 					IndexSelectedProperty = INDEX_NONE;
+					PropertySelectionAnchor = INDEX_NONE;
+					SelectedPropertyIndices.clear();
 					EditingProperty.clear();
 				}
 				SelectedSprite = Event.Sprite;
@@ -263,21 +265,31 @@ void SSpriteMetadata::Draw_Metadata()
 		ImGui::SetWindowCollapsed(false);
 		IndexSelectedRegion = INDEX_NONE;
 		IndexSelectedProperty = INDEX_NONE;
+		PropertySelectionAnchor = INDEX_NONE;
+		SelectedPropertyIndices.clear();
 	}
 
-	const bool bValidSelectedProperty =
-		IndexSelectedRegion >= 0 &&
-		IndexSelectedRegion < static_cast<int32_t>(SelectedSprite->Regions.size()) &&
-		IndexSelectedProperty >= 0 &&
-		IndexSelectedProperty < static_cast<int32_t>(SelectedSprite->Regions[IndexSelectedRegion].Properties.size());
 	const bool bEditingAnyProperty = std::any_of(EditingProperty.begin(), EditingProperty.end(),
 		[](const auto& Pair) { return Pair.second; });
-	if (bValidSelectedProperty && !bEditingAnyProperty && !ImGui::IsAnyItemActive() &&
-		ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows) && ImGui::IsKeyPressed(ImGuiKey_Delete))
+	if (!bEditingAnyProperty && !ImGui::IsAnyItemActive() && ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows))
 	{
-		auto& Properties = SelectedSprite->Regions[IndexSelectedRegion].Properties;
-		Properties.erase(Properties.begin() + IndexSelectedProperty);
-		IndexSelectedProperty = INDEX_NONE;
+		const ImGuiIO& IO = ImGui::GetIO();
+		if (IO.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_C))
+		{
+			CopySelectedProperties(false);
+		}
+		else if (IO.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_X))
+		{
+			CopySelectedProperties(true);
+		}
+		else if (IO.KeyCtrl && ImGui::IsKeyPressed(ImGuiKey_V))
+		{
+			PasteProperties();
+		}
+		else if (ImGui::IsKeyPressed(ImGuiKey_Delete))
+		{
+			DeleteSelectedProperties();
+		}
 	}
 
 	ImVec2 RegionSize, SpriteSize, PropertySize, ButtonPosition;
@@ -334,6 +346,8 @@ void SSpriteMetadata::Draw_Regions(const ImVec2& Size)
 			{
 				IndexSelectedRegion = RegionIndex;
 				IndexSelectedProperty = INDEX_NONE;
+				PropertySelectionAnchor = INDEX_NONE;
+				SelectedPropertyIndices.clear();
 			}
 
 			if (ImGui::IsItemHovered() && SpriteMetaRegion.bHasRegionRect)
@@ -352,10 +366,10 @@ void SSpriteMetadata::Draw_Regions(const ImVec2& Size)
 					const std::string EditingPropertName = std::format("{}_PropertyName{}", RegionIndex, PropertyIndex);
 
 					FSpriteProperty& Property = SpriteMetaRegion.Properties[PropertyIndex];
-					const bool bIsSelectedProperty = bIsSelectedRegion && PropertyIndex == IndexSelectedProperty;
+					const bool bIsSelectedProperty = bIsSelectedRegion && SelectedPropertyIndices.contains(PropertyIndex);
 
 					// Enable editing by pressing F2
-					if (bIsSelectedProperty && ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_F2))
+					if (bIsSelectedRegion && PropertyIndex == IndexSelectedProperty && ImGui::IsWindowFocused() && ImGui::IsKeyPressed(ImGuiKey_F2))
 					{
 						EditingProperty[EditingPropertName] = true;
 					}
@@ -387,8 +401,38 @@ void SSpriteMetadata::Draw_Regions(const ImVec2& Size)
 						const std::string PropertyName = std::format("{}##{}_PropertyName{}", Property.Name.c_str(), RegionIndex, PropertyIndex);
 						if (ImGui::Selectable(PropertyName.c_str(), bIsSelectedProperty))
 						{
+							const ImGuiIO& IO = ImGui::GetIO();
+							const bool bChangedRegion = IndexSelectedRegion != RegionIndex;
+							if (bChangedRegion || (!IO.KeyCtrl && !IO.KeyShift))
+							{
+								SelectedPropertyIndices.clear();
+							}
+							if (bChangedRegion)
+							{
+								PropertySelectionAnchor = INDEX_NONE;
+							}
 							IndexSelectedRegion = RegionIndex;
-							IndexSelectedProperty = PropertyIndex;
+							if (IO.KeyShift && PropertySelectionAnchor >= 0)
+							{
+								const int32_t First = min(PropertySelectionAnchor, PropertyIndex);
+								const int32_t Last = max(PropertySelectionAnchor, PropertyIndex);
+								for (int32_t SelectionIndex = First; SelectionIndex <= Last; ++SelectionIndex)
+								{
+									SelectedPropertyIndices.insert(SelectionIndex);
+								}
+							}
+							else if (IO.KeyCtrl && SelectedPropertyIndices.contains(PropertyIndex))
+							{
+								SelectedPropertyIndices.erase(PropertyIndex);
+							}
+							else
+							{
+								SelectedPropertyIndices.insert(PropertyIndex);
+								PropertySelectionAnchor = PropertyIndex;
+							}
+							IndexSelectedProperty = SelectedPropertyIndices.contains(PropertyIndex)
+								? PropertyIndex
+								: (SelectedPropertyIndices.empty() ? INDEX_NONE : *SelectedPropertyIndices.rbegin());
 						}
 
 						if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0))
@@ -405,6 +449,8 @@ void SSpriteMetadata::Draw_Regions(const ImVec2& Size)
 				{
 					IndexSelectedRegion = INDEX_NONE;
 					IndexSelectedProperty = INDEX_NONE;
+					PropertySelectionAnchor = INDEX_NONE;
+					SelectedPropertyIndices.clear();
 					--RegionIndex;
 				}
 				continue;
@@ -510,19 +556,14 @@ void SSpriteMetadata::Draw_Buttons(const ImVec2& Position, float HeightButton)
 
 	ImGui::SetCursorPos({ Position.x + HeightButton * 0.8f, Position.y});
 	const bool bCanRemoveProperty =
-		IndexSelectedRegion != INDEX_NONE &&
-		IndexSelectedRegion < SelectedSprite->Regions.size() &&
-		IndexSelectedProperty != INDEX_NONE &&
-		IndexSelectedProperty < SelectedSprite->Regions[IndexSelectedRegion].Properties.size();
+		IndexSelectedRegion >= 0 &&
+		IndexSelectedRegion < static_cast<int32_t>(SelectedSprite->Regions.size()) &&
+		((!SelectedPropertyIndices.empty()) ||
+			(IndexSelectedProperty != INDEX_NONE && IndexSelectedProperty < SelectedSprite->Regions[IndexSelectedRegion].Properties.size()));
 	ImGui::BeginDisabled(!bCanRemoveProperty);
 	if (ImGui::ButtonEx("-", ImVec2(HeightButton * 0.5f, HeightButton * 0.5f)))
 	{
-		FSpriteMetaRegion& SpriteMetaRegion = SelectedSprite->Regions[IndexSelectedRegion];
-		if (SpriteMetaRegion.Properties.size() > IndexSelectedProperty && IndexSelectedProperty != INDEX_NONE)
-		{
-			SpriteMetaRegion.Properties.erase(SpriteMetaRegion.Properties.begin() + IndexSelectedProperty);
-			IndexSelectedProperty = INDEX_NONE;
-		}
+		DeleteSelectedProperties();
 	}
 	bHovered |= ImGui::IsItemHovered();
 	if (ImGui::IsItemHovered() && HeverTooltip > 0.5f)
@@ -638,7 +679,96 @@ void SSpriteMetadata::AddCustomProperty()
 	FSpriteMetaRegion& Region = SelectedSprite->Regions[IndexSelectedRegion];
 	Region.Properties.emplace_back(std::format("Property #{}", Region.Properties.size()), false);
 	IndexSelectedProperty = static_cast<int32_t>(Region.Properties.size() - 1);
+	PropertySelectionAnchor = IndexSelectedProperty;
+	SelectedPropertyIndices = { IndexSelectedProperty };
 	EditingProperty[std::format("{}_PropertyName{}", IndexSelectedRegion, IndexSelectedProperty)] = true;
+}
+
+void SSpriteMetadata::CopySelectedProperties(bool bCut)
+{
+	if (!SelectedSprite || IndexSelectedRegion < 0 || IndexSelectedRegion >= static_cast<int32_t>(SelectedSprite->Regions.size()))
+	{
+		return;
+	}
+
+	const std::vector<FSpriteProperty>& Properties = SelectedSprite->Regions[IndexSelectedRegion].Properties;
+	if (SelectedPropertyIndices.empty() && IndexSelectedProperty >= 0)
+	{
+		SelectedPropertyIndices.insert(IndexSelectedProperty);
+	}
+	CopiedProperties.clear();
+	for (int32_t Index : SelectedPropertyIndices)
+	{
+		if (Index >= 0 && Index < static_cast<int32_t>(Properties.size()))
+		{
+			CopiedProperties.push_back(Properties[Index]);
+		}
+	}
+	if (bCut && !CopiedProperties.empty())
+	{
+		DeleteSelectedProperties();
+	}
+}
+
+void SSpriteMetadata::PasteProperties()
+{
+	if (!SelectedSprite || CopiedProperties.empty())
+	{
+		return;
+	}
+	if (IndexSelectedRegion < 0 || IndexSelectedRegion >= static_cast<int32_t>(SelectedSprite->Regions.size()))
+	{
+		auto It = std::find_if(SelectedSprite->Regions.begin(), SelectedSprite->Regions.end(),
+			[](const FSpriteMetaRegion& Region) { return !Region.bHasRegionRect; });
+		if (It == SelectedSprite->Regions.end())
+		{
+			SelectedSprite->Regions.emplace_back(FSpriteMetaRegion{ .bHasRegionRect = false });
+			It = std::prev(SelectedSprite->Regions.end());
+		}
+		IndexSelectedRegion = static_cast<int32_t>(std::distance(SelectedSprite->Regions.begin(), It));
+	}
+
+	std::vector<FSpriteProperty>& Properties = SelectedSprite->Regions[IndexSelectedRegion].Properties;
+	SelectedPropertyIndices.clear();
+	for (const FSpriteProperty& CopiedProperty : CopiedProperties)
+	{
+		const bool bExists = std::any_of(Properties.begin(), Properties.end(),
+			[&CopiedProperty](const FSpriteProperty& Property) { return Property.Name == CopiedProperty.Name; });
+		if (bExists)
+		{
+			continue;
+		}
+		Properties.push_back(CopiedProperty);
+		SelectedPropertyIndices.insert(static_cast<int32_t>(Properties.size() - 1));
+	}
+	IndexSelectedProperty = SelectedPropertyIndices.empty() ? INDEX_NONE : *SelectedPropertyIndices.rbegin();
+	PropertySelectionAnchor = IndexSelectedProperty;
+}
+
+void SSpriteMetadata::DeleteSelectedProperties()
+{
+	if (!SelectedSprite || IndexSelectedRegion < 0 || IndexSelectedRegion >= static_cast<int32_t>(SelectedSprite->Regions.size()))
+	{
+		return;
+	}
+
+	std::vector<FSpriteProperty>& Properties = SelectedSprite->Regions[IndexSelectedRegion].Properties;
+	if (SelectedPropertyIndices.empty() && IndexSelectedProperty >= 0)
+	{
+		SelectedPropertyIndices.insert(IndexSelectedProperty);
+	}
+	for (auto It = SelectedPropertyIndices.rbegin(); It != SelectedPropertyIndices.rend(); ++It)
+	{
+		const int32_t Index = *It;
+		if (Index >= 0 && Index < static_cast<int32_t>(Properties.size()))
+		{
+			Properties.erase(Properties.begin() + Index);
+		}
+	}
+	SelectedPropertyIndices.clear();
+	PropertySelectionAnchor = INDEX_NONE;
+	IndexSelectedProperty = INDEX_NONE;
+	EditingProperty.clear();
 }
 
 void SSpriteMetadata::Draw_AddPropertyPopup()
