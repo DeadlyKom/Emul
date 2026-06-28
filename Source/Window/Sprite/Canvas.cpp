@@ -528,7 +528,6 @@ bool SCanvas::HasTimeline() const
 
 	return ImageFormat == EImageFormat::Aseprite &&
 		AsepriteSprite &&
-		AsepriteSprite->Layers.size() > 1 &&
 		AsepriteSprite->Frames.size() > 1;
 }
 
