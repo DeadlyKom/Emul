@@ -197,6 +197,19 @@ namespace CodeGenerator
         uint16_t StackTopAddress;
         uint16_t ScreenBaseAddress;
 
+        bool GeneratePixels;
+        bool GenerateAttributes;
+        bool ProjectSelection;
+        bool ReverseFrameDifference;
+        bool OutputOpcodes;
+        bool HasSelectionSource;
+        int32_t SelectionSourceMinX;
+        int32_t SelectionSourceMinY;
+        int32_t SelectionSourceMaxX;
+        int32_t SelectionSourceMaxY;
+        int32_t DestinationX;
+        int32_t DestinationY;
+
         bool EnableByteCandidates;
         bool EnableWordCandidates;
         bool EnableStackBlocks;
@@ -216,6 +229,18 @@ namespace CodeGenerator
             , DisableInterruptsForStack(true)
             , StackTopAddress(ZX_STACK_TRAMPOLINE_TOP)
             , ScreenBaseAddress(ZX_SCREEN_BASE)
+            , GeneratePixels(true)
+            , GenerateAttributes(true)
+            , ProjectSelection(false)
+            , ReverseFrameDifference(false)
+            , OutputOpcodes(false)
+            , HasSelectionSource(false)
+            , SelectionSourceMinX(0)
+            , SelectionSourceMinY(0)
+            , SelectionSourceMaxX(0)
+            , SelectionSourceMaxY(0)
+            , DestinationX(0)
+            , DestinationY(0)
             , EnableByteCandidates(true)
             , EnableWordCandidates(true)
             , EnableStackBlocks(true)

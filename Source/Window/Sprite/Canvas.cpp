@@ -781,6 +781,15 @@ void SCanvas::Destroy()
 void SCanvas::Draw_PopupMenu()
 {
 	const ImGuiID CreateSpriteID = ImGui::GetCurrentWindow()->GetID(CreateSpriteName);
+	auto DrawLastItemTooltip = [](const char* Tooltip)
+		{
+			if (ImGui::IsItemHovered())
+			{
+				ImGui::BeginTooltip();
+				ImGui::TextUnformatted(Tooltip);
+				ImGui::EndTooltip();
+			}
+		};
 
 	auto AddRegionLambda = [=, this]() -> bool
 		{
@@ -843,28 +852,41 @@ void SCanvas::Draw_PopupMenu()
 		{
 			AddRegionLambda();
 		}
+		auto ApplyLimitArea = [this](bool bAllFrames)
+		{
+			const ImRect SelectedArea = ZXColorView->RectangleMarqueeRect;
+			FEvent_RequestTimelineState Event_Timeline;
+			Event_Timeline.Callback =
+				[this, SelectedArea, bAllFrames](const FTimelineState& TimelineState)
+				{
+					const int32_t FirstFrame = bAllFrames ? 0 : TimelineState.CurrentFrame;
+					const int32_t LastFrame = bAllFrames && AsepriteSprite
+						? static_cast<int32_t>(AsepriteSprite->Frames.size())
+						: FirstFrame + 1;
+					const FTilemapCellData_Rect LimitArea(SelectedArea);
+					for (int32_t Frame = FirstFrame; Frame < LastFrame; ++Frame)
+					{
+						FPropertyBag* Property = Keyframes
+							? Keyframes->GetMutableProperty(Frame, TimelineState.CurrentLayer)
+							: nullptr;
+						if (Property != nullptr && !Property->SetStruct(FPropertyTag::LimitArea, LimitArea))
+						{
+							Property->AddStruct(FPropertyTag::LimitArea, LimitArea);
+						}
+					}
+				};
+			SendEvent(Event_Timeline);
+		};
+
 		if (AsepriteSprite->IsValid() && ImGui::MenuItem("Limit Area"))
 		{
-			// request
-			FEvent_RequestTimelineState Event_Timeline;
-			{
-				Event_Timeline.Callback =
-					[=](const FTimelineState& TimelineState)
-					{
-						FPropertyBag* Property = Keyframes->GetMutableProperty(TimelineState.CurrentFrame, TimelineState.CurrentLayer);
-						if (Property != nullptr)
-						{
-							const FTilemapCellData_Rect LimitArea(ZXColorView->RectangleMarqueeRect);
-							if (!Property->SetStruct(FPropertyTag::LimitArea, LimitArea))
-							{
-								Property->AddStruct(FPropertyTag::LimitArea, LimitArea);
-							}
-						}
-					};
-				SendEvent(Event_Timeline);
-			};
+			ApplyLimitArea(false);
 		}
-
+		if (AsepriteSprite->IsValid() && ImGui::MenuItem("Limit Area (All Frames)"))
+		{
+			ApplyLimitArea(true);
+		}
+		DrawLastItemTooltip("Применить текущее выделение ко всем кадрам текущего слоя.");
 		ImGui::EndPopup();	
 	}
 	
@@ -1814,7 +1836,8 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 
 	LastRebuiltSpriteFrame = Frame;
 
-	const bool bDifference = FrameMode == EFrameMode::Difference;/*(bFroceRebuiltSpriteFrame || bRebuildFrame)*/
+	const bool bDifference = FrameMode == EFrameMode::Difference || FrameMode == EFrameMode::ReverseDifference;
+	const bool bReverseDifference = FrameMode == EFrameMode::ReverseDifference;
 	if (AsepriteSprite && AsepriteSprite->IsValid() && AsepriteSprite->Frames.size() > Frame)
 	{
 		UI::QuantizeToZX(AsepriteSprite->Frames[Frame].data(), Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
@@ -1832,7 +1855,9 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 				{
 					const uint8_t CurrentColor = ZXColorView->IndexedData[Index];
 					const uint8_t PreviousColor = PreviousFrame_IndexedData[Index];
-					Difference_IndexedData[Index] = CurrentColor != PreviousColor ? CurrentColor : EZXColor::Transparent;
+					Difference_IndexedData[Index] = CurrentColor != PreviousColor
+						? (bReverseDifference ? PreviousColor : CurrentColor)
+						: EZXColor::Transparent;
 				}
 
 				if (bSource)
@@ -1845,7 +1870,7 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 			std::vector<uint8_t> Difference_InkData(ZXColorView->InkData.size());
 			std::vector<uint8_t> Difference_AttributeData(ZXColorView->AttributeData.size());
 			std::vector<uint8_t> Difference_MaskData(ZXColorView->MaskData.size());
-			if (!bSource && FrameDifferenceZXColor(Frame, Difference_InkData, Difference_AttributeData, Difference_MaskData))
+			if (!bSource && FrameDifferenceZXColor(Frame, Difference_InkData, Difference_AttributeData, Difference_MaskData, bReverseDifference))
 			{
 				UI::ZXAttributeColorToImage(
 					ZXColorView->Image,
@@ -1902,7 +1927,9 @@ bool SCanvas::FrameDifferenceZXColor(
 	int32_t Frame,
 	std::vector<uint8_t>& OutputDifference_InkData,
 	std::vector<uint8_t>& OutputDifference_AttributeData,
-	std::vector<uint8_t>& OutputDifference_MaskData)
+	std::vector<uint8_t>& OutputDifference_MaskData,
+	bool bReverse,
+	bool bNormalizeToFrameZeroAttributes)
 {
 	const bool bInk = OptionsFlags[0] & FCanvasOptionsFlags::Ink;
 	const bool bMask = OptionsFlags[0] & FCanvasOptionsFlags::Mask;
@@ -1911,8 +1938,9 @@ bool SCanvas::FrameDifferenceZXColor(
 	const bool bRebuildFrame = LastRebuiltSpriteFrame != Frame;
 
 	// current frame
+	const std::vector<uint8_t>& CurrentFrame_RGBA = AsepriteSprite->Frames[Frame];
 	std::vector<uint8_t> CurrentFrame_IndexedData;
-	UI::QuantizeToZX(AsepriteSprite->Frames[Frame].data(), Width, Height, 4, CurrentFrame_IndexedData, TransparentColor);
+	UI::QuantizeToZX(CurrentFrame_RGBA.data(), Width, Height, 4, CurrentFrame_IndexedData, TransparentColor);
 	
 	std::vector<uint8_t> CurrentFrame_InkData;
 	std::vector<uint8_t> CurrentFrame_AttributeData;
@@ -1928,13 +1956,80 @@ bool SCanvas::FrameDifferenceZXColor(
 	}
 
 	// previous frame
+	const std::vector<uint8_t>& PreviousFrame_RGBA = AsepriteSprite->Frames[Frame - 1];
 	std::vector<uint8_t> PreviousFrame_IndexedData;
-	UI::QuantizeToZX(AsepriteSprite->Frames[Frame - 1].data(), Width, Height, 4, PreviousFrame_IndexedData, TransparentColor);
+	UI::QuantizeToZX(PreviousFrame_RGBA.data(), Width, Height, 4, PreviousFrame_IndexedData, TransparentColor);
 
 	std::vector<uint8_t> PreviousFrame_InkData;
 	std::vector<uint8_t> PreviousFrame_AttributeData;
 	std::vector<uint8_t> PreviousFrame_MaskData;
 	UI::ZXIndexColorToZXAttributeColor(PreviousFrame_IndexedData, Width, Height, PreviousFrame_InkData, PreviousFrame_AttributeData, PreviousFrame_MaskData, ConversationSettings);
+
+	if (bNormalizeToFrameZeroAttributes)
+	{
+		std::vector<uint8_t> FrameZero_InkData;
+		if (Frame == 1)
+		{
+			FrameZero_InkData = PreviousFrame_InkData;
+		}
+		else
+		{
+			std::vector<uint8_t> FrameZero_IndexedData;
+			std::vector<uint8_t> FrameZero_AttributeData;
+			std::vector<uint8_t> FrameZero_MaskData;
+			UI::QuantizeToZX(AsepriteSprite->Frames[0].data(), Width, Height, 4, FrameZero_IndexedData, TransparentColor);
+			UI::ZXIndexColorToZXAttributeColor(FrameZero_IndexedData, Width, Height, FrameZero_InkData, FrameZero_AttributeData, FrameZero_MaskData, ConversationSettings);
+		}
+
+		auto NormalizeBitmapOrientation = [this, &FrameZero_InkData](std::vector<uint8_t>& InkData)
+		{
+			const int32_t BoundaryX = Width >> 3;
+			const int32_t BoundaryY = Height >> 3;
+			if (BoundaryX <= 0 || BoundaryY <= 0 || InkData.size() != FrameZero_InkData.size())
+			{
+				return;
+			}
+
+			auto CountBits = [](uint8_t Value)
+			{
+				int32_t Count = 0;
+				while (Value != 0)
+				{
+					Value &= static_cast<uint8_t>(Value - 1);
+					++Count;
+				}
+				return Count;
+			};
+
+			for (int32_t AttributeY = 0; AttributeY < BoundaryY; ++AttributeY)
+			{
+				for (int32_t AttributeX = 0; AttributeX < BoundaryX; ++AttributeX)
+				{
+					int32_t DirectDifference = 0;
+					int32_t InvertedDifference = 0;
+					for (int32_t PixelY = 0; PixelY < 8; ++PixelY)
+					{
+						const int32_t PixelIndex = (AttributeY * 8 + PixelY) * BoundaryX + AttributeX;
+						const uint8_t Pixels = InkData[PixelIndex];
+						const uint8_t ReferencePixels = FrameZero_InkData[PixelIndex];
+						DirectDifference += CountBits(static_cast<uint8_t>(Pixels ^ ReferencePixels));
+						InvertedDifference += CountBits(static_cast<uint8_t>(~Pixels ^ ReferencePixels));
+					}
+					if (InvertedDifference < DirectDifference)
+					{
+						for (int32_t PixelY = 0; PixelY < 8; ++PixelY)
+						{
+							const int32_t PixelIndex = (AttributeY * 8 + PixelY) * BoundaryX + AttributeX;
+							InkData[PixelIndex] = static_cast<uint8_t>(~InkData[PixelIndex]);
+						}
+					}
+				}
+			}
+		};
+
+		NormalizeBitmapOrientation(CurrentFrame_InkData);
+		NormalizeBitmapOrientation(PreviousFrame_InkData);
+	}
 
 	const int32_t Boundary_X = Width >> 3;
 
@@ -1946,7 +2041,9 @@ bool SCanvas::FrameDifferenceZXColor(
 		const uint8_t Previous_InkData = PreviousFrame_InkData[Index];
 		const bool bDifference_Ink = Current_InkData ^ Previous_InkData;
 
-		OutputDifference_InkData[Index] = bDifference_Ink ? Current_InkData : EZXColor::Transparent;
+		OutputDifference_InkData[Index] = bDifference_Ink
+			? (bReverse ? Previous_InkData : Current_InkData)
+			: EZXColor::Transparent;
 		OutputDifference_MaskData[Index] = bDifference_Ink ? 0xFF : 0x00;
 
 		// attribute
@@ -1957,7 +2054,9 @@ bool SCanvas::FrameDifferenceZXColor(
 		const uint8_t Previous_AttributeData = PreviousFrame_AttributeData[Index_Attribute];
 		const bool bDifference_Attribute = Current_AttributeData ^ Previous_AttributeData;
 
-		OutputDifference_AttributeData[Index_Attribute] = bDifference_Attribute ? Current_AttributeData : 0xFF;
+		OutputDifference_AttributeData[Index_Attribute] = bDifference_Attribute
+			? (bReverse ? Previous_AttributeData : Current_AttributeData)
+			: 0xFF;
 	}
 
 	return true;
@@ -2173,10 +2272,26 @@ std::string SCanvas::GetNextSpriteName(const std::vector<FSpriteNameOption>& Opt
 CodeGenerator::FResult SCanvas::BuildCodeGenerationResult(const CodeGenerator::FOptions& Options, const std::string& LabelName, const CodeGenerator::FProgressInfo* Progress)
 {
 	CodeGenerator::FResult Result;
+	if (!Options.GeneratePixels && !Options.GenerateAttributes)
+	{
+		Result.Error = "Code generation: pixels and attributes are both disabled";
+		return Result;
+	}
+	if (Options.ReverseFrameDifference && SelectedSpritesFrame == 0)
+	{
+		Result.Error = "Code generation: reverse difference requires frame 1 or later";
+		return Result;
+	}
 	std::vector<uint8_t> Difference_InkData(CodeGenerator::ZX_PIXEL_SIZE);
 	std::vector<uint8_t> Difference_AttributeData(CodeGenerator::ZX_ATTRIBUTE_SIZE);
 	std::vector<uint8_t> Difference_MaskData(CodeGenerator::ZX_PIXEL_SIZE);
-	if (!FrameDifferenceZXColor(SelectedSpritesFrame, Difference_InkData, Difference_AttributeData, Difference_MaskData))
+	if (!FrameDifferenceZXColor(
+		SelectedSpritesFrame,
+		Difference_InkData,
+		Difference_AttributeData,
+		Difference_MaskData,
+		Options.ReverseFrameDifference,
+		Options.GeneratePixels && !Options.GenerateAttributes))
 	{
 		Result.Error = std::format("Error: getting difference in ZX frame Color");
 		return Result;
@@ -2205,6 +2320,37 @@ CodeGenerator::FResult SCanvas::CodeGeneration(
 	std::vector<uint8_t> DirtyMask(CodeGenerator::ZX_SCREEN_SIZE);
 	std::vector<uint8_t> PixelAllowedMask(CodeGenerator::ZX_PIXEL_SIZE, 1);
 	std::vector<uint8_t> AttributeAllowedMask(CodeGenerator::ZX_ATTRIBUTE_SIZE, 1);
+
+	int32_t SourceMinX = 0;
+	int32_t SourceMinY = 0;
+	int32_t SourceMaxX = 256;
+	int32_t SourceMaxY = 192;
+	CodeGenerator::FOptions EffectiveOptions = Options;
+	EffectiveOptions.DestinationX = ImClamp(Options.DestinationX, 0, 255) & ~7;
+	EffectiveOptions.DestinationY = ImClamp(Options.DestinationY, 0, 191);
+	int32_t DestinationX = EffectiveOptions.DestinationX;
+	int32_t DestinationY = EffectiveOptions.DestinationY;
+	if (Options.ProjectSelection)
+	{
+		if (!ZXColorView || !ZXColorView->bVisibilityRectangleMarquee ||
+			ZXColorView->RectangleMarqueeRect.GetWidth() <= 0.0f ||
+			ZXColorView->RectangleMarqueeRect.GetHeight() <= 0.0f)
+		{
+			Result.Error = "Code generation: project selection requires an active canvas selection";
+			return Result;
+		}
+
+		const ImRect& Selection = ZXColorView->RectangleMarqueeRect;
+		SourceMinX = ImClamp(static_cast<int32_t>(floorf(Selection.Min.x)), 0, 255) & ~7;
+		SourceMinY = ImClamp(static_cast<int32_t>(floorf(Selection.Min.y)), 0, 191);
+		SourceMaxX = ImClamp((static_cast<int32_t>(ceilf(Selection.Max.x)) + 7) & ~7, 0, 256);
+		SourceMaxY = ImClamp(static_cast<int32_t>(ceilf(Selection.Max.y)), 0, 192);
+		EffectiveOptions.HasSelectionSource = true;
+		EffectiveOptions.SelectionSourceMinX = SourceMinX;
+		EffectiveOptions.SelectionSourceMinY = SourceMinY;
+		EffectiveOptions.SelectionSourceMaxX = SourceMaxX;
+		EffectiveOptions.SelectionSourceMaxY = SourceMaxY;
+	}
 
 	if (Keyframes && AsepriteSprite && AsepriteSprite->IsValid())
 	{
@@ -2283,41 +2429,82 @@ CodeGenerator::FResult SCanvas::CodeGeneration(
 	}
 
 	// fill pixels
-	for (int32_t PixelIndex = 0; PixelIndex < CodeGenerator::ZX_PIXEL_SIZE; ++PixelIndex)
+	if (Options.GeneratePixels)
 	{
-		const uint8_t& Mask = MaskData[PixelIndex];
-		const uint8_t& Pixels = InkData[PixelIndex];
-		const int32_t ZXPixelOffset = GetZXScreenPixelOffset(PixelIndex);
-		const bool bAllowed = PixelAllowedMask[PixelIndex] != 0;
+		for (int32_t PixelIndex = 0; PixelIndex < CodeGenerator::ZX_PIXEL_SIZE; ++PixelIndex)
+		{
+			const int32_t SourceY = PixelIndex / 32;
+			const int32_t SourceByteX = PixelIndex % 32;
+			const int32_t SourceX = SourceByteX * 8;
+			if (SourceX < SourceMinX || SourceX >= SourceMaxX || SourceY < SourceMinY || SourceY >= SourceMaxY)
+			{
+				continue;
+			}
 
-		DirtyMask[ZXPixelOffset] = Mask == 0x00 || !bAllowed ? 0 : 1;
-		ScreenData[ZXPixelOffset] = Mask == 0x00 || !bAllowed ? 0 : Pixels;
+			const int32_t TargetByteX = Options.ProjectSelection ? DestinationX / 8 + (SourceX - SourceMinX) / 8 : SourceByteX;
+			const int32_t TargetY = Options.ProjectSelection ? DestinationY + SourceY - SourceMinY : SourceY;
+			if (TargetByteX < 0 || TargetByteX >= 32 || TargetY < 0 || TargetY >= 192)
+			{
+				continue;
+			}
+
+			const uint8_t& Mask = MaskData[PixelIndex];
+			const uint8_t& Pixels = InkData[PixelIndex];
+			const int32_t ZXPixelOffset = GetZXScreenPixelOffset(TargetY * 32 + TargetByteX);
+			const bool bAllowed = PixelAllowedMask[PixelIndex] != 0;
+
+			DirtyMask[ZXPixelOffset] = Mask == 0x00 || !bAllowed ? 0 : 1;
+			ScreenData[ZXPixelOffset] = Mask == 0x00 || !bAllowed ? 0 : Pixels;
+		}
 	}
 
 	// fill attribute
-	for (int32_t AttrIndex = 0; AttrIndex < CodeGenerator::ZX_ATTRIBUTE_SIZE; ++AttrIndex)
+	if (Options.GenerateAttributes)
 	{
-		const uint8_t& Attribute = AttributeData[AttrIndex];
-		const bool bAllowed = AttributeAllowedMask[AttrIndex] != 0;
+		const int32_t SourceMinAttrX = SourceMinX / 8;
+		const int32_t SourceMinAttrY = SourceMinY / 8;
+		const int32_t SourceMaxAttrX = (SourceMaxX + 7) / 8;
+		const int32_t SourceMaxAttrY = (SourceMaxY + 7) / 8;
+		for (int32_t AttrIndex = 0; AttrIndex < CodeGenerator::ZX_ATTRIBUTE_SIZE; ++AttrIndex)
+		{
+			const int32_t SourceAttrX = AttrIndex % 32;
+			const int32_t SourceAttrY = AttrIndex / 32;
+			if (SourceAttrX < SourceMinAttrX || SourceAttrX >= SourceMaxAttrX ||
+				SourceAttrY < SourceMinAttrY || SourceAttrY >= SourceMaxAttrY)
+			{
+				continue;
+			}
 
-		DirtyMask[CodeGenerator::ZX_PIXEL_SIZE + AttrIndex] = Attribute == 0xFF || !bAllowed ? 0 : 1;
-		ScreenData[CodeGenerator::ZX_PIXEL_SIZE + AttrIndex] = Attribute == 0xFF || !bAllowed ? 0 : Attribute;
+			const int32_t TargetAttrX = Options.ProjectSelection ? DestinationX / 8 + SourceAttrX - SourceMinAttrX : SourceAttrX;
+			const int32_t TargetAttrY = Options.ProjectSelection ? DestinationY / 8 + SourceAttrY - SourceMinAttrY : SourceAttrY;
+			if (TargetAttrX < 0 || TargetAttrX >= 32 || TargetAttrY < 0 || TargetAttrY >= 24)
+			{
+				continue;
+			}
+
+			const uint8_t& Attribute = AttributeData[AttrIndex];
+			const bool bAllowed = AttributeAllowedMask[AttrIndex] != 0;
+			const int32_t TargetAttrIndex = TargetAttrY * 32 + TargetAttrX;
+
+			DirtyMask[CodeGenerator::ZX_PIXEL_SIZE + TargetAttrIndex] = Attribute == 0xFF || !bAllowed ? 0 : 1;
+			ScreenData[CodeGenerator::ZX_PIXEL_SIZE + TargetAttrIndex] = Attribute == 0xFF || !bAllowed ? 0 : Attribute;
+		}
 	}
 
 	CodeGenerator::FAnalysis Analysis;
-	if (!BuildAnalysis(ScreenData, DirtyMask, Options, Analysis, Result.Error, Progress))
+	if (!BuildAnalysis(ScreenData, DirtyMask, EffectiveOptions, Analysis, Result.Error, Progress))
 	{
 		return Result;
 	}
 
 	CodeGenerator::FPlan Plan;
-	if (!OptimizePlan(Analysis, Options, Plan, Result.Error, Progress))
+	if (!OptimizePlan(Analysis, EffectiveOptions, Plan, Result.Error, Progress))
 	{
 		return Result;
 	}
 
 	int32_t EmittedCycles = 0;
-	if (!EmitAsm(Analysis, Plan, Options, Result.AsmCode, Result.ByteCode, EmittedCycles, Result.Error, LabelName.empty() ? "DrawFrame" : LabelName, Progress))
+	if (!EmitAsm(Analysis, Plan, EffectiveOptions, Result.AsmCode, Result.ByteCode, EmittedCycles, Result.Error, LabelName.empty() ? "DrawFrame" : LabelName, Progress))
 	{
 		return Result;
 	}

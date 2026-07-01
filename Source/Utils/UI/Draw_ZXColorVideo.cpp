@@ -697,7 +697,7 @@ int32_t UI::FindClosestColor(ImU32 Color)
 	return Best;
 }
 
-void UI::QuantizeToZX(uint8_t* RawImage, int32_t Width, int32_t Height, int32_t Channels, std::vector<uint8_t>& OutputIndexedData, ImU32 TransparentColor)
+void UI::QuantizeToZX(const uint8_t* RawImage, int32_t Width, int32_t Height, int32_t Channels, std::vector<uint8_t>& OutputIndexedData, ImU32 TransparentColor)
 {
 	const int32_t Size = Width * Height;
 	OutputIndexedData.resize(Size);

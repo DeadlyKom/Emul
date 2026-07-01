@@ -25,6 +25,7 @@ namespace EFrameMode
 	{
 		None,
 		Difference,
+		ReverseDifference,
 
 		MAX
 	};
@@ -110,6 +111,7 @@ private:
 	void Imput_Close();
 	void Imput_CloseAll();
 	void Imput_ToggleFrameMode();
+	void Imput_ToggleFrameDirection();
 
 	void Quit() { bOpen = false; }
 	bool OpenFile(const std::filesystem::path& FilePath);
@@ -125,6 +127,7 @@ private:
 
 	bool bOpen;
 	FViewFlags ViewFlags;
+	EFrameMode::Type FrameDifferenceDirection;
 
 	// popup menu 'New Canvas'
 	bool bRectangularCanvas;

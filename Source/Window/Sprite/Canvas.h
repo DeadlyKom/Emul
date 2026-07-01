@@ -102,7 +102,7 @@ private:
 
 	// update canvas
 	void RebuildCanvasFromAseprite(int32_t Frame = 0);
-	bool FrameDifferenceZXColor(int32_t Frame, std::vector<uint8_t>& OutputDifference_InkData, std::vector<uint8_t>& OutputDifference_AttributeData, std::vector<uint8_t>& OutputDifference_MaskData);
+	bool FrameDifferenceZXColor(int32_t Frame, std::vector<uint8_t>& OutputDifference_InkData, std::vector<uint8_t>& OutputDifference_AttributeData, std::vector<uint8_t>& OutputDifference_MaskData, bool bReverse = false, bool bNormalizeToFrameZeroAttributes = false);
 
 	// undo/redo
 	void UndoSwapPixel(FPixelToCanvas& Param);

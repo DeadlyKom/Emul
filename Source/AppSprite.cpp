@@ -45,7 +45,8 @@ namespace
 	static const char* Menu_View_Show_AlphaCheckerboardName = "Alpha checkerboard";
 	static const char* Menu_View_FrameModeName = "Frame mode";
 	static const char* Menu_View_FrameMode_NoneName = "None";
-	static const char* Menu_View_FrameMode_DifferenceName = "Difference";
+	static const char* Menu_View_FrameMode_DifferenceName = "Difference forward";
+	static const char* Menu_View_FrameMode_ReverseDifferenceName = "Difference reverse";
 
 	static const char* Menu_FrameName = "Frame";
 
@@ -140,6 +141,7 @@ namespace
 
 FAppSprite::FAppSprite()
 	: bOpen(true)
+	, FrameDifferenceDirection(EFrameMode::Difference)
 	, bRectangularCanvas(false)
 	, bRoundingToMultipleEight(false)
 	, CanvasCounter(0)
@@ -430,9 +432,10 @@ void FAppSprite::SetupHotKeys()
 	Hotkeys =
 	{
 		// global
+		{ ImGuiKey_KeypadMultiply, ImGuiInputFlags_RouteGlobal, std::bind(&ThisClass::Imput_ToggleFrameDirection, this) }, // (Num *)
 		{ ImGuiMod_Ctrl | ImGuiKey_W,					ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_Close,							this)	},	// (ctrl + S)
 		{ ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_W,	ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_CloseAll,						this)	},	// (ctrl + S)
-		{ ImGuiKey_KeypadDivide,						ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_ToggleFrameMode,				this)	},	// (Num /)
+		{ ImGuiKey_KeypadDivide,						ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_ToggleFrameMode,				this)	},	// (Num /)
 	};
 }
 
@@ -584,14 +587,21 @@ void FAppSprite::Show_MenuBar()
 		if (ImGui::BeginMenu(Menu_View_FrameModeName, HasCanvasWithTimeline()))
 		{
 			bool bUpdateOptions = false;
-			if (ImGui::MenuItem(Menu_View_FrameMode_NoneName, NULL, ViewFlags.FrameMode == EFrameMode::None))
+			if (ImGui::MenuItem(Menu_View_FrameMode_NoneName, "Num /", ViewFlags.FrameMode == EFrameMode::None))
 			{
 				ViewFlags.FrameMode = EFrameMode::None;
 				bUpdateOptions = true;
 			}
-			if (ImGui::MenuItem(Menu_View_FrameMode_DifferenceName, "Num /", ViewFlags.FrameMode == EFrameMode::Difference))
+			if (ImGui::MenuItem(Menu_View_FrameMode_DifferenceName, nullptr, ViewFlags.FrameMode == EFrameMode::Difference))
 			{
+				FrameDifferenceDirection = EFrameMode::Difference;
 				ViewFlags.FrameMode = EFrameMode::Difference;
+				bUpdateOptions = true;
+			}
+			if (ImGui::MenuItem(Menu_View_FrameMode_ReverseDifferenceName, "Num *", ViewFlags.FrameMode == EFrameMode::ReverseDifference))
+			{
+				FrameDifferenceDirection = EFrameMode::ReverseDifference;
+				ViewFlags.FrameMode = EFrameMode::ReverseDifference;
 				bUpdateOptions = true;
 			}
 			ImGui::EndMenu();
@@ -1110,6 +1120,36 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 			bOptionsChanged = true;
 		}
 		DrawLastItemTooltip("Генерировать запись в теневой экран ZX Spectrum: #C000..#DAFF.");
+		CheckboxWithTooltip(
+			"Generate pixels",
+			&CodeGenerationOptions.GeneratePixels,
+			"Учитывать bitmap-область экрана: 6144 байта #4000..#57FF или соответствующую область теневого экрана.");
+		CheckboxWithTooltip(
+			"Generate attributes",
+			&CodeGenerationOptions.GenerateAttributes,
+			"Учитывать атрибуты цвета: 768 байт #5800..#5AFF или соответствующую область теневого экрана.");
+		CheckboxWithTooltip(
+			"Reverse frame difference",
+			&CodeGenerationOptions.ReverseFrameDifference,
+			"Прямой diff записывает текущий кадр поверх предыдущего. Обратный diff записывает предыдущий кадр поверх текущего.");
+		CheckboxWithTooltip(
+			"Project canvas selection",
+			&CodeGenerationOptions.ProjectSelection,
+			"Генерировать только видимое выделение canvas и перенести его в указанную позицию экрана 256x192. Координата X выравнивается вниз до границы 8 пикселей.");
+		if (!CodeGenerationOptions.ProjectSelection)
+		{
+			ImGui::BeginDisabled();
+		}
+		ImGui::SetNextItemWidth(InputNumberWidth);
+		bOptionsChanged |= ImGui::InputInt("Destination X", &CodeGenerationOptions.DestinationX);
+		DrawLastItemTooltip("Горизонтальная координата назначения 0..255. Bitmap ZX адресуется байтами, поэтому X выравнивается вниз до кратного 8.");
+		ImGui::SetNextItemWidth(InputNumberWidth);
+		bOptionsChanged |= ImGui::InputInt("Destination Y", &CodeGenerationOptions.DestinationY);
+		DrawLastItemTooltip("Вертикальная координата назначения 0..191. Пиксели переносятся точно; атрибуты попадают в соответствующую строку знакомест.");
+		if (!CodeGenerationOptions.ProjectSelection)
+		{
+			ImGui::EndDisabled();
+		}
 		int32_t CycleWeight = static_cast<int32_t>(CodeGenerationOptions.CycleWeight);
 		ImGui::SetNextItemWidth(InputNumberWidth);
 		if (ImGui::InputInt("Cycle weight", &CycleWeight))
@@ -1207,6 +1247,8 @@ bool FAppSprite::Show_WindowgCodeGeneration()
 		CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass = ImClamp(CodeGenerationOptions.MaxNonLinearCandidatesToEvaluatePerPass, 1, 1024);
 		CodeGenerationOptions.CycleWeight = ImMax(CodeGenerationOptions.CycleWeight, 1LL);
 		CodeGenerationOptions.ByteWeight = ImMax(CodeGenerationOptions.ByteWeight, 1LL);
+		CodeGenerationOptions.DestinationX = ImClamp(CodeGenerationOptions.DestinationX, 0, 255);
+		CodeGenerationOptions.DestinationY = ImClamp(CodeGenerationOptions.DestinationY, 0, 191);
 		if (CodeGenerationOptions.ScreenBaseAddress != CodeGenerator::ZX_SCREEN_BASE &&
 			CodeGenerationOptions.ScreenBaseAddress != CodeGenerator::ZX_SHADOW_SCREEN_BASE)
 		{
@@ -1396,7 +1438,8 @@ void FAppSprite::StartCodeGenerationPreview()
 	bCodeGenerationGenerationInProgress.store(true, std::memory_order_relaxed);
 	bCodeGenerationProgressModalOpen = true;
 
-	const CodeGenerator::FOptions Options = CodeGenerationOptions;
+	CodeGenerator::FOptions Options = CodeGenerationOptions;
+	Options.OutputOpcodes = bCodeGenerationGenerateOpcode;
 	const std::string LabelName = CodeGenerationLabelNameBuffer;
 	CodeGenerationWorker = std::thread(
 		[this, Canvas, Options, LabelName]()
@@ -1463,6 +1506,16 @@ void FAppSprite::PollCodeGenerationPreviewJob()
 		AppendLogLine(std::format("Screen target: 0x{:04X}..0x{:04X}",
 			CodeGenerationOptions.ScreenBaseAddress,
 			static_cast<uint16_t>(CodeGenerationOptions.ScreenBaseAddress + CodeGenerator::ZX_SCREEN_SIZE - 1)));
+		AppendLogLine(std::format("Data: pixels={}, attributes={}, frame diff={}",
+			CodeGenerationOptions.GeneratePixels ? "on" : "off",
+			CodeGenerationOptions.GenerateAttributes ? "on" : "off",
+			CodeGenerationOptions.ReverseFrameDifference ? "reverse" : "forward"));
+		if (CodeGenerationOptions.ProjectSelection)
+		{
+			AppendLogLine(std::format("Projection: canvas selection to X={}, Y={}",
+				CodeGenerationOptions.DestinationX & ~7,
+				CodeGenerationOptions.DestinationY));
+		}
 		AppendLogLine(std::format("Stack options: max pairs={}, top=0x{:04X}, preserve SP={}, DI/EI={}",
 			CodeGenerationOptions.MaxStackPairsToEnumerate,
 			CodeGenerationOptions.StackTopAddress,
@@ -1652,7 +1705,32 @@ void FAppSprite::Imput_CloseAll()
 
 void FAppSprite::Imput_ToggleFrameMode()
 {
-	++ViewFlags.FrameMode;
+	if (ViewFlags.FrameMode == EFrameMode::None)
+	{
+		ViewFlags.FrameMode = FrameDifferenceDirection;
+	}
+	else
+	{
+		FrameDifferenceDirection = ViewFlags.FrameMode;
+		ViewFlags.FrameMode = EFrameMode::None;
+	}
+	FEvent_Canvas Canvas_Event(FEventTag::CanvasViewFlagsTag);
+	{
+		Canvas_Event.CanvasName = {};
+		Canvas_Event.ViewFlags = ViewFlags;
+		Viewer->GetEventSystem().Publish(Canvas_Event);
+	}
+}
+
+void FAppSprite::Imput_ToggleFrameDirection()
+{
+	FrameDifferenceDirection = FrameDifferenceDirection == EFrameMode::ReverseDifference
+		? EFrameMode::Difference
+		: EFrameMode::ReverseDifference;
+	if (ViewFlags.FrameMode != EFrameMode::None)
+	{
+		ViewFlags.FrameMode = FrameDifferenceDirection;
+	}
 	FEvent_Canvas Canvas_Event(FEventTag::CanvasViewFlagsTag);
 	{
 		Canvas_Event.CanvasName = {};

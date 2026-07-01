@@ -3106,11 +3106,14 @@ static void EmitAsmHeader(
         << ", preserve SP - " << (bPreserveSP ? "yes" : "no")
         << ", interrupts - " << (Options.DisableInterruptsForStack && bUsesStack ? "DI/EI" : "unchanged") << "\n";
     Out.Preview << ";   Profile      - " << GetCodeGenerationProfileName(Options) << "\n";
+    Out.Preview << ";   Output mode  - " << (Options.OutputOpcodes ? "opcodes" : "assembly") << "\n";
     Out.Preview << ";   Options      - cycle weight " << Options.CycleWeight
         << ", byte weight " << Options.ByteWeight
         << ", beam " << Options.NonLinearBeamWidth
         << ", probe limit " << Options.MaxNonLinearCandidatesToEvaluatePerPass << "\n";
-    Out.Preview << ";   Stack opts   - max pairs " << Options.MaxStackPairsToEnumerate
+    Out.Preview << ";   Stack opts   - preserve SP " << (Options.PreserveSP ? "on" : "off")
+        << ", DI/EI " << (Options.DisableInterruptsForStack ? "on" : "off")
+        << ", max pairs " << Options.MaxStackPairsToEnumerate
         << ", top " << CodeGenerator::Hex16(Options.StackTopAddress) << "\n";
     if (bPreserveSP)
     {
@@ -3118,6 +3121,30 @@ static void EmitAsmHeader(
             << ".." << CodeGenerator::Hex16(static_cast<uint16_t>(Options.StackTopAddress + 1)) << "\n";
     }
     Out.Preview << ";   Screen base  - " << CodeGenerator::Hex16(Options.ScreenBaseAddress) << "\n";
+    Out.Preview << ";   Data         - pixels " << (Options.GeneratePixels ? "on" : "off")
+        << ", attributes " << (Options.GenerateAttributes ? "on" : "off") << "\n";
+    Out.Preview << ";   Pixel encoding - "
+        << (Options.GeneratePixels && !Options.GenerateAttributes ? "bitmap orientation normalized to frame 0" : "per-frame attributes") << "\n";
+    Out.Preview << ";   Frame diff   - " << (Options.ReverseFrameDifference ? "reverse" : "forward") << "\n";
+    if (Options.ProjectSelection)
+    {
+        Out.Preview << ";   Projection   - on";
+        if (Options.HasSelectionSource)
+        {
+            Out.Preview << ", source [" << Options.SelectionSourceMinX << "," << Options.SelectionSourceMinY
+                << ".." << Options.SelectionSourceMaxX << "," << Options.SelectionSourceMaxY << ")";
+        }
+        else
+        {
+            Out.Preview << ", source unavailable";
+        }
+        Out.Preview << ", target X=" << Options.DestinationX << ", Y=" << Options.DestinationY << "\n";
+    }
+    else
+    {
+        Out.Preview << ";   Projection   - off, configured target X=" << Options.DestinationX
+            << ", Y=" << Options.DestinationY << "\n";
+    }
     Out.Preview << ";   Candidates   - byte " << (Options.EnableByteCandidates ? "on" : "off")
         << ", word " << (Options.EnableWordCandidates ? "on" : "off")
         << ", stack " << (Options.EnableStackBlocks ? "on" : "off")
