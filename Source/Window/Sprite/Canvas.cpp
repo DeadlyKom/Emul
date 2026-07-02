@@ -892,10 +892,72 @@ void SCanvas::Draw_PopupMenu()
 			ApplyLimitArea(true);
 		}
 		DrawLastItemTooltip("Применить текущее выделение ко всем кадрам текущего слоя.");
+		if (AsepriteSprite->IsValid() && ImGui::MenuItem("Инверсия..."))
+		{
+			FrameInversionRect = ZXColorView->RectangleMarqueeRect;
+			FrameInversionError.clear();
+			bOpenFrameInversionPopup = true;
+		}
+		DrawLastItemTooltip("Инвертировать пиксели и/или поменять местами INK и PAPER в выделенной области.");
 		ImGui::EndPopup();	
 	}
 	
 	Draw_PopupMenu_CreateSprite();
+}
+
+void SCanvas::Draw_FrameInversionPopup()
+{
+	static const char* PopupName = "Инверсия ZX##FrameInversion";
+	if (bOpenFrameInversionPopup)
+	{
+		ImGui::OpenPopup(PopupName);
+		bOpenFrameInversionPopup = false;
+	}
+
+	if (!ImGui::BeginPopupModal(PopupName, nullptr, ImGuiWindowFlags_AlwaysAutoResize))
+	{
+		return;
+	}
+
+	auto DrawLastItemTooltip = [](const char* Tooltip)
+	{
+		if (ImGui::IsItemHovered())
+		{
+			ImGui::BeginTooltip();
+			ImGui::TextUnformatted(Tooltip);
+			ImGui::EndTooltip();
+		}
+	};
+
+	ImGui::Checkbox("Пиксели", &bInvertFramePixels);
+	DrawLastItemTooltip("Инвертировать bitmap-биты только внутри выделения.");
+
+	ImGui::Checkbox("Атрибуты", &bInvertFrameAttributes);
+	DrawLastItemTooltip("Поменять местами цвета INK и PAPER в затронутых знакоместах.");
+
+	ImGui::Checkbox("Все кадры", &bInvertAllFrames);
+	DrawLastItemTooltip("Применить операцию ко всем кадрам и сохранить покадровые override-файлы.");
+
+	if (!FrameInversionError.empty())
+	{
+		ImGui::TextColored(ImVec4(1.0f, 0.35f, 0.25f, 1.0f), "%s", FrameInversionError.c_str());
+	}
+
+	ImGui::Separator();
+	ImGui::BeginDisabled(!bInvertFramePixels && !bInvertFrameAttributes);
+	if (ImGui::Button("Применить") && ApplyFrameInversion())
+	{
+		ImGui::CloseCurrentPopup();
+	}
+	ImGui::EndDisabled();
+	ImGui::SameLine();
+	if (ImGui::Button("Отмена"))
+	{
+		FrameInversionError.clear();
+		ImGui::CloseCurrentPopup();
+	}
+
+	ImGui::EndPopup();
 }
 
 void SCanvas::Draw_PopupMenu_CreateSprite()
@@ -1938,6 +2000,128 @@ void SCanvas::UpdateCursorColor(bool bButton /*= false*/)
 
 		ZXColorView->CursorColor = UI::ToVec4(UI::ZXSpectrumColorRGBA[InkColor]);
 	}
+}
+
+void SCanvas::InvertZXDataInRect(
+	std::vector<uint8_t>& InkData,
+	std::vector<uint8_t>& AttributeData,
+	const ImRect& Rect,
+	bool bInvertPixels,
+	bool bInvertAttributes) const
+{
+	const int32_t BoundaryX = Width >> 3;
+	const int32_t MinX = ImClamp(static_cast<int32_t>(floorf(Rect.Min.x)), 0, Width);
+	const int32_t MinY = ImClamp(static_cast<int32_t>(floorf(Rect.Min.y)), 0, Height);
+	const int32_t MaxX = ImClamp(static_cast<int32_t>(ceilf(Rect.Max.x)), 0, Width);
+	const int32_t MaxY = ImClamp(static_cast<int32_t>(ceilf(Rect.Max.y)), 0, Height);
+	if (BoundaryX <= 0 || MinX >= MaxX || MinY >= MaxY)
+	{
+		return;
+	}
+
+	if (bInvertPixels)
+	{
+		for (int32_t Y = MinY; Y < MaxY; ++Y)
+		{
+			for (int32_t X = MinX; X < MaxX; ++X)
+			{
+				const int32_t PixelIndex = Y * BoundaryX + (X >> 3);
+				if (PixelIndex >= 0 && PixelIndex < static_cast<int32_t>(InkData.size()))
+				{
+					InkData[PixelIndex] ^= static_cast<uint8_t>(1 << (7 - (X & 7)));
+				}
+			}
+		}
+	}
+
+	if (bInvertAttributes)
+	{
+		const int32_t MinAttributeX = MinX >> 3;
+		const int32_t MinAttributeY = MinY >> 3;
+		const int32_t MaxAttributeX = (MaxX + 7) >> 3;
+		const int32_t MaxAttributeY = (MaxY + 7) >> 3;
+		for (int32_t AttributeY = MinAttributeY; AttributeY < MaxAttributeY; ++AttributeY)
+		{
+			for (int32_t AttributeX = MinAttributeX; AttributeX < MaxAttributeX; ++AttributeX)
+			{
+				const int32_t AttributeIndex = AttributeY * BoundaryX + AttributeX;
+				if (AttributeIndex < 0 || AttributeIndex >= static_cast<int32_t>(AttributeData.size()))
+				{
+					continue;
+				}
+
+				const uint8_t Attribute = AttributeData[AttributeIndex];
+				AttributeData[AttributeIndex] = static_cast<uint8_t>(
+					(Attribute & 0xC0) |
+					((Attribute & 0x07) << 3) |
+					((Attribute >> 3) & 0x07));
+			}
+		}
+	}
+}
+
+bool SCanvas::ApplyFrameInversion()
+{
+	FrameInversionError.clear();
+	if (!bInvertFramePixels && !bInvertFrameAttributes)
+	{
+		return false;
+	}
+	if (!AsepriteSprite || !AsepriteSprite->IsValid())
+	{
+		FrameInversionError = "Нет загруженной анимации Aseprite.";
+		return false;
+	}
+	if (FrameInversionRect.GetWidth() <= 0.0f || FrameInversionRect.GetHeight() <= 0.0f)
+	{
+		FrameInversionError = "Сначала выделите область на Canvas.";
+		return false;
+	}
+
+	if (bDirty && !SaveAsepriteFrameOverride(
+		SelectedSpritesFrame,
+		ZXColorView->InkData,
+		ZXColorView->AttributeData,
+		ZXColorView->MaskData))
+	{
+		FrameInversionError = "Не удалось сохранить текущие изменения кадра.";
+		return false;
+	}
+
+	const int32_t FirstFrame = bInvertAllFrames ? 0 : SelectedSpritesFrame;
+	const int32_t LastFrame = bInvertAllFrames
+		? static_cast<int32_t>(AsepriteSprite->Frames.size())
+		: SelectedSpritesFrame + 1;
+
+	for (int32_t Frame = FirstFrame; Frame < LastFrame; ++Frame)
+	{
+		std::vector<uint8_t> InkData;
+		std::vector<uint8_t> AttributeData;
+		std::vector<uint8_t> MaskData;
+		if (!BuildAsepriteFrameZXData(Frame, InkData, AttributeData, MaskData))
+		{
+			FrameInversionError = std::format("Не удалось подготовить кадр {}.", Frame);
+			return false;
+		}
+
+		InvertZXDataInRect(
+			InkData,
+			AttributeData,
+			FrameInversionRect,
+			bInvertFramePixels,
+			bInvertFrameAttributes);
+		if (!SaveAsepriteFrameOverride(Frame, InkData, AttributeData, MaskData))
+		{
+			FrameInversionError = std::format("Не удалось сохранить кадр {}.", Frame);
+			return false;
+		}
+	}
+
+	bDirty = false;
+	LastRebuiltSpriteFrame = INDEX_NONE;
+	bFroceRebuiltSpriteFrame = true;
+	bRefreshCanvas = true;
+	return true;
 }
 
 void SCanvas::ChangeFrameMode(EFrameMode::Type NewFrameMode)
