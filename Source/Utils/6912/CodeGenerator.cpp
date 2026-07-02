@@ -3123,8 +3123,8 @@ static void EmitAsmHeader(
     Out.Preview << ";   Screen base  - " << CodeGenerator::Hex16(Options.ScreenBaseAddress) << "\n";
     Out.Preview << ";   Data         - pixels " << (Options.GeneratePixels ? "on" : "off")
         << ", attributes " << (Options.GenerateAttributes ? "on" : "off") << "\n";
-    Out.Preview << ";   Pixel encoding - "
-        << (Options.GeneratePixels && !Options.GenerateAttributes ? "bitmap orientation normalized to frame 0" : "per-frame attributes") << "\n";
+	Out.Preview << ";   Pixel encoding - "
+		<< (Options.GeneratePixels && !Options.GenerateAttributes ? "per-frame ZX bitmap" : "per-frame attributes") << "\n";
     Out.Preview << ";   Frame diff   - " << (Options.ReverseFrameDifference ? "reverse" : "forward") << "\n";
     if (Options.ProjectSelection)
     {

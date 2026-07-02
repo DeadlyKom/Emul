@@ -54,6 +54,7 @@ public:
 private:
 	void Draw_PopupMenu();
 	void Draw_PopupMenu_CreateSprite();
+	void Draw_FrameInversionPopup();
 
 	void Input_HotKeys();
 	void Input_Mouse();
@@ -91,6 +92,29 @@ private:
 
 	bool Save(const std::filesystem::path& SavePath, const std::filesystem::path& SaveName);
 	bool Load(const std::filesystem::path& LoadPath, const std::filesystem::path& LoadName, bool bLoadImage = true);
+	std::filesystem::path GetAsepriteFrameOverridePath(int32_t Frame, const char* Extension) const;
+	bool LoadAsepriteFrameOverride(
+		int32_t Frame,
+		std::vector<uint8_t>& InkData,
+		std::vector<uint8_t>& AttributeData,
+		std::vector<uint8_t>& MaskData) const;
+	bool SaveAsepriteFrameOverride(
+		int32_t Frame,
+		const std::vector<uint8_t>& InkData,
+		const std::vector<uint8_t>& AttributeData,
+		const std::vector<uint8_t>& MaskData) const;
+	bool BuildAsepriteFrameZXData(
+		int32_t Frame,
+		std::vector<uint8_t>& InkData,
+		std::vector<uint8_t>& AttributeData,
+		std::vector<uint8_t>& MaskData) const;
+	void InvertZXDataInRect(
+		std::vector<uint8_t>& InkData,
+		std::vector<uint8_t>& AttributeData,
+		const ImRect& Rect,
+		bool bInvertPixels,
+		bool bInvertAttributes) const;
+	bool ApplyFrameInversion();
 
 	void ConversionToZX(const UI::FConversationSettings& Settings);
 	void ConversionToCanvas(const UI::FConversationSettings& Settings);
@@ -102,7 +126,7 @@ private:
 
 	// update canvas
 	void RebuildCanvasFromAseprite(int32_t Frame = 0);
-	bool FrameDifferenceZXColor(int32_t Frame, std::vector<uint8_t>& OutputDifference_InkData, std::vector<uint8_t>& OutputDifference_AttributeData, std::vector<uint8_t>& OutputDifference_MaskData, bool bReverse = false, bool bNormalizeToFrameZeroAttributes = false);
+	bool FrameDifferenceZXColor(int32_t Frame, std::vector<uint8_t>& OutputDifference_InkData, std::vector<uint8_t>& OutputDifference_AttributeData, std::vector<uint8_t>& OutputDifference_MaskData, bool bReverse = false);
 
 	// undo/redo
 	void UndoSwapPixel(FPixelToCanvas& Param);
@@ -137,6 +161,12 @@ private:
 	bool bOpenPopupMenu;
 	bool bMouseInsideMarquee;
 	bool bFroceRebuiltSpriteFrame;
+	bool bOpenFrameInversionPopup;
+	bool bInvertFramePixels;
+	bool bInvertFrameAttributes;
+	bool bInvertAllFrames;
+	ImRect FrameInversionRect;
+	std::string FrameInversionError;
 
 	// popup menu 'New Sprite'
 	bool bRoundingToMultipleEight;

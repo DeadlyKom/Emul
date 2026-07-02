@@ -1,4 +1,4 @@
-﻿#include "Canvas.h"
+#include "Canvas.h"
 #include "Timeline.h"
 #include "Keyframes.h"
 #include "SpriteList.h"
@@ -1928,8 +1928,7 @@ bool SCanvas::FrameDifferenceZXColor(
 	std::vector<uint8_t>& OutputDifference_InkData,
 	std::vector<uint8_t>& OutputDifference_AttributeData,
 	std::vector<uint8_t>& OutputDifference_MaskData,
-	bool bReverse,
-	bool bNormalizeToFrameZeroAttributes)
+	bool bReverse)
 {
 	const bool bInk = OptionsFlags[0] & FCanvasOptionsFlags::Ink;
 	const bool bMask = OptionsFlags[0] & FCanvasOptionsFlags::Mask;
@@ -1965,71 +1964,6 @@ bool SCanvas::FrameDifferenceZXColor(
 	std::vector<uint8_t> PreviousFrame_MaskData;
 	UI::ZXIndexColorToZXAttributeColor(PreviousFrame_IndexedData, Width, Height, PreviousFrame_InkData, PreviousFrame_AttributeData, PreviousFrame_MaskData, ConversationSettings);
 
-	if (bNormalizeToFrameZeroAttributes)
-	{
-		std::vector<uint8_t> FrameZero_InkData;
-		if (Frame == 1)
-		{
-			FrameZero_InkData = PreviousFrame_InkData;
-		}
-		else
-		{
-			std::vector<uint8_t> FrameZero_IndexedData;
-			std::vector<uint8_t> FrameZero_AttributeData;
-			std::vector<uint8_t> FrameZero_MaskData;
-			UI::QuantizeToZX(AsepriteSprite->Frames[0].data(), Width, Height, 4, FrameZero_IndexedData, TransparentColor);
-			UI::ZXIndexColorToZXAttributeColor(FrameZero_IndexedData, Width, Height, FrameZero_InkData, FrameZero_AttributeData, FrameZero_MaskData, ConversationSettings);
-		}
-
-		auto NormalizeBitmapOrientation = [this, &FrameZero_InkData](std::vector<uint8_t>& InkData)
-		{
-			const int32_t BoundaryX = Width >> 3;
-			const int32_t BoundaryY = Height >> 3;
-			if (BoundaryX <= 0 || BoundaryY <= 0 || InkData.size() != FrameZero_InkData.size())
-			{
-				return;
-			}
-
-			auto CountBits = [](uint8_t Value)
-			{
-				int32_t Count = 0;
-				while (Value != 0)
-				{
-					Value &= static_cast<uint8_t>(Value - 1);
-					++Count;
-				}
-				return Count;
-			};
-
-			for (int32_t AttributeY = 0; AttributeY < BoundaryY; ++AttributeY)
-			{
-				for (int32_t AttributeX = 0; AttributeX < BoundaryX; ++AttributeX)
-				{
-					int32_t DirectDifference = 0;
-					int32_t InvertedDifference = 0;
-					for (int32_t PixelY = 0; PixelY < 8; ++PixelY)
-					{
-						const int32_t PixelIndex = (AttributeY * 8 + PixelY) * BoundaryX + AttributeX;
-						const uint8_t Pixels = InkData[PixelIndex];
-						const uint8_t ReferencePixels = FrameZero_InkData[PixelIndex];
-						DirectDifference += CountBits(static_cast<uint8_t>(Pixels ^ ReferencePixels));
-						InvertedDifference += CountBits(static_cast<uint8_t>(~Pixels ^ ReferencePixels));
-					}
-					if (InvertedDifference < DirectDifference)
-					{
-						for (int32_t PixelY = 0; PixelY < 8; ++PixelY)
-						{
-							const int32_t PixelIndex = (AttributeY * 8 + PixelY) * BoundaryX + AttributeX;
-							InkData[PixelIndex] = static_cast<uint8_t>(~InkData[PixelIndex]);
-						}
-					}
-				}
-			}
-		};
-
-		NormalizeBitmapOrientation(CurrentFrame_InkData);
-		NormalizeBitmapOrientation(PreviousFrame_InkData);
-	}
 
 	const int32_t Boundary_X = Width >> 3;
 
@@ -2290,8 +2224,7 @@ CodeGenerator::FResult SCanvas::BuildCodeGenerationResult(const CodeGenerator::F
 		Difference_InkData,
 		Difference_AttributeData,
 		Difference_MaskData,
-		Options.ReverseFrameDifference,
-		Options.GeneratePixels && !Options.GenerateAttributes))
+		Options.ReverseFrameDifference))
 	{
 		Result.Error = std::format("Error: getting difference in ZX frame Color");
 		return Result;
