@@ -176,6 +176,10 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	, bOpenPopupMenu(false)
 	, bMouseInsideMarquee(false)
 	, bFroceRebuiltSpriteFrame(false)
+	, bOpenFrameInversionPopup(false)
+	, bInvertFramePixels(true)
+	, bInvertFrameAttributes(true)
+	, bInvertAllFrames(false)
 	, LastOptionsFlags(FCanvasOptionsFlags::None)
 	, LastSetPixelColorIndex(EZXColor::None)
 	, LastSetPixelPosition(-1.0f, -1.0f)
@@ -632,6 +636,7 @@ void SCanvas::Render()
 		Input_Mouse();
 		ApplyToolMode();
 		Draw_PopupMenu();
+		Draw_FrameInversionPopup();
 
 		const float WindowWidth = ImGui::GetWindowContentRegionMax().x;
 		const float WidthDirty = 25.0f;
@@ -1658,8 +1663,129 @@ void SCanvas::Handler_Eyedropper()
 	}
 }
 
+std::filesystem::path SCanvas::GetAsepriteFrameOverridePath(int32_t Frame, const char* Extension) const
+{
+	if (SourcePathFile.empty() || Frame < 0)
+	{
+		return {};
+	}
+
+	const std::string Filename = std::format(
+		"{}_frame_{}{}",
+		SourcePathFile.stem().string(),
+		Frame,
+		Extension);
+	return IO::NormalizePath(std::filesystem::absolute(SourcePathFile.parent_path() / Filename));
+}
+
+bool SCanvas::LoadAsepriteFrameOverride(
+	int32_t Frame,
+	std::vector<uint8_t>& InkData,
+	std::vector<uint8_t>& AttributeData,
+	std::vector<uint8_t>& MaskData) const
+{
+	if (ImageFormat != EImageFormat::Aseprite || SourcePathFile.empty())
+	{
+		return false;
+	}
+
+	const size_t ExpectedPixelSize = static_cast<size_t>(Width >> 3) * Height;
+	const size_t ExpectedAttributeSize = static_cast<size_t>(Width >> 3) * (Height >> 3);
+	bool bLoaded = false;
+
+	auto LoadData = [&bLoaded](const std::filesystem::path& Path, size_t ExpectedSize, std::vector<uint8_t>& Output)
+	{
+		if (Path.empty() || !std::filesystem::exists(Path))
+		{
+			return;
+		}
+
+		std::vector<uint8_t> Data;
+		const std::error_code Error = IO::LoadBinaryData(Data, Path);
+		if (Error || Data.size() != ExpectedSize)
+		{
+			LOG_ERROR("[LoadAsepriteFrameOverride] Invalid override file: {}", Path.string());
+			return;
+		}
+
+		Output = std::move(Data);
+		bLoaded = true;
+	};
+
+	LoadData(GetAsepriteFrameOverridePath(Frame, ".ink"), ExpectedPixelSize, InkData);
+	LoadData(GetAsepriteFrameOverridePath(Frame, ".attr"), ExpectedAttributeSize, AttributeData);
+	LoadData(GetAsepriteFrameOverridePath(Frame, ".mask"), ExpectedPixelSize, MaskData);
+	return bLoaded;
+}
+
+bool SCanvas::SaveAsepriteFrameOverride(
+	int32_t Frame,
+	const std::vector<uint8_t>& InkData,
+	const std::vector<uint8_t>& AttributeData,
+	const std::vector<uint8_t>& MaskData) const
+{
+	const size_t ExpectedPixelSize = static_cast<size_t>(Width >> 3) * Height;
+	const size_t ExpectedAttributeSize = static_cast<size_t>(Width >> 3) * (Height >> 3);
+	if (ImageFormat != EImageFormat::Aseprite ||
+		SourcePathFile.empty() ||
+		Frame < 0 ||
+		InkData.size() != ExpectedPixelSize ||
+		AttributeData.size() != ExpectedAttributeSize ||
+		MaskData.size() != ExpectedPixelSize)
+	{
+		return false;
+	}
+
+	const std::error_code InkError = IO::SaveBinaryData(InkData, GetAsepriteFrameOverridePath(Frame, ".ink"), false);
+	const std::error_code AttributeError = IO::SaveBinaryData(AttributeData, GetAsepriteFrameOverridePath(Frame, ".attr"), false);
+	const std::error_code MaskError = IO::SaveBinaryData(MaskData, GetAsepriteFrameOverridePath(Frame, ".mask"), false);
+	if (InkError || AttributeError || MaskError)
+	{
+		LOG_ERROR("[SaveAsepriteFrameOverride] Failed to save frame {}", Frame);
+		return false;
+	}
+	return true;
+}
+
+bool SCanvas::BuildAsepriteFrameZXData(
+	int32_t Frame,
+	std::vector<uint8_t>& InkData,
+	std::vector<uint8_t>& AttributeData,
+	std::vector<uint8_t>& MaskData) const
+{
+	if (!AsepriteSprite ||
+		!AsepriteSprite->IsValid() ||
+		Frame < 0 ||
+		Frame >= static_cast<int32_t>(AsepriteSprite->Frames.size()))
+	{
+		return false;
+	}
+
+	std::vector<uint8_t> IndexedData;
+	UI::QuantizeToZX(AsepriteSprite->Frames[Frame].data(), Width, Height, 4, IndexedData, TransparentColor);
+	UI::ZXIndexColorToZXAttributeColor(
+		IndexedData,
+		Width,
+		Height,
+		InkData,
+		AttributeData,
+		MaskData,
+		ConversationSettings);
+	LoadAsepriteFrameOverride(Frame, InkData, AttributeData, MaskData);
+	return true;
+}
+
 bool SCanvas::Save(const std::filesystem::path& SavePath, const std::filesystem::path& SaveName)
 {
+	if (ImageFormat == EImageFormat::Aseprite)
+	{
+		return SaveAsepriteFrameOverride(
+			SelectedSpritesFrame,
+			ZXColorView->InkData,
+			ZXColorView->AttributeData,
+			ZXColorView->MaskData);
+	}
+
 	FImageBase& Images = FImageBase::Get();
 	std::vector<uint32_t> RGBA;
 	UI::ZXIndexColorToRGBA(RGBA, ZXColorView->IndexedData, Width, Height);
