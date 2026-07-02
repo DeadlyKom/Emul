@@ -203,6 +203,8 @@ namespace CodeGenerator
         bool ReverseFrameDifference;
         bool OutputOpcodes;
         bool HasSelectionSource;
+        bool CurrentFrameOverride;
+        bool PreviousFrameOverride;
         int32_t SelectionSourceMinX;
         int32_t SelectionSourceMinY;
         int32_t SelectionSourceMaxX;
@@ -235,6 +237,8 @@ namespace CodeGenerator
             , ReverseFrameDifference(false)
             , OutputOpcodes(false)
             , HasSelectionSource(false)
+            , CurrentFrameOverride(false)
+            , PreviousFrameOverride(false)
             , SelectionSourceMinX(0)
             , SelectionSourceMinY(0)
             , SelectionSourceMaxX(0)

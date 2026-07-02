@@ -3125,6 +3125,8 @@ static void EmitAsmHeader(
         << ", attributes " << (Options.GenerateAttributes ? "on" : "off") << "\n";
 	Out.Preview << ";   Pixel encoding - "
 		<< (Options.GeneratePixels && !Options.GenerateAttributes ? "per-frame ZX bitmap" : "per-frame attributes") << "\n";
+	Out.Preview << ";   Frame files  - current override " << (Options.CurrentFrameOverride ? "on" : "off")
+		<< ", previous override " << (Options.PreviousFrameOverride ? "on" : "off") << "\n";
     Out.Preview << ";   Frame diff   - " << (Options.ReverseFrameDifference ? "reverse" : "forward") << "\n";
     if (Options.ProjectSelection)
     {
