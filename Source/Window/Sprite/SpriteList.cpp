@@ -1406,13 +1406,14 @@ void SSpriteList::SendSelectedSprite() const
 		}
 
 		// forced open window Canvas
+		for (const std::shared_ptr<SWindow>& Window : Viewer->GetWindows(NAME_Canvas))
 		{
-			const std::wstring Filename = Sprite->GetFilename();
-			std::shared_ptr<SWindow> Window = Viewer->GetWindow(NAME_Canvas, Filename);
-			if (Window)
+			const std::shared_ptr<SCanvas> Canvas = std::dynamic_pointer_cast<SCanvas>(Window);
+			if (Canvas && Canvas->GetSourcePathFile() == Sprite->SourcePathFile)
 			{
-				Window->SetOpen(true);
-				Window->Focus();
+				Canvas->SetOpen(true);
+				Canvas->Focus();
+				break;
 			}
 		}
 
@@ -1432,33 +1433,10 @@ void SSpriteList::ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>
 	for (std::shared_ptr<FSprite> Sprite : Sprites)
 	{
 		const std::filesystem::path& FilePath = Sprite->SourcePathFile;
-		EImageFormat ImageFormat = FAppSprite::SupportImageFormat(FilePath);
+		const EImageFormat ImageFormat = FAppSprite::SupportImageFormat(FilePath);
 		if (ImageFormat != EImageFormat::None)
 		{
 			FAppSprite::Import_Image(Viewer, FilePath, ImageFormat);
-		}
-
-		if (ImageFormat == EImageFormat::Aseprite && Sprite->AsepriteIndex == INDEX_NONE)
-		{
-			continue;
-		}
-
-		const std::wstring Filename = Sprite->GetFilename();
-		if (!Viewer->GetWindow(NAME_Canvas, Filename))
-		{
-			FNativeDataInitialize _Data
-			{
-				.Device = Data.Device,
-				.DeviceContext = Data.DeviceContext
-			};
-
-			std::wstring Filename = Sprite->SourcePathFile.filename().wstring();
-			std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, Sprite->SourcePathFile);
-			Viewer->AddWindow(EName::Canvas, NewCanvas, _Data, { Sprite->SourcePathFile, ImageFormat });
-		}
-		else
-		{
-			Viewer->SetWindowVisibility(NAME_Canvas, true, Filename);
 		}
 	}
 }

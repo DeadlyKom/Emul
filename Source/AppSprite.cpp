@@ -1761,7 +1761,7 @@ void FAppSprite::Import_JSON(const std::filesystem::path& FilePath)
 			.Device = Device,
 			.DeviceContext = DeviceContext
 		};
-		Viewer->AddWindow(NAME_SpriteList, std::make_shared<SSpriteMetadata>(NAME_DOS_12, "##Layout_SpriteList"), Data, {});
+		Viewer->AddWindow(NAME_SpriteList, std::make_shared<SSpriteList>(NAME_DOS_12, "##Layout_SpriteList"), Data, {});
 	}
 	else
 	{
