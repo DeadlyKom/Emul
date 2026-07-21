@@ -934,16 +934,16 @@ void SCanvas::Draw_PopupMenu()
 			SendEvent(Event_Timeline);
 		};
 
-		if (AsepriteSprite->IsValid() && ImGui::MenuItem("Limit Area"))
+		if (AsepriteSprite && AsepriteSprite->IsValid() && ImGui::MenuItem("Limit Area"))
 		{
 			ApplyLimitArea(false);
 		}
-		if (AsepriteSprite->IsValid() && ImGui::MenuItem("Limit Area (All Frames)"))
+		if (AsepriteSprite && AsepriteSprite->IsValid() && ImGui::MenuItem("Limit Area (All Frames)"))
 		{
 			ApplyLimitArea(true);
 		}
 		DrawLastItemTooltip("Применить текущее выделение ко всем кадрам текущего слоя.");
-		if (AsepriteSprite->IsValid() && ImGui::MenuItem("Инверсия..."))
+		if (AsepriteSprite && AsepriteSprite->IsValid() && ImGui::MenuItem("Инверсия..."))
 		{
 			FrameInversionRect = ZXColorView->RectangleMarqueeRect;
 			FrameInversionError.clear();

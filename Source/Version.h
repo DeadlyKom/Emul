@@ -1,4 +1,4 @@
 #define VER_MAJOR 0
 #define VER_MINOR 0
-#define VER_BUILD 1058
+#define VER_BUILD 1062
 #define VER_REVISION 0
