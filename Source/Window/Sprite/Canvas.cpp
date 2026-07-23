@@ -581,7 +581,8 @@ bool SCanvas::HasTimeline() const
 
 	return ImageFormat == EImageFormat::Aseprite &&
 		AsepriteSprite &&
-		AsepriteSprite->Frames.size() > 1;
+		(AsepriteSprite->Frames.size() > 1 ||
+		 AsepriteSprite->Layers.size() > 1);
 }
 
 void SCanvas::SetupHotKeys()
