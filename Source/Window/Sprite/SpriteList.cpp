@@ -407,6 +407,7 @@ void SSpriteList::Draw_SpriteList()
 				if (ImGui::Selectable(SpriteName.c_str(), bIsSelectedSprite, 0, ImVec2(PrevSize.x, 0)))
 				{
 					IndexSelectedSprite = Index;
+					SendSelectedSprite();
 				}
 
 				if (ImGui::IsItemHovered() && ImGui::IsMouseDoubleClicked(0))

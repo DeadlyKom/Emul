@@ -1298,6 +1298,8 @@ void SCanvas::Input_Mouse()
 
 void SCanvas::SetToolMode(EToolMode::Type NewToolMode, bool bForce /*= true*/, bool bEvent /*= false*/)
 {
+	const EToolMode::Type PreviousToolMode = ToolMode[0];
+
 	if (ToolMode[0] != NewToolMode)
 	{
 		ToolMode[1] = bForce ? EToolMode::None : ToolMode[0];
@@ -1314,6 +1316,11 @@ void SCanvas::SetToolMode(EToolMode::Type NewToolMode, bool bForce /*= true*/, b
 			ToolMode[0] = EToolMode::None;
 		}
 		ToolMode[1] = EToolMode::None;
+	}
+
+	if (PreviousToolMode != ToolMode[0] && ToolMode[0] == EToolMode::None)
+	{
+		Reset_RectangleMarquee();
 	}
 
 	if (!bEvent)
@@ -1341,7 +1348,6 @@ void SCanvas::ApplyToolMode()
 	{
 	case EToolMode::None:
 		ZXColorView->bCursorEnable = false;
-		Reset_RectangleMarquee();
 		break;
 	case EToolMode::RectangleMarquee:
 		ZXColorView->bCursorEnable = false;
