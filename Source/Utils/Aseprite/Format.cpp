@@ -132,10 +132,8 @@ namespace AsepriteFormat
                     const uint8_t K = Read_u8(File);
                     const uint8_t A = Read_u8(File);
 
-                    const uint16_t Grayscale = GrayA(K, A);
-
                     const size_t Index = ((Y + y) * Header.Width + X + x) * sizeof(uint32_t);
-                    reinterpret_cast<uint32_t*>(&OutputRGBA[Index])[0] = Grayscale;
+                    reinterpret_cast<uint32_t*>(&OutputRGBA[Index])[0] = RGBA(K, K, K, A);
                 }
             }
             break;
@@ -313,7 +311,7 @@ namespace AsepriteFormat
                                     const uint8_t A = *(Buffer++);
                                     if (A != 0)
                                     {
-                                        *Address = GrayA(K, A);
+                                        *Address = RGBA(K, K, K, A);
                                     }
                                 }
                             }
@@ -660,7 +658,27 @@ namespace AsepriteFormat
         //return layer;
     }
 
-    static uint16_t ReadCelChunk(
+    struct FCelReadResult
+    {
+        uint16_t LayerIndex = uint16_t(-1);
+        uint16_t LinkFrame = uint16_t(-1);
+        int16_t ZIndex = 0;
+        uint8_t Opacity = 255;
+
+        bool IsValid() const
+        {
+            return LayerIndex != uint16_t(-1);
+        }
+    };
+
+    struct FDecodedCel
+    {
+        std::vector<uint8_t> Pixels;
+        int16_t ZIndex = 0;
+        uint8_t Opacity = 255;
+    };
+
+    static FCelReadResult ReadCelChunk(
         std::ifstream& File,
         EPixelFormat PixelFormat,
         std::vector<uint8_t>& OutputRGBA,
@@ -678,16 +696,21 @@ namespace AsepriteFormat
         int16_t zIndex      = ((int16_t)Read_u16(File));
         ReadPadding(File, 5);
 
-        if (Layers.size() < LayerIndex)
+        if (LayerIndex >= Layers.size())
         {
-            return uint16_t(-1);
+            return {};
         }
 
         const FLayer& Layer = Layers[LayerIndex];
         if (!(Layer.Flags & ELayerFlags::Visible))
         {
-            return uint16_t(-1);
+            return {};
         }
+
+        FCelReadResult Result;
+        Result.LayerIndex = LayerIndex;
+        Result.ZIndex = zIndex;
+        Result.Opacity = Opacity;
 
         switch (CelType)
         {
@@ -710,8 +733,10 @@ namespace AsepriteFormat
                         {
                             const size_t Index = (_y * Header.Width + _x) * sizeof(uint32_t);
                             uint32_t& Value = reinterpret_cast<uint32_t&>(OutputRGBA[Index]);
-                            const uint32_t rgba = Palette.RGBA[Value];
-                            Value = rgba;
+                            const uint8_t PaletteIndex = Value & 0xff;
+                            Value = Header.TransparentIndex == PaletteIndex
+                                ? 0
+                                : PaletteIndex < Palette.RGBA.size() ? Palette.RGBA[PaletteIndex] : 0;
                         }
                     }
                 }
@@ -722,8 +747,8 @@ namespace AsepriteFormat
         case ASE_FILE_LINK_CEL:
         {
             // Read link position
-            const uint16_t LinkFrame = Read_u16(File);
-            return LinkFrame;
+            Result.LinkFrame = Read_u16(File);
+            return Result;
         }
 
         case ASE_FILE_COMPRESSED_CEL:
@@ -846,7 +871,103 @@ namespace AsepriteFormat
             break;
         }
 
-        return uint16_t(-1);
+        return Result;
+    }
+
+    static bool IsLayerEffectivelyVisible(const std::vector<FLayer>& Layers, uint16_t LayerIndex)
+    {
+        if (LayerIndex >= Layers.size() || !(Layers[LayerIndex].Flags & ELayerFlags::Visible))
+        {
+            return false;
+        }
+
+        uint16_t ChildLevel = Layers[LayerIndex].ChildLevel;
+        for (int32_t Index = static_cast<int32_t>(LayerIndex) - 1; Index >= 0 && ChildLevel > 0; --Index)
+        {
+            if (Layers[Index].ChildLevel < ChildLevel)
+            {
+                if (!(Layers[Index].Flags & ELayerFlags::Visible))
+                {
+                    return false;
+                }
+                ChildLevel = Layers[Index].ChildLevel;
+            }
+        }
+        return true;
+    }
+
+    static void CompositeNormal(std::vector<uint8_t>& Destination, const std::vector<uint8_t>& Source, uint8_t Opacity)
+    {
+        const size_t PixelBytes = (std::min)(Destination.size(), Source.size());
+        for (size_t Index = 0; Index + 3 < PixelBytes; Index += 4)
+        {
+            const uint32_t SourceAlpha = (static_cast<uint32_t>(Source[Index + 3]) * Opacity + 127) / 255;
+            if (SourceAlpha == 0)
+            {
+                continue;
+            }
+
+            if (SourceAlpha == 255)
+            {
+                Destination[Index + 0] = Source[Index + 0];
+                Destination[Index + 1] = Source[Index + 1];
+                Destination[Index + 2] = Source[Index + 2];
+                Destination[Index + 3] = 255;
+                continue;
+            }
+
+            const uint32_t DestinationAlpha = Destination[Index + 3];
+            const uint32_t InverseSourceAlpha = 255 - SourceAlpha;
+            const uint32_t OutputAlpha = SourceAlpha + (DestinationAlpha * InverseSourceAlpha + 127) / 255;
+            for (size_t Channel = 0; Channel < 3; ++Channel)
+            {
+                const uint32_t Premultiplied =
+                    Source[Index + Channel] * SourceAlpha +
+                    (Destination[Index + Channel] * DestinationAlpha * InverseSourceAlpha + 127) / 255;
+                Destination[Index + Channel] = static_cast<uint8_t>((Premultiplied + OutputAlpha / 2) / OutputAlpha);
+            }
+            Destination[Index + 3] = static_cast<uint8_t>(OutputAlpha);
+        }
+    }
+
+    static void CompositeFrame(
+        std::vector<uint8_t>& OutputRGBA,
+        const std::map<uint16_t, FDecodedCel>& Cels,
+        const std::vector<FLayer>& Layers,
+        const FAsepriteHeader& Header)
+    {
+        struct FRenderCel
+        {
+            uint16_t LayerIndex;
+            const FDecodedCel* Cel;
+        };
+
+        std::vector<FRenderCel> RenderPlan;
+        RenderPlan.reserve(Cels.size());
+        for (const auto& [LayerIndex, Cel] : Cels)
+        {
+            if (IsLayerEffectivelyVisible(Layers, LayerIndex))
+            {
+                RenderPlan.push_back({ LayerIndex, &Cel });
+            }
+        }
+
+        std::sort(RenderPlan.begin(), RenderPlan.end(), [](const FRenderCel& A, const FRenderCel& B)
+        {
+            const int32_t AOrder = static_cast<int32_t>(A.LayerIndex) + A.Cel->ZIndex;
+            const int32_t BOrder = static_cast<int32_t>(B.LayerIndex) + B.Cel->ZIndex;
+            return AOrder != BOrder ? AOrder < BOrder : A.Cel->ZIndex < B.Cel->ZIndex;
+        });
+
+        std::fill(OutputRGBA.begin(), OutputRGBA.end(), 0);
+        for (const FRenderCel& RenderCel : RenderPlan)
+        {
+            const FLayer& Layer = Layers[RenderCel.LayerIndex];
+            const uint8_t LayerOpacity = (Header.Flags & ASE_FILE_FLAG_LAYER_WITH_OPACITY) ? Layer.Opacity : 255;
+            const uint8_t Opacity = static_cast<uint8_t>(
+                (static_cast<uint32_t>(RenderCel.Cel->Opacity) * LayerOpacity + 127) / 255);
+            CompositeNormal(OutputRGBA, RenderCel.Cel->Pixels, Opacity);
+        }
     }
 
     bool Load(const std::filesystem::path& FilePath, FSprite& OutputSprite)
@@ -907,10 +1028,12 @@ namespace AsepriteFormat
             }
         }
 
+        std::vector<std::map<uint16_t, FDecodedCel>> DecodedFrames(Header.Frames);
+
         // Read frame by frame to end-of-file
         for (int Frame = 0; Frame < OutputSprite.Frames.size(); ++Frame)
         {
-            const int32_t Size = OutputSprite.ColorMode == EColorMode::INDEXED ? 4/*convert index to RGBA*/ : BytesPerPixelForColormode(OutputSprite.ColorMode);
+            constexpr int32_t Size = 4; // Composite RGB and grayscale frames in a common RGBA buffer.
             OutputSprite.Frames[Frame].resize(OutputSprite.Width * OutputSprite.Height * Size);
 
             size_t FramePos = File.tellg();
@@ -980,32 +1103,56 @@ namespace AsepriteFormat
 
                     case ASE_FILE_CHUNK_CEL:
                     {
-                        const uint16_t LinkFrame = ReadCelChunk(
+                        constexpr int32_t RGBABytesPerPixel = 4;
+                        std::vector<uint8_t> CelPixels(
+                            static_cast<size_t>(OutputSprite.Width) * OutputSprite.Height * RGBABytesPerPixel,
+                            0);
+                        if (OutputSprite.ColorMode == EColorMode::INDEXED)
+                        {
+                            uint32_t* Pixels = reinterpret_cast<uint32_t*>(CelPixels.data());
+                            std::fill(
+                                Pixels,
+                                Pixels + static_cast<size_t>(OutputSprite.Width) * OutputSprite.Height,
+                                Header.TransparentIndex);
+                        }
+
+                        const FCelReadResult Cel = ReadCelChunk(
                             File,
                             PixelFormat(OutputSprite.ColorMode),
-                            OutputSprite.Frames[Frame],
+                            CelPixels,
                             OutputSprite.Layers,
                             Palette,
                             Header,
                             ChunkPos + ChunkSize);
-                        if (LinkFrame != uint16_t(-1))
+                        if (!Cel.IsValid())
                         {
-                            //memcpy(OutputSprite.Frames[Frame].data(), OutputSprite.Frames[LinkFrame].data(), OutputSprite.Width * OutputSprite.Height * Size);
-                            uint8_t* Buffer = OutputSprite.Frames[LinkFrame].data();
-                            uint32_t* Address = reinterpret_cast<uint32_t*>(OutputSprite.Frames[Frame].data());
-                            for (int i = 0; i < OutputSprite.Width * OutputSprite.Height; ++i)
-                            {
-                                const uint8_t R = *(Buffer++);
-                                const uint8_t G = *(Buffer++);
-                                const uint8_t B = *(Buffer++);
-                                const uint8_t A = *(Buffer++);
-                                if (A != 0)
-                                {
-                                    *Address = RGBA(R, G, B, A);
-                                }
-                            }
+                            break;
                         }
 
+                        FDecodedCel DecodedCel;
+                        DecodedCel.ZIndex = Cel.ZIndex;
+                        DecodedCel.Opacity = Cel.Opacity;
+                        if (Cel.LinkFrame != uint16_t(-1))
+                        {
+                            if (Cel.LinkFrame >= DecodedFrames.size())
+                            {
+                                LOG_WARNING("[{}]\t Invalid linked cel frame {}.", (__FUNCTION__), Cel.LinkFrame);
+                                break;
+                            }
+
+                            const auto LinkedCel = DecodedFrames[Cel.LinkFrame].find(Cel.LayerIndex);
+                            if (LinkedCel == DecodedFrames[Cel.LinkFrame].end())
+                            {
+                                LOG_WARNING("[{}]\t Linked cel was not found in frame {}, layer {}.", (__FUNCTION__), Cel.LinkFrame, Cel.LayerIndex);
+                                break;
+                            }
+                            DecodedCel.Pixels = LinkedCel->second.Pixels;
+                        }
+                        else
+                        {
+                            DecodedCel.Pixels = std::move(CelPixels);
+                        }
+                        DecodedFrames[Frame][Cel.LayerIndex] = std::move(DecodedCel);
                         break;
                     }
 
@@ -1180,7 +1327,14 @@ namespace AsepriteFormat
             File.seekg(FramePos + FrameHeader.Size);
         }
 
-        OutputSprite.TransparentColor = Palette.RGBA[Header.TransparentIndex];
+        for (size_t Frame = 0; Frame < OutputSprite.Frames.size(); ++Frame)
+        {
+            CompositeFrame(OutputSprite.Frames[Frame], DecodedFrames[Frame], OutputSprite.Layers, Header);
+        }
+
+        OutputSprite.TransparentColor = Header.TransparentIndex < Palette.RGBA.size()
+            ? Palette.RGBA[Header.TransparentIndex]
+            : 0;
 
         return true;
 	}
