@@ -16,6 +16,7 @@ namespace
 	static const wchar_t* ThisWindowName = L"Canvas";
 	static const char* PopupMenuName = TEXT("##PopupMenuSprite");
 	static const char* CreateSpriteName = "##CreateSprite";
+	std::weak_ptr<SCanvas> ActiveCanvas;
 
 	int32_t TextEditNumberCallback(ImGuiInputTextCallbackData* Data)
 	{
@@ -673,7 +674,24 @@ void SCanvas::Render()
 	//const std::string Title = /*bDirty ? "* " + GetWindowName() : */GetWindowName();
 	//const std::string UniqueID = Title + "##" + GetWindowName();
 
-	SetFocus(ImGui::Begin(GetWindowName().c_str(), &bOpen, bNoMove ? ImGuiWindowFlags_NoMove : ImGuiWindowFlags_None));
+	ImGui::Begin(GetWindowName().c_str(), &bOpen, bNoMove ? ImGuiWindowFlags_NoMove : ImGuiWindowFlags_None);
+	SetFocus(ImGui::IsWindowFocused(ImGuiFocusedFlags_RootAndChildWindows));
+	if (IsFocus())
+	{
+		std::shared_ptr<SCanvas> Self = std::dynamic_pointer_cast<SCanvas>(shared_from_this());
+		std::shared_ptr<SCanvas> PreviousCanvas = ActiveCanvas.lock();
+		if (PreviousCanvas != Self)
+		{
+			if (PreviousCanvas)
+			{
+				PreviousCanvas->bPlay = false;
+				PreviousCanvas->SelectedSpritesFrame = 0;
+				PreviousCanvas->PlayDuration = 0.0f;
+				PreviousCanvas->bRefreshCanvas = true;
+			}
+			ActiveCanvas = Self;
+		}
+	}
 	{
 		if (bNoMove)
 		{
@@ -1635,6 +1653,11 @@ void SCanvas::Imput_PreviousFrame()
 
 void SCanvas::Imput_Play()
 {
+	if (ActiveCanvas.lock().get() != this)
+	{
+		return;
+	}
+
 	switch (ImageFormat)
 	{
 	case EImageFormat::None:
