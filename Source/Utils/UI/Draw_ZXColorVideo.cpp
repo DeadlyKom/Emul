@@ -91,21 +91,23 @@ ImVec2 CalculatePanelSize(UI::FZXColorView& ZXColorView)
 	{
 		// not big enough to horizontally fill view
 		ZXColorView.ViewSize.x = ImFloor(ZXColorView.TextureSizePixels.x);
-		DrawImageOffset.x += ImFloor((AvailablePanelSize.x - ZXColorView.TextureSizePixels.x) * 0.5f);
+		DrawImageOffset.x += ImFloor(
+			(AvailablePanelSize.x - ZXColorView.TextureSizePixels.x) * 0.5f +
+			(0.5f - ZXColorView.ImagePosition.x) * ZXColorView.TextureSizePixels.x);
 		ZXColorView.UV.Min.x = 0.0f;
 		ZXColorView.UV.Max.x = 1.0f;
 		ZXColorView.ViewSizeUV.x = 1.0f;
-		ZXColorView.ImagePosition.x = 0.5f;
 	}
 	if (ZXColorView.TextureSizePixels.y < AvailablePanelSize.y)
 	{
 		// not big enough to vertically fill view
 		ZXColorView.ViewSize.y = ImFloor(ZXColorView.TextureSizePixels.y);
-		DrawImageOffset.y += ImFloor((AvailablePanelSize.y - ZXColorView.TextureSizePixels.y) * 0.5f);
+		DrawImageOffset.y += ImFloor(
+			(AvailablePanelSize.y - ZXColorView.TextureSizePixels.y) * 0.5f +
+			(0.5f - ZXColorView.ImagePosition.y) * ZXColorView.TextureSizePixels.y);
 		ZXColorView.UV.Min.y = 0.0f;
 		ZXColorView.UV.Max.y = 1.0f;
 		ZXColorView.ViewSizeUV.y = 1.0f;
-		ZXColorView.ImagePosition.y = 0.5f;
 	}
 
 	return DrawImageOffset;
