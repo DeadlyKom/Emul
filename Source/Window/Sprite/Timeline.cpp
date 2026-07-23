@@ -344,7 +344,8 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
     const float CellH = 22.0f;
 
     const float HeaderH = 22.0f;
-    const float LayerNameW = 100.0f;
+    const float LayerVisibilityW = 22.0f;
+    const float LayerNameW = 122.0f;
 
     const float TableW = FrameCount * CellW;
     const float TableH = LayerCount * CellH;
@@ -553,18 +554,36 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
         ImGui::IsMouseClicked(ImGuiMouseButton_Left))
     {
         int32_t Layer = GetLayerFromHeaderMouse();
-
-        State.bDragging = true;
-        State.DragMode = TimelineDrag_LayersHeader;
-
-        State.DragStartLayer = Layer;
-
-        SetCurrentLayer(Layer);
-
-        State.SelMinFrame = 0;
-        State.SelMaxFrame = FrameCount - 1;
-        State.SelMinLayer = Layer;
-        State.SelMaxLayer = Layer;
+        if (Mouse.x < LayerNamesMin.x + LayerVisibilityW)
+        {
+            std::shared_ptr<AsepriteFormat::FSprite> Sprite = AsepriteSprite.lock();
+            const int32_t SpriteLayerIndex = Sprite
+                ? static_cast<int32_t>(Sprite->Layers.size()) - Layer - 1
+                : INDEX_NONE;
+            if (SpriteLayerIndex >= 0 && SpriteLayerIndex < static_cast<int32_t>(Sprite->Layers.size()))
+            {
+                AsepriteFormat::FLayer& SpriteLayer = Sprite->Layers[SpriteLayerIndex];
+                SpriteLayer.Flags ^= AsepriteFormat::ELayerFlags::Visible;
+                if (AsepriteFormat::RebuildFrames(*Sprite))
+                {
+                    FEvent_Timeline Event(FEventTag::TimelineLayerVisibilityChangedTag);
+                    Event.Sprite = Sprite;
+                    Event.Format = EImageFormat::Aseprite;
+                    SendEvent(Event);
+                }
+            }
+        }
+        else
+        {
+            State.bDragging = true;
+            State.DragMode = TimelineDrag_LayersHeader;
+            State.DragStartLayer = Layer;
+            SetCurrentLayer(Layer);
+            State.SelMinFrame = 0;
+            State.SelMaxFrame = FrameCount - 1;
+            State.SelMinLayer = Layer;
+            State.SelMaxLayer = Layer;
+        }
     }
 
     if (State.bDragging &&
@@ -952,8 +971,13 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
         DrawList->AddRectFilled(P0, P1, FillCol);
         DrawList->AddRect(P0, P1, ColGrid);
 
+        DrawList->AddLine(
+            ImVec2(P0.x + LayerVisibilityW, P0.y),
+            ImVec2(P0.x + LayerVisibilityW, P1.y),
+            ColGrid
+        );
         DrawList->AddText(
-            ImVec2(P0.x + 6.0f, P0.y + 3.0f),
+            ImVec2(P0.x + LayerVisibilityW + 6.0f, P0.y + 3.0f),
             ColText,
             "Layers"
         );
@@ -1154,8 +1178,35 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
                 if (SpriteLayerIndex >= 0 &&
                     SpriteLayerIndex < (int32_t)Sprite->Layers.size())
                 {
+                    const bool bLayerVisible =
+                        (Sprite->Layers[SpriteLayerIndex].Flags & AsepriteFormat::ELayerFlags::Visible) != 0;
+                    const float CheckSize = 12.0f;
+                    const ImVec2 CheckMin(
+                        P0.x + (LayerVisibilityW - CheckSize) * 0.5f,
+                        P0.y + (CellH - CheckSize) * 0.5f);
+                    const ImVec2 CheckMax(CheckMin.x + CheckSize, CheckMin.y + CheckSize);
+                    DrawList->AddRectFilled(CheckMin, CheckMax, IM_COL32(30, 30, 30, 255));
+                    DrawList->AddRect(CheckMin, CheckMax, ColGrid);
+                    if (bLayerVisible)
+                    {
+                        DrawList->AddLine(
+                            ImVec2(CheckMin.x + 2.0f, CheckMin.y + 6.0f),
+                            ImVec2(CheckMin.x + 5.0f, CheckMax.y - 2.0f),
+                            ColText,
+                            2.0f);
+                        DrawList->AddLine(
+                            ImVec2(CheckMin.x + 5.0f, CheckMax.y - 2.0f),
+                            ImVec2(CheckMax.x - 2.0f, CheckMin.y + 2.0f),
+                            ColText,
+                            2.0f);
+                    }
+
+                    DrawList->AddLine(
+                        ImVec2(P0.x + LayerVisibilityW, P0.y),
+                        ImVec2(P0.x + LayerVisibilityW, P1.y),
+                        ColGrid);
                     DrawList->AddText(
-                        ImVec2(P0.x + 6.0f, P0.y + 3.0f),
+                        ImVec2(P0.x + LayerVisibilityW + 6.0f, P0.y + 3.0f),
                         ColText,
                         Sprite->Layers[SpriteLayerIndex].Name.c_str()
                     );

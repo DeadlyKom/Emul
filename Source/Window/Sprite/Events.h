@@ -46,6 +46,7 @@ namespace FEventTag
 
 	static const FName TimelineInitializeTag = TEXT("TimelineInitialize");
 	static const FName TimelineChangedFrameTag = TEXT("TimelineChangedFrame");
+	static const FName TimelineLayerVisibilityChangedTag = TEXT("TimelineLayerVisibilityChanged");
 }
 
 struct FEvent_AppSprite : public IEvent

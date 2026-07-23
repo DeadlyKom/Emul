@@ -62,14 +62,23 @@ namespace AsepriteFormat
 		std::string Name;
 	};
 
+	struct FDecodedCel
+	{
+		std::vector<uint8_t> Pixels;
+		int16_t ZIndex = 0;
+		uint8_t Opacity = 255;
+	};
+
 	struct FSprite
 	{
-		EColorMode ColorMode;
-		int32_t Width;
-		int32_t Height;
-		uint32_t TransparentColor;
+		EColorMode ColorMode = EColorMode::RGB;
+		int32_t Width = 0;
+		int32_t Height = 0;
+		uint32_t TransparentColor = 0;
+		uint32_t HeaderFlags = 0;
 
 		std::vector<std::vector<uint8_t>> Frames;
+		std::vector<std::map<uint16_t, FDecodedCel>> DecodedFrames;
 		std::vector<int32_t> DurationPerFrame;
 		std::vector<FLayer> Layers;
 
@@ -79,5 +88,6 @@ namespace AsepriteFormat
 		}
 	};
 
+	bool RebuildFrames(FSprite& Sprite);
 	bool Load(const std::filesystem::path& FilePath, FSprite& OutputSprite);
 }

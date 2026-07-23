@@ -338,6 +338,17 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 			}
 		});
 
+	SubscribeEvent<FEvent_Timeline>(
+		[this](const FEvent_Timeline& Event)
+		{
+			if (Event.Tag == FEventTag::TimelineLayerVisibilityChangedTag &&
+				Event.Sprite == AsepriteSprite)
+			{
+				bFroceRebuiltSpriteFrame = true;
+				bRefreshCanvas = true;
+			}
+		});
+
 	SubscribeEvent<FEvent_SelectedSprite>(
 		[this](const FEvent_SelectedSprite& Event)
 		{
