@@ -371,6 +371,14 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 			}
 			else if (Event.Tag == FEventTag::SelectedSpritesChangedFrameTag)
 			{
+				if (ActiveCanvas.lock().get() != this ||
+					Event.Format != ImageFormat ||
+					Event.Frame < 0 ||
+					Event.Frame > MaxFramesInSprites)
+				{
+					return;
+				}
+
 				if (Event.Frame != SelectedSpritesFrame && !PrepareToChangeFrame())
 				{
 					return;
@@ -492,6 +500,7 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 			Timeline_Event.Keyframes = Keyframes;
 			Timeline_Event.Sprite = AsepriteSprite;
 			Timeline_Event.Format = EImageFormat::Aseprite;
+			Timeline_Event.Frame = 0;
 			SendEvent(Timeline_Event);
 		}
 
@@ -689,7 +698,22 @@ void SCanvas::Render()
 				PreviousCanvas->PlayDuration = 0.0f;
 				PreviousCanvas->bRefreshCanvas = true;
 			}
+
+			bPlay = false;
+			SelectedSpritesFrame = 0;
+			PlayDuration = 0.0f;
+			bRefreshCanvas = true;
 			ActiveCanvas = Self;
+
+			if (ImageFormat == EImageFormat::Aseprite)
+			{
+				FEvent_Timeline TimelineEvent(FEventTag::TimelineInitializeTag);
+				TimelineEvent.Keyframes = Keyframes;
+				TimelineEvent.Sprite = AsepriteSprite;
+				TimelineEvent.Format = ImageFormat;
+				TimelineEvent.Frame = SelectedSpritesFrame;
+				SendEvent(TimelineEvent);
+			}
 		}
 	}
 	{
@@ -1259,6 +1283,11 @@ void SCanvas::Draw_PopupMenu_CreateSprite()
 
 void SCanvas::Input_HotKeys()
 {
+	if (ActiveCanvas.lock().get() != this)
+	{
+		return;
+	}
+
 	Shortcut::Handler(Hotkeys);
 
 	ImGuiContext& Context = *ImGui::GetCurrentContext();
@@ -1670,6 +1699,23 @@ void SCanvas::Imput_Play()
 	case EImageFormat::GIF:
 	case EImageFormat::Aseprite:
 		break;
+	}
+
+	if (ImageFormat == EImageFormat::Aseprite)
+	{
+		if (!AsepriteSprite || AsepriteSprite->DurationPerFrame.empty())
+		{
+			bPlay = false;
+			PlayDuration = 0.0f;
+			return;
+		}
+
+		if (SelectedSpritesFrame < 0 ||
+			SelectedSpritesFrame >= static_cast<int32_t>(AsepriteSprite->DurationPerFrame.size()))
+		{
+			SelectedSpritesFrame = 0;
+			bRefreshCanvas = true;
+		}
 	}
 
 	bPlay = !bPlay;

@@ -146,6 +146,9 @@ void STimeline::NativeInitialize(const FNativeDataInitialize& Data)
                 if (Event.Format == EImageFormat::Aseprite)
                 {
                     InitializeFromAseprite(Event.Sprite, Event.Keyframes);
+                    TimelineState.CurrentFrame = Event.Frame;
+                    TimelineState.SelMinFrame = Event.Frame;
+                    TimelineState.SelMaxFrame = Event.Frame;
                 }
             }
             else if (Event.Tag == FEventTag::TimelineChangedFrameTag)
