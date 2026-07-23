@@ -341,8 +341,10 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 		{
 			if (Event.Tag == FEventTag::SelectedSpritesChangedTag)
 			{
-				const std::wstring Filename = Event.Sprite->GetFilename();
-				if (GetWindowWName() != Filename)
+				const std::filesystem::path CanvasSourcePath = SourcePathFile.empty()
+					? std::filesystem::path(GetWindowWName())
+					: SourcePathFile;
+				if (CanvasSourcePath != Event.Sprite->SourcePathFile)
 				{
 					return;
 				}
