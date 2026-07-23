@@ -365,9 +365,17 @@ void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)
 	}
 
 	ImGuiWindow* Window = ImGui::GetCurrentWindow();
+	ImDrawList* DrawList = ImGui::GetWindowDrawList();
 
 	// keep track of size of area that we draw for borders later
+	const float BorderWidth = 1.0f;
 	ZXColorView->PanelTopLeftPixel = ImGui::GetCursorScreenPos();
+	const ImVec2 AvailablePanelSize = ImGui::GetContentRegionAvail() - ImVec2(BorderWidth, BorderWidth) * 2.0f;
+	const ImRect PanelRect(
+		ZXColorView->PanelTopLeftPixel + ImVec2(BorderWidth, BorderWidth),
+		ZXColorView->PanelTopLeftPixel + ImVec2(BorderWidth, BorderWidth) + AvailablePanelSize);
+	DrawList->AddRectFilled(PanelRect.Min, PanelRect.Max, ImGui::GetColorU32(ImGuiCol_FrameBg));
+
 	ImGui::SetCursorPos(ImGui::GetCursorPos() + CalculatePanelSize(*ZXColorView));
 	// hard fix
 	{
@@ -378,16 +386,27 @@ void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)
 	ZXColorView->ViewTopLeftPixel = ImGui::GetCursorScreenPos();
 	const ImRect Rect(Window->DC.CursorPos, Window->DC.CursorPos + ZXColorView->ViewSize);
 
-	// callback for using our own image shader 
-	ImGui::GetWindowDrawList()->AddCallback(OnDrawCallback_ZXVideo, ZXColorView.get());
-	ImGui::GetWindowDrawList()->AddImage(ZXColorView->Image.ShaderResourceView, Rect.Min, Rect.Max, ZXColorView->UV.Min, ZXColorView->UV.Max);
+	const ImVec2 UVToPixels = Rect.GetSize() / ZXColorView->ViewSizeUV;
+	const ImRect CanvasRect(
+		Rect.Min - ZXColorView->UV.Min * UVToPixels,
+		Rect.Min + (ImVec2(1.0f, 1.0f) - ZXColorView->UV.Min) * UVToPixels);
+	const ImRect VisibleCanvasRect(ImMax(CanvasRect.Min, PanelRect.Min), ImMin(CanvasRect.Max, PanelRect.Max));
+
+	if (VisibleCanvasRect.Min.x < VisibleCanvasRect.Max.x && VisibleCanvasRect.Min.y < VisibleCanvasRect.Max.y)
+	{
+		DrawList->PushClipRect(VisibleCanvasRect.Min, VisibleCanvasRect.Max, true);
+		// callback for using our own image shader
+		DrawList->AddCallback(OnDrawCallback_ZXVideo, ZXColorView.get());
+		DrawList->AddImage(ZXColorView->Image.ShaderResourceView, Rect.Min, Rect.Max, ZXColorView->UV.Min, ZXColorView->UV.Max);
+		DrawList->PopClipRect();
+	}
 	
 	if (ZXColorView->bVisibilityRectangleMarquee)
 	{
 		Draw_RectangleMarquee(ZXColorView, Rect);
 	}
 	// reset callback for using our own image shader 
-	ImGui::GetWindowDrawList()->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
+	DrawList->AddCallback(ImDrawCallback_ResetRenderState, nullptr);
 }
 
 bool UI::Draw_ButtonZXColorSprite(
