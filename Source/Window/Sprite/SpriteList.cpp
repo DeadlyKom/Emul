@@ -78,7 +78,7 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 			}
 			else if (Event.Tag == FEventTag::UpdateSpriteTag)
 			{
-				std::vector<std::shared_ptr<FSprite>> SelectedSprites = UpdateSprite(
+				UpdateSprite(
 					Event.CanvasWidth,
 					Event.CanvasHeight,
 					Event.SourcePathFile,
@@ -88,8 +88,6 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 					Event.MaskData,
 					Event.AsepriteIndex
 				);
-
-				ExportSprites("", CurrentPath, SelectedSprites, false, false);
 			}
 		});
 	SubscribeEvent<FEvent_ImportJSON>(
@@ -1118,6 +1116,49 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 		{
 			return Path.empty() || Path.is_absolute() ? Path : ImportPath / Path;
 		};
+
+	struct FSourceImage
+	{
+		int32_t Width = 0;
+		int32_t Height = 0;
+		std::vector<std::vector<uint8_t>> Frames;
+		bool bLoaded = false;
+		bool bValid = false;
+	};
+	std::unordered_map<std::wstring, FSourceImage> SourceImages;
+	auto LoadSourceImage = [&SourceImages](const std::filesystem::path& SourcePath) -> FSourceImage&
+		{
+			FSourceImage& Source = SourceImages[SourcePath.wstring()];
+			if (Source.bLoaded)
+			{
+				return Source;
+			}
+			Source.bLoaded = true;
+
+			const EImageFormat Format = FAppSprite::SupportImageFormat(SourcePath);
+			if (Format == EImageFormat::PNG)
+			{
+				uint8_t* ImageData = FImageBase::LoadToMemory(SourcePath, Source.Width, Source.Height);
+				if (ImageData != nullptr && Source.Width > 0 && Source.Height > 0)
+				{
+					Source.Frames.emplace_back(ImageData, ImageData + static_cast<size_t>(Source.Width) * Source.Height * 4);
+					Source.bValid = true;
+				}
+				FImageBase::ReleaseLoadedIntoMemory(ImageData);
+			}
+			else if (Format == EImageFormat::Aseprite)
+			{
+				AsepriteFormat::FSprite Aseprite;
+				if (AsepriteFormat::Load(SourcePath, Aseprite) && !Aseprite.Frames.empty())
+				{
+					Source.Width = Aseprite.Width;
+					Source.Height = Aseprite.Height;
+					Source.Frames = std::move(Aseprite.Frames);
+					Source.bValid = true;
+				}
+			}
+			return Source;
+		};
 	for (const auto& SpriteJson : Json)
 	{
 		std::shared_ptr<FSprite> NewSprite = std::make_shared<FSprite>();
@@ -1139,6 +1180,45 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 		NewSprite->SpritePositionToImageY = SpriteJson.value("PoxImgY", 0);
 		NewSprite->SourcePathFile = ResolvePath(FromUtf8(SpriteJson.value("FileImg", "")));
 		NewSprite->AsepriteIndex = SpriteJson.value("AsepriteIndex", INDEX_NONE);
+
+		FSourceImage& Source = LoadSourceImage(NewSprite->SourcePathFile);
+		const int32_t EffectiveFrame = NewSprite->AsepriteIndex >= 0 &&
+			NewSprite->AsepriteIndex < static_cast<int32_t>(Source.Frames.size())
+			? NewSprite->AsepriteIndex
+			: 0;
+		const bool bCanConvertSource = Source.bValid &&
+			EffectiveFrame < static_cast<int32_t>(Source.Frames.size()) &&
+			NewSprite->Width > 0 && NewSprite->Height > 0 &&
+			NewSprite->Width % 8 == 0 && NewSprite->Height % 8 == 0 &&
+			NewSprite->SpritePositionToImageX + NewSprite->Width <= static_cast<uint32_t>(Source.Width) &&
+			NewSprite->SpritePositionToImageY + NewSprite->Height <= static_cast<uint32_t>(Source.Height) &&
+			Source.Frames[EffectiveFrame].size() >= static_cast<size_t>(Source.Width) * Source.Height * 4;
+		if (bCanConvertSource)
+		{
+			std::vector<uint8_t> CroppedRGBA(static_cast<size_t>(NewSprite->Width) * NewSprite->Height * 4);
+			const std::vector<uint8_t>& SourceRGBA = Source.Frames[EffectiveFrame];
+			for (uint32_t Y = 0; Y < NewSprite->Height; ++Y)
+			{
+				const size_t SourceOffset = (static_cast<size_t>(NewSprite->SpritePositionToImageY + Y) * Source.Width + NewSprite->SpritePositionToImageX) * 4;
+				const size_t DestinationOffset = static_cast<size_t>(Y) * NewSprite->Width * 4;
+				std::memcpy(CroppedRGBA.data() + DestinationOffset, SourceRGBA.data() + SourceOffset, static_cast<size_t>(NewSprite->Width) * 4);
+			}
+
+			UI::QuantizeToZX(CroppedRGBA.data(), NewSprite->Width, NewSprite->Height, 4, NewSprite->ZXColorView->IndexedData, UI::ToU32(COLOR(0, 0, 0, 0)));
+			const UI::FConversationSettings Settings
+			{
+				.InkAlways = EZXColor::Black_,
+				.TransparentIndex = EZXColor::Transparent,
+				.ReplaceTransparent = EZXColor::Black,
+			};
+			UI::ZXIndexColorToZXAttributeColor(
+				NewSprite->ZXColorView->IndexedData,
+				NewSprite->Width, NewSprite->Height,
+				NewSprite->ZXColorView->InkData,
+				NewSprite->ZXColorView->AttributeData,
+				NewSprite->ZXColorView->MaskData,
+				Settings);
+		}
 
 		// data files
 		std::filesystem::path InkDataFile = ResolvePath(FromUtf8(SpriteJson.value("InkData", "")));
@@ -1413,7 +1493,6 @@ void SSpriteList::SendSelectedSprite() const
 			if (Canvas && Canvas->GetSourcePathFile() == Sprite->SourcePathFile)
 			{
 				Canvas->SetOpen(true);
-				Canvas->Focus();
 				break;
 			}
 		}

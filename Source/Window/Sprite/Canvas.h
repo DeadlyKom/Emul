@@ -79,6 +79,7 @@ private:
 	void Imput_Undo();
 	void Imput_Redo();
 	void Imput_Save();
+	bool PrepareToChangeFrame();
 
 	// timeline
 	void Imput_PreviousFrame();
@@ -90,7 +91,8 @@ private:
 	void Handler_Pencil();
 	void Handler_Eyedropper();
 
-	bool Save(const std::filesystem::path& SavePath, const std::filesystem::path& SaveName);
+	bool SaveSource(const std::filesystem::path& SavePath, const std::filesystem::path& SaveName);
+	bool SaveIPM(const std::filesystem::path& SavePath, const std::filesystem::path& SaveName);
 	bool Load(const std::filesystem::path& LoadPath, const std::filesystem::path& LoadName, bool bLoadImage = true);
 	std::filesystem::path GetAsepriteFrameOverridePath(int32_t Frame, const char* Extension) const;
 	bool LoadAsepriteFrameOverride(
@@ -118,6 +120,13 @@ private:
 
 	void ConversionToZX(const UI::FConversationSettings& Settings);
 	void ConversionToCanvas(const UI::FConversationSettings& Settings);
+	bool UpdateAsepriteFrameFromSource();
+	void NotifySpritesUpdated(
+		int32_t Frame,
+		const std::vector<uint8_t>& IndexedData,
+		const std::vector<uint8_t>& InkData,
+		const std::vector<uint8_t>& AttributeData,
+		const std::vector<uint8_t>& MaskData);
 	void Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex);
 
 	void UpdateCursorColor(bool bButton = false);
@@ -151,7 +160,9 @@ private:
 		const CodeGenerator::FProgressInfo* Progress = nullptr);
 
 	bool bPlay;
-	bool bDirty;
+	bool bSourceDirty;
+	bool bAsepriteSourceDirty;
+	bool bIPMDirty;
 	bool bDragging;
 	bool bRefreshCanvas;
 	bool bTransparentMask;
