@@ -305,7 +305,13 @@ EImageFormat FAppSprite::SupportImageFormat(const std::filesystem::path& FilePat
 	}
 }
 
-bool FAppSprite::Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const std::filesystem::path& FilePath, EImageFormat ImageFormat)
+bool FAppSprite::Import_Image(
+	const std::shared_ptr<SViewerBase>& Viewer,
+	const std::filesystem::path& FilePath,
+	EImageFormat ImageFormat,
+	const std::string& InkLayer,
+	const std::string& AttributeLayer,
+	const std::string& MaskLayer)
 {
 	std::shared_ptr<SWindow> FoundWindow;
 	for (std::shared_ptr<SWindow>& Window : Viewer->GetWindows(NAME_Canvas))
@@ -336,6 +342,9 @@ bool FAppSprite::Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const 
 				LOG_ERROR("[{}]\t Failed to parse the Aseprite format.", (__FUNCTION__));
 				return false;
 			}
+			Sprite->InkLayer = InkLayer;
+			Sprite->AttributeLayer = AttributeLayer;
+			Sprite->MaskLayer = MaskLayer;
 
 			std::filesystem::path Filename = FilePath.stem();
 			std::shared_ptr<SCanvas> NewCanvas = std::make_shared<SCanvas>(NAME_DOS_12, Filename, FilePath);
@@ -350,6 +359,10 @@ bool FAppSprite::Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const 
 	else
 	{
 		FoundWindow->SetOpen(true);
+		if (std::shared_ptr<SCanvas> Canvas = std::dynamic_pointer_cast<SCanvas>(FoundWindow))
+		{
+			Canvas->SetAsepriteLayerAssignments(InkLayer, AttributeLayer, MaskLayer);
+		}
 	}
 
 	return true;

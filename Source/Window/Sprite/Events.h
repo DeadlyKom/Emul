@@ -47,6 +47,7 @@ namespace FEventTag
 	static const FName TimelineInitializeTag = TEXT("TimelineInitialize");
 	static const FName TimelineChangedFrameTag = TEXT("TimelineChangedFrame");
 	static const FName TimelineLayerVisibilityChangedTag = TEXT("TimelineLayerVisibilityChanged");
+	static const FName TimelineLayerAssignmentChangedTag = TEXT("TimelineLayerAssignmentChanged");
 }
 
 struct FEvent_AppSprite : public IEvent
@@ -115,6 +116,10 @@ struct FEvent_Sprite : public IEvent
 	// p - 3-bit color paper
 	// i - 3-bit color pixel
 	std::vector<uint8_t> MaskData;		// auto mask from alpha channel
+	std::string InkLayer;
+	std::string AttributeLayer;
+	std::string MaskLayer;
+
 
 	// auxiliary variables
 	int32_t AsepriteIndex;

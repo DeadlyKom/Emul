@@ -93,7 +93,13 @@ public:
 	virtual void LoadSettings() override;
 
 	static EImageFormat SupportImageFormat(const std::filesystem::path& FilePath);
-	static bool Import_Image(const std::shared_ptr<SViewerBase>& Viewer, const std::filesystem::path& FilePath, EImageFormat ImageFormat);
+	static bool Import_Image(
+		const std::shared_ptr<SViewerBase>& Viewer,
+		const std::filesystem::path& FilePath,
+		EImageFormat ImageFormat,
+		const std::string& InkLayer = {},
+		const std::string& AttributeLayer = {},
+		const std::string& MaskLayer = {});
 
 private:
 	void SetupHotKeys();

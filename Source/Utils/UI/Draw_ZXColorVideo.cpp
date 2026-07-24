@@ -732,6 +732,39 @@ void UI::QuantizeToZX(const uint8_t* RawImage, int32_t Width, int32_t Height, in
 	}
 }
 
+void UI::ZXAlphaToPixelData(
+	const uint8_t* RawImage,
+	int32_t Width,
+	int32_t Height,
+	int32_t Channels,
+	std::vector<uint8_t>& OutputPixelData,
+	bool bInverse /*= false*/)
+{
+	const int32_t BoundaryX = Width >> 3;
+	OutputPixelData.resize(static_cast<size_t>(BoundaryX) * Height);
+
+	for (int32_t Y = 0; Y < Height; ++Y)
+	{
+		for (int32_t ByteX = 0; ByteX < BoundaryX; ++ByteX)
+		{
+			uint8_t Pixels = 0;
+			for (int32_t BitX = 0; BitX < 8; ++BitX)
+			{
+				Pixels <<= 1;
+				const int32_t PixelX = ByteX * 8 + BitX;
+				const size_t AlphaIndex =
+					(static_cast<size_t>(Y) * Width + PixelX) * Channels + 3;
+				const bool bOpaque = RawImage[AlphaIndex] != 0;
+				if (bOpaque != bInverse)
+				{
+					Pixels |= 1;
+				}
+			}
+			OutputPixelData[static_cast<size_t>(Y) * BoundaryX + ByteX] = Pixels;
+		}
+	}
+}
+
 void UI::ZXIndexColorToRGBA(std::vector<uint32_t>& OutputRGBA, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height)
 {
 	const int32_t Size = Width * Height;
@@ -844,7 +877,8 @@ void UI::ZXAttributeColorToZXIndexColor(
 	std::vector<uint8_t>& OutputIndexedData,
 	const std::vector<uint8_t>& InkData,
 	const std::vector<uint8_t>& AttributeData,
-	const std::vector<uint8_t>& MaskData)
+	const std::vector<uint8_t>& MaskData,
+	bool bTransparentPaper /*= false*/)
 {
 	ZXAttributeColorToImage(
 		InOutputImage,
@@ -853,7 +887,10 @@ void UI::ZXAttributeColorToZXIndexColor(
 		AttributeData.data(),
 		MaskData.data(),
 		false,
-		&OutputIndexedData);
+		&OutputIndexedData,
+		true,
+		false,
+		bTransparentPaper);
 }
 
 void UI::ZXAttributeColorToImage(
@@ -865,7 +902,8 @@ void UI::ZXAttributeColorToImage(
 	bool bCreate /*= false*/,
 	std::vector<uint8_t>* OutputIndexedData /*= nullptr*/,
 	bool bMaskInverse /*= true*/,
-	bool bTransparentMask /*= false*/)
+	bool bTransparentMask /*= false*/,
+	bool bTransparentPaper /*= false*/)
 {
 	const int32_t Size = Width * Height;
 	std::vector<uint32_t> RGBA(Size);
@@ -939,7 +977,12 @@ void UI::ZXAttributeColorToImage(
 			std::swap(InkColor, PaperColor);
 		}
 
-		const int8_t ColorInk = (Pixels << dx) & 0x80 ? InkColor : PaperColor;
+		const bool bInkPixel = ((Pixels << dx) & 0x80) != 0;
+		const int8_t ColorInk = bInkPixel
+			? InkColor
+			: (bTransparentPaper && bInk && bAttribute
+				? EZXSpectrumColor::Transparent
+				: PaperColor);
 		const int8_t Color = ((Mask << dx) & 0x80) ? EZXSpectrumColor::Transparent : ColorInk;
 		const int8_t TransparentMask = ((Mask << dx) & 0x80) ? EZXSpectrumColor::Magenta_ : EZXSpectrumColor::Black_;
 		if (OutputIndexedData)

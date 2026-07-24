@@ -46,6 +46,10 @@ public:
 	virtual void Destroy() override;
 
 	const std::filesystem::path& GetSourcePathFile() const { return SourcePathFile; }
+	void SetAsepriteLayerAssignments(
+		const std::string& InkLayer,
+		const std::string& AttributeLayer,
+		const std::string& MaskLayer);
 	EImageFormat GetImageFormat() const { return ImageFormat; }
 	bool HasTimeline() const;
 	int32_t GetSelectedFrameIndex() const { return SelectedSpritesFrame; }
@@ -96,6 +100,11 @@ private:
 	bool Load(const std::filesystem::path& LoadPath, const std::filesystem::path& LoadName, bool bLoadImage = true);
 	std::filesystem::path GetAsepriteFrameOverridePath(int32_t Frame, const char* Extension) const;
 	bool LoadAsepriteFrameOverride(
+		int32_t Frame,
+		std::vector<uint8_t>& InkData,
+		std::vector<uint8_t>& AttributeData,
+		std::vector<uint8_t>& MaskData) const;
+	bool ApplyAsepriteLayerOverrides(
 		int32_t Frame,
 		std::vector<uint8_t>& InkData,
 		std::vector<uint8_t>& AttributeData,

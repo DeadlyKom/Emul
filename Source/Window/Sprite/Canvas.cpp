@@ -348,6 +348,31 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 				bFroceRebuiltSpriteFrame = true;
 				bRefreshCanvas = true;
 			}
+			else if (Event.Tag == FEventTag::TimelineLayerAssignmentChangedTag &&
+				Event.Sprite == AsepriteSprite)
+			{
+				for (int32_t Frame = 0; Frame < static_cast<int32_t>(AsepriteSprite->Frames.size()); ++Frame)
+				{
+					std::vector<uint8_t> InkData;
+					std::vector<uint8_t> AttributeData;
+					std::vector<uint8_t> MaskData;
+					if (!BuildAsepriteFrameZXData(Frame, InkData, AttributeData, MaskData))
+						continue;
+
+					std::vector<uint8_t> IndexedData;
+					ConvertZXDataToIndexed(
+						Width,
+						Height,
+						InkData,
+						AttributeData,
+						MaskData,
+						IndexedData);
+					NotifySpritesUpdated(Frame, IndexedData, InkData, AttributeData, MaskData);
+				}
+				LastRebuiltSpriteFrame = INDEX_NONE;
+				bFroceRebuiltSpriteFrame = true;
+				bRefreshCanvas = true;
+			}
 		});
 
 	SubscribeEvent<FEvent_SelectedSprite>(
@@ -533,6 +558,7 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 		UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height, true);
 		ConversionToZX(ConversationSettings);
 		LoadAsepriteFrameOverride(0, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData);
+		ApplyAsepriteLayerOverrides(0, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData);
 		LastRebuiltSpriteFrame = 0;
 
 		break;
@@ -604,6 +630,23 @@ bool SCanvas::HasTimeline() const
 		AsepriteSprite &&
 		(AsepriteSprite->Frames.size() > 1 ||
 		 AsepriteSprite->Layers.size() > 1);
+}
+
+void SCanvas::SetAsepriteLayerAssignments(
+	const std::string& InkLayer,
+	const std::string& AttributeLayer,
+	const std::string& MaskLayer)
+{
+	if (!AsepriteSprite || ImageFormat != EImageFormat::Aseprite)
+	{
+		return;
+	}
+	AsepriteSprite->InkLayer = InkLayer;
+	AsepriteSprite->AttributeLayer = AttributeLayer;
+	AsepriteSprite->MaskLayer = MaskLayer;
+	LastRebuiltSpriteFrame = INDEX_NONE;
+	bFroceRebuiltSpriteFrame = true;
+	bRefreshCanvas = true;
 }
 
 void SCanvas::SetupHotKeys()
@@ -1266,6 +1309,13 @@ void SCanvas::Draw_PopupMenu_CreateSprite()
 			Event.AttributeData = ZXColorView->AttributeData;
 			Event.MaskData = ZXColorView->MaskData;
 			Event.AsepriteIndex = ImageFormat == EImageFormat::Aseprite ? SelectedSpritesFrame : ImageFrameIndex;
+			if (ImageFormat == EImageFormat::Aseprite && AsepriteSprite)
+			{
+				Event.InkLayer = AsepriteSprite->InkLayer;
+				Event.AttributeLayer = AsepriteSprite->AttributeLayer;
+				Event.MaskLayer = AsepriteSprite->MaskLayer;
+			}
+
 
 			SendEvent(Event);
 
@@ -1781,6 +1831,18 @@ void SCanvas::Handler_RectangleMarquee()
 {
 	const ImGuiIO& IO = ImGui::GetIO();
 	const bool bHovered = ImGui::IsWindowHovered();
+	auto UpdateRectangleMarquee = [this]()
+		{
+			const ImVec2& p1 = ZXColorView->RectStart;
+			const ImVec2& p2 = ZXColorView->RectEnd;
+			ZXColorView->RectangleMarqueeRect.Min = ImVec2(ImMin(p1.x, p2.x), ImMin(p1.y, p2.y));
+			ZXColorView->RectangleMarqueeRect.Max = ImVec2(ImMax(p1.x, p2.x) + 1.0f, ImMax(p1.y, p2.y) + 1.0f);
+			ZXColorView->RectangleMarqueeRect.Min = ImClamp(ZXColorView->RectangleMarqueeRect.Min, ImVec2(0, 0), ZXColorView->Image.Size);
+			ZXColorView->RectangleMarqueeRect.Max = ImClamp(ZXColorView->RectangleMarqueeRect.Max, ImVec2(0, 0), ZXColorView->Image.Size);
+			ZXColorView->bVisibilityRectangleMarquee =
+				ZXColorView->RectangleMarqueeRect.GetWidth() > 0.0f &&
+				ZXColorView->RectangleMarqueeRect.GetHeight() > 0.0f;
+		};
 
 	const bool Shift = IO.KeyShift;
 	const bool Ctrl = IO.ConfigMacOSXBehaviors ? IO.KeySuper : IO.KeyCtrl;
@@ -1804,26 +1866,10 @@ void SCanvas::Handler_RectangleMarquee()
 	}
 	else if (!bOpenPopupMenu && bRectangleMarqueeActive && IO.MouseDown[ImGuiMouseButton_Left])
 	{
-		ZXColorView->RectEnd = UI::ConverZXViewPositionToPixel(*ZXColorView, ImGui::GetMousePos());
-
-		const ImVec2 DragDistance = FMath::Abs(ZXColorView->RectEnd - ZXColorView->RectStart);
-		if (ZXColorView->bVisibilityRectangleMarquee || DragDistance.x > 1.0f || DragDistance.y > 1.0f)
+		if (ZXColorView->bVisibilityRectangleMarquee || ImGui::IsMouseDragging(ImGuiMouseButton_Left))
 		{
-			ZXColorView->bVisibilityRectangleMarquee = true;
-
-			const ImVec2 p1 = ZXColorView->RectStart;
-			const ImVec2 p2 = ZXColorView->RectEnd;
-
-			// normalize the rectangle (Min is always to the left/above, Max is always to the right/below)
-			ZXColorView->RectangleMarqueeRect.Min = ImVec2(ImMin(p1.x, p2.x), ImMin(p1.y, p2.y));
-			ZXColorView->RectangleMarqueeRect.Max = ImVec2(ImMax(p1.x, p2.x), ImMax(p1.y, p2.y));
-
-			// last pixel inclusion compensation
-			ZXColorView->RectangleMarqueeRect.Max.x += 1.0f;
-			ZXColorView->RectangleMarqueeRect.Max.y += 1.0f;
-
-			ZXColorView->RectangleMarqueeRect.Min = ImClamp(ZXColorView->RectangleMarqueeRect.Min, ImVec2(0, 0), ZXColorView->Image.Size);
-			ZXColorView->RectangleMarqueeRect.Max = ImClamp(ZXColorView->RectangleMarqueeRect.Max, ImVec2(0, 0), ZXColorView->Image.Size);
+			ZXColorView->RectEnd = UI::ConverZXViewPositionToPixel(*ZXColorView, ImGui::GetMousePos());
+			UpdateRectangleMarquee();
 		}
 	}
 	else if (IO.MouseReleased[ImGuiMouseButton_Left])
@@ -2043,6 +2089,61 @@ bool SCanvas::SaveAsepriteFrameOverride(
 	return true;
 }
 
+bool SCanvas::ApplyAsepriteLayerOverrides(
+	int32_t Frame,
+	std::vector<uint8_t>& InkData,
+	std::vector<uint8_t>& AttributeData,
+	std::vector<uint8_t>& MaskData) const
+{
+	if (!AsepriteSprite || ImageFormat != EImageFormat::Aseprite)
+	{
+		return false;
+	}
+
+	auto ConvertAttributeLayer = [this](
+		const std::vector<uint8_t>& RGBA,
+		std::vector<uint8_t>& OutputAttributeData)
+		{
+			std::vector<uint8_t> IndexedData;
+			std::vector<uint8_t> IgnoredInkData;
+			std::vector<uint8_t> IgnoredMaskData;
+			UI::QuantizeToZX(
+				RGBA.data(),
+				Width,
+				Height,
+				4,
+				IndexedData,
+				TransparentColor);
+			UI::ZXIndexColorToZXAttributeColor(
+				IndexedData,
+				Width,
+				Height,
+				IgnoredInkData,
+				OutputAttributeData,
+				IgnoredMaskData,
+				ConversationSettings);
+		};
+
+	bool bApplied = false;
+	std::vector<uint8_t> LayerRGBA;
+	if (AsepriteFormat::GetLayerFrameRGBA(*AsepriteSprite, Frame, AsepriteSprite->InkLayer, LayerRGBA))
+	{
+		UI::ZXAlphaToPixelData(LayerRGBA.data(), Width, Height, 4, InkData);
+		bApplied = true;
+	}
+	if (AsepriteFormat::GetLayerFrameRGBA(*AsepriteSprite, Frame, AsepriteSprite->MaskLayer, LayerRGBA))
+	{
+		UI::ZXAlphaToPixelData(LayerRGBA.data(), Width, Height, 4, MaskData, true);
+		bApplied = true;
+	}
+	if (AsepriteFormat::GetLayerFrameRGBA(*AsepriteSprite, Frame, AsepriteSprite->AttributeLayer, LayerRGBA))
+	{
+		ConvertAttributeLayer(LayerRGBA, AttributeData);
+		bApplied = true;
+	}
+	return bApplied;
+}
+
 bool SCanvas::BuildAsepriteFrameZXData(
 	int32_t Frame,
 	std::vector<uint8_t>& InkData,
@@ -2068,6 +2169,7 @@ bool SCanvas::BuildAsepriteFrameZXData(
 		MaskData,
 		ConversationSettings);
 	LoadAsepriteFrameOverride(Frame, InkData, AttributeData, MaskData);
+	ApplyAsepriteLayerOverrides(Frame, InkData, AttributeData, MaskData);
 	return true;
 }
 
@@ -2191,7 +2293,8 @@ void SCanvas::ConversionToCanvas(const UI::FConversationSettings& Settings)
 		ZXColorView->IndexedData,
 		ZXColorView->InkData,
 		ZXColorView->AttributeData,
-		ZXColorView->MaskData);
+		ZXColorView->MaskData,
+		AsepriteSprite && !AsepriteSprite->InkLayer.empty());
 }
 
 bool SCanvas::UpdateAsepriteFrameFromSource()
@@ -2230,6 +2333,12 @@ void SCanvas::NotifySpritesUpdated(
 	Event.AttributeData = AttributeData;
 	Event.MaskData = MaskData;
 	Event.AsepriteIndex = Frame;
+	if (ImageFormat == EImageFormat::Aseprite && AsepriteSprite)
+	{
+		Event.InkLayer = AsepriteSprite->InkLayer;
+		Event.AttributeLayer = AsepriteSprite->AttributeLayer;
+		Event.MaskLayer = AsepriteSprite->MaskLayer;
+	}
 	SendEvent(Event);
 }
 
@@ -2429,6 +2538,7 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 	const bool bMask = OptionsFlags[0] & FCanvasOptionsFlags::Mask;
 	const bool bPaper = OptionsFlags[0] & FCanvasOptionsFlags::Attribute;
 	const bool bSource = OptionsFlags[0] & FCanvasOptionsFlags::Source;
+	const bool bTransparentPaper = AsepriteSprite && !AsepriteSprite->InkLayer.empty();
 	const bool bDifference = FrameMode == EFrameMode::Difference || FrameMode == EFrameMode::ReverseDifference;
 	const bool bReverseDifference = FrameMode == EFrameMode::ReverseDifference;
 	const bool bValidAsepriteFrame = AsepriteSprite &&
@@ -2449,6 +2559,7 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 			ZXColorView->MaskData,
 			ConversationSettings);
 		LoadAsepriteFrameOverride(Frame, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData);
+		ApplyAsepriteLayerOverrides(Frame, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData);
 		LastRebuiltSpriteFrame = Frame;
 	}
 
@@ -2496,7 +2607,8 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 					(bTransparentMask || bPaper) ? DifferenceAttributeData.data() : nullptr,
 					bMask ? DifferenceMaskData.data() : nullptr,
 					false, nullptr, true,
-					bTransparentMask);
+					bTransparentMask,
+					bTransparentPaper);
 			}
 		}
 		bFroceRebuiltSpriteFrame = false;
@@ -2516,7 +2628,8 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 			(bTransparentMask || bPaper) ? ZXColorView->AttributeData.data() : nullptr,
 			bMask ? ZXColorView->MaskData.data() : nullptr,
 			false, nullptr, true,
-			bTransparentMask);
+			bTransparentMask,
+			bTransparentPaper);
 	}
 	bFroceRebuiltSpriteFrame = false;
 }

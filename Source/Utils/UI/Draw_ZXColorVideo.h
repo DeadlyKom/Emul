@@ -216,6 +216,13 @@ namespace UI
 	void GetInkPaper(const std::vector<uint8_t>& IndicesBoundary, uint8_t& OutputPaperColor, uint8_t& OutputInkColor, const UI::FConversationSettings& Settings);
 	int32_t FindClosestColor(ImU32 Color);
 	void QuantizeToZX(const uint8_t* RawImage, int32_t Width, int32_t Height, int32_t Channels, std::vector<uint8_t>& OutputIndexedData, ImU32 TransparentColor);
+	void ZXAlphaToPixelData(
+		const uint8_t* RawImage,
+		int32_t Width,
+		int32_t Height,
+		int32_t Channels,
+		std::vector<uint8_t>& OutputPixelData,
+		bool bInverse = false);
 
 	// conversion of index colors (1 color per pixel) to texture image
 	void ZXIndexColorToRGBA(std::vector<uint32_t>& OutputRGBA, const std::vector<uint8_t>& IndexedData, int32_t Width, int32_t Height);
@@ -236,7 +243,8 @@ namespace UI
 		std::vector<uint8_t>& OutputIndexedData,
 		const std::vector<uint8_t>& InkData,
 		const std::vector<uint8_t>& AttributeData,
-		const std::vector<uint8_t>& MaskData);
+		const std::vector<uint8_t>& MaskData,
+		bool bTransparentPaper = false);
 
 	// conversion of ZX format to RGBA
 	void ZXAttributeColorToImage(
@@ -248,7 +256,8 @@ namespace UI
 		bool bCreate = false,
 		std::vector<uint8_t>* OutputIndexedData = nullptr,
 		bool bMaskInverse = true,
-		bool bTransparentMask = false);
+		bool bTransparentMask = false,
+		bool bTransparentPaper = false);
 
 	// fill region
 	void FillRegion(const ImRect& RectangleFill, std::vector<uint8_t>& OutputIndexedData, int32_t Width, int32_t Height, EZXSpectrumColor::Type FillColor);

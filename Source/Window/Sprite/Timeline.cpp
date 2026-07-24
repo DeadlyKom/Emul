@@ -589,6 +589,76 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
         }
     }
 
+    if (bCanAcceptMouse &&
+        !State.bDragging &&
+        IsPointInsideRect(Mouse, LayerNamesMin, LayerNamesMax) &&
+        Mouse.x >= LayerNamesMin.x + LayerVisibilityW &&
+        ImGui::IsMouseClicked(ImGuiMouseButton_Right))
+    {
+        const int32_t Layer = GetLayerFromHeaderMouse();
+        std::shared_ptr<AsepriteFormat::FSprite> Sprite = AsepriteSprite.lock();
+        const int32_t SpriteLayerIndex = Sprite
+            ? static_cast<int32_t>(Sprite->Layers.size()) - Layer - 1
+            : INDEX_NONE;
+        if (SpriteLayerIndex >= 0 && SpriteLayerIndex < static_cast<int32_t>(Sprite->Layers.size()))
+        {
+            PopupLayer = SpriteLayerIndex;
+            SetCurrentLayer(Layer);
+            ImGui::OpenPopup("TimelineLayerAssignmentPopup");
+        }
+    }
+
+    if (ImGui::BeginPopup("TimelineLayerAssignmentPopup"))
+    {
+        std::shared_ptr<AsepriteFormat::FSprite> Sprite = AsepriteSprite.lock();
+        if (Sprite && PopupLayer >= 0 && PopupLayer < static_cast<int32_t>(Sprite->Layers.size()))
+        {
+            const std::string LayerName = Sprite->Layers[PopupLayer].Name;
+            auto SendAssignmentChanged = [this, &Sprite]()
+                {
+                    FEvent_Timeline Event(FEventTag::TimelineLayerAssignmentChangedTag);
+                    Event.Sprite = Sprite;
+                    Event.Format = EImageFormat::Aseprite;
+                    SendEvent(Event);
+                };
+            auto AssignLayer = [&Sprite, &LayerName, &SendAssignmentChanged](std::string& Target)
+                {
+                    if (Sprite->InkLayer == LayerName)
+                        Sprite->InkLayer.clear();
+                    if (Sprite->AttributeLayer == LayerName)
+                        Sprite->AttributeLayer.clear();
+                    if (Sprite->MaskLayer == LayerName)
+                        Sprite->MaskLayer.clear();
+                    Target = LayerName;
+                    SendAssignmentChanged();
+                };
+
+            if (ImGui::MenuItem("Ink", nullptr, Sprite->InkLayer == LayerName))
+                AssignLayer(Sprite->InkLayer);
+            if (ImGui::MenuItem("Attribute", nullptr, Sprite->AttributeLayer == LayerName))
+                AssignLayer(Sprite->AttributeLayer);
+            if (ImGui::MenuItem("Mask", nullptr, Sprite->MaskLayer == LayerName))
+                AssignLayer(Sprite->MaskLayer);
+
+            const bool bHasAssignment =
+                Sprite->InkLayer == LayerName ||
+                Sprite->AttributeLayer == LayerName ||
+                Sprite->MaskLayer == LayerName;
+            ImGui::Separator();
+            if (ImGui::MenuItem("Reset assignment", nullptr, false, bHasAssignment))
+            {
+                if (Sprite->InkLayer == LayerName)
+                    Sprite->InkLayer.clear();
+                if (Sprite->AttributeLayer == LayerName)
+                    Sprite->AttributeLayer.clear();
+                if (Sprite->MaskLayer == LayerName)
+                    Sprite->MaskLayer.clear();
+                SendAssignmentChanged();
+            }
+        }
+        ImGui::EndPopup();
+    }
+
     if (State.bDragging &&
         State.DragMode == TimelineDrag_FramesHeader &&
         ImGui::IsMouseDown(ImGuiMouseButton_Left))
@@ -1213,6 +1283,22 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
                         ColText,
                         Sprite->Layers[SpriteLayerIndex].Name.c_str()
                     );
+                    const ImVec2 NameMin(P0.x + LayerVisibilityW, P0.y);
+                    if (bCanAcceptMouse && IsPointInsideRect(Mouse, NameMin, P1))
+                    {
+                        const std::string& LayerName = Sprite->Layers[SpriteLayerIndex].Name;
+                        const char* Assignment = Sprite->InkLayer == LayerName
+                            ? "Ink"
+                            : (Sprite->AttributeLayer == LayerName
+                                ? "Attribute"
+                                : (Sprite->MaskLayer == LayerName ? "Mask" : nullptr));
+                        if (Assignment)
+                        {
+                            ImGui::BeginTooltip();
+                            ImGui::Text("Assignment: %s", Assignment);
+                            ImGui::EndTooltip();
+                        }
+                    }
                 }
             }
 

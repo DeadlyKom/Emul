@@ -82,6 +82,10 @@ namespace AsepriteFormat
 		std::vector<int32_t> DurationPerFrame;
 		std::vector<FLayer> Layers;
 
+		std::string InkLayer;
+		std::string AttributeLayer;
+		std::string MaskLayer;
+
 		bool IsValid() const
 		{
 			return !Frames.empty() && !Layers.empty() && !DurationPerFrame.empty() && Width && Height;
@@ -89,5 +93,10 @@ namespace AsepriteFormat
 	};
 
 	bool RebuildFrames(FSprite& Sprite);
+	bool GetLayerFrameRGBA(
+		const FSprite& Sprite,
+		int32_t Frame,
+		const std::string& LayerName,
+		std::vector<uint8_t>& OutputRGBA);
 	bool Load(const std::filesystem::path& FilePath, FSprite& OutputSprite);
 }

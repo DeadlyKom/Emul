@@ -972,6 +972,49 @@ namespace AsepriteFormat
         return true;
     }
 
+	bool GetLayerFrameRGBA(
+		const FSprite& Sprite,
+		int32_t Frame,
+		const std::string& LayerName,
+		std::vector<uint8_t>& OutputRGBA)
+	{
+		if (LayerName.empty() || Frame < 0 ||
+			Frame >= static_cast<int32_t>(Sprite.DecodedFrames.size()))
+		{
+			return false;
+		}
+
+		const auto LayerIt = std::find_if(Sprite.Layers.begin(), Sprite.Layers.end(),
+			[&LayerName](const FLayer& Layer)
+			{
+				return Layer.Name == LayerName;
+			});
+		if (LayerIt == Sprite.Layers.end())
+		{
+			return false;
+		}
+
+		const uint16_t LayerIndex = static_cast<uint16_t>(std::distance(Sprite.Layers.begin(), LayerIt));
+		const auto CelIt = Sprite.DecodedFrames[Frame].find(LayerIndex);
+		OutputRGBA.assign(static_cast<size_t>(Sprite.Width) * Sprite.Height * 4, 0);
+		if (CelIt == Sprite.DecodedFrames[Frame].end())
+		{
+			return true;
+		}
+
+		OutputRGBA = CelIt->second.Pixels;
+		const uint8_t LayerOpacity = (Sprite.HeaderFlags & ASE_FILE_FLAG_LAYER_WITH_OPACITY)
+			? LayerIt->Opacity
+			: 255;
+		const uint32_t Opacity =
+			(static_cast<uint32_t>(CelIt->second.Opacity) * LayerOpacity + 127) / 255;
+		for (size_t Index = 3; Index < OutputRGBA.size(); Index += 4)
+		{
+			OutputRGBA[Index] = static_cast<uint8_t>(
+				(static_cast<uint32_t>(OutputRGBA[Index]) * Opacity + 127) / 255);
+		}
+		return true;
+	}
     bool Load(const std::filesystem::path& FilePath, FSprite& OutputSprite)
 	{
         bool bIgnoreOldColorChunks = false;

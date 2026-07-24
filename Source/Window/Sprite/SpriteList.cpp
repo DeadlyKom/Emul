@@ -52,6 +52,9 @@ SSpriteList::SSpriteList(EFont::Type _FontName, std::string _DockSlot /*= ""*/)
 	, IndexRenameSprite(INDEX_NONE)
 	, bNeedOpenImportRepairPopup(false)
 	, bUniqueExportFilename(false)
+	, bExportInk(true)
+	, bExportAttribute(true)
+	, bExportMask(true)
 	, IndexSelectedScript(INDEX_NONE)
 {}
 
@@ -74,6 +77,9 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 					Event.InkData,
 					Event.AttributeData,
 					Event.MaskData,
+					Event.InkLayer,
+					Event.AttributeLayer,
+					Event.MaskLayer,
 					Event.AsepriteIndex);
 			}
 			else if (Event.Tag == FEventTag::UpdateSpriteTag)
@@ -86,6 +92,9 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 					Event.InkData,
 					Event.AttributeData,
 					Event.MaskData,
+					Event.InkLayer,
+					Event.AttributeLayer,
+					Event.MaskLayer,
 					Event.AsepriteIndex
 				);
 			}
@@ -494,6 +503,11 @@ void SSpriteList::Draw_ExportSprites()
 	}
 	ImGui::Dummy(ImVec2(0.0f, TextHeight * 1.0f));
 	ImGui::Checkbox("use a unique file name ##UniqueFilename", &bUniqueExportFilename);
+	ImGui::SeparatorText("Sidecar data");
+	ImGui::Checkbox("*.ink", &bExportInk);
+	ImGui::Checkbox("*.attr", &bExportAttribute);
+	ImGui::Checkbox("*.mask", &bExportMask);
+	ImGui::Dummy(ImVec2(0.0f, TextHeight * 0.5f));
 	if (ImGui::ButtonEx("OK", ImVec2(TextWidth * 11.0f, TextHeight * 1.5f)))
 	{
 		// export sprites
@@ -549,6 +563,9 @@ void SSpriteList::AddSprite(
 	const std::vector<uint8_t>& InkData,
 	const std::vector<uint8_t>& AttributeData,
 	const std::vector<uint8_t>& MaskData,
+	const std::string& InkLayer,
+	const std::string& AttributeLayer,
+	const std::string& MaskLayer,
 	int32_t AsepriteIndex /*= INDEX_NONE*/)
 {
 	std::shared_ptr<FSprite> NewSprite = std::make_shared<FSprite>();
@@ -562,6 +579,9 @@ void SSpriteList::AddSprite(
 	NewSprite->SpritePositionToImageY = (uint32_t)SpriteRect.GetTL().y;
 	NewSprite->SourcePathFile = SourcePathFile;
 
+	NewSprite->InkLayer = InkLayer;
+	NewSprite->AttributeLayer = AttributeLayer;
+	NewSprite->MaskLayer = MaskLayer;
 	NewSprite->ZXColorView = std::make_shared<UI::FZXColorView>();
 	NewSprite->ZXColorView->Scale = ImVec2(1.0f, 1.0f);
 	NewSprite->ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
@@ -605,6 +625,7 @@ void SSpriteList::AddSprite(
 		const int32_t AttributeSize = SpriteBoundary_X * SpriteBoundary_Y;
 		std::vector<uint8_t>& NewAttributeData = NewSprite->ZXColorView->AttributeData;
 		NewAttributeData.resize(AttributeSize);
+		const bool bTransparentPaper = !InkLayer.empty();
 
 		uint32_t Index = 0;
 		for (uint32_t y = (uint32_t)SpriteRect.Min.y; y < (uint32_t)SpriteRect.Max.y; ++y)
@@ -665,7 +686,9 @@ void SSpriteList::AddSprite(
 					PaperColor = UI::EZXSpectrumColor::Black_;
 				}
 
-				const int8_t ColorInk = (Pixels << dx) & 0x80 ? InkColor : PaperColor;
+				const int8_t ColorInk = (Pixels << dx) & 0x80
+					? InkColor
+					: (bTransparentPaper ? UI::EZXSpectrumColor::Transparent : PaperColor);
 				const int8_t Color = ((Mask << dx) & 0x80) ? UI::EZXSpectrumColor::Transparent : ColorInk;
 				NewIndexedData[Index] = Color;
 
@@ -694,6 +717,9 @@ std::vector<std::shared_ptr<FSprite>> SSpriteList::UpdateSprite(
 	const std::vector<uint8_t>& InkData,
 	const std::vector<uint8_t>& AttributeData,
 	const std::vector<uint8_t>& MaskData,
+	const std::string& InkLayer,
+	const std::string& AttributeLayer,
+	const std::string& MaskLayer,
 	int32_t AsepriteIndex /*= INDEX_NONE*/)
 {
 	std::vector<std::shared_ptr<FSprite>> UpdatedSprites;
@@ -709,6 +735,13 @@ std::vector<std::shared_ptr<FSprite>> SSpriteList::UpdateSprite(
 		{
 			continue;
 		}
+		if (ImageFormat == EImageFormat::Aseprite)
+		{
+			Sprite->InkLayer = InkLayer;
+			Sprite->AttributeLayer = AttributeLayer;
+			Sprite->MaskLayer = MaskLayer;
+		}
+
 
 		const int32_t CanvasBoundary_X = CanvasWidth >> 3;
 		const int32_t CanvasBoundary_Y = CanvasHeight >> 3;
@@ -716,6 +749,7 @@ std::vector<std::shared_ptr<FSprite>> SSpriteList::UpdateSprite(
 		const uint32_t NormalSizeY = uint32_t(Sprite->Height / 8) * 8;
 		const int32_t SpriteBoundary_X = NormalSizeX >> 3;
 		const int32_t SpriteBoundary_Y = NormalSizeY >> 3;
+		const bool bTransparentPaper = !Sprite->InkLayer.empty();
 
 		const int32_t Size = Sprite->Width * Sprite->Height;
 		std::vector<uint32_t> RGBA(Size);
@@ -779,7 +813,9 @@ std::vector<std::shared_ptr<FSprite>> SSpriteList::UpdateSprite(
 					PaperColor = UI::EZXSpectrumColor::Black_;
 				}
 
-				const int8_t ColorInk = (Pixels << dx) & 0x80 ? InkColor : PaperColor;
+				const int8_t ColorInk = (Pixels << dx) & 0x80
+					? InkColor
+					: (bTransparentPaper ? UI::EZXSpectrumColor::Transparent : PaperColor);
 				const int8_t Color = ((Mask << dx) & 0x80) ? UI::EZXSpectrumColor::Transparent : ColorInk;
 				Sprite->ZXColorView->IndexedData[Index] = Color;
 
@@ -1122,6 +1158,7 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 		int32_t Width = 0;
 		int32_t Height = 0;
 		std::vector<std::vector<uint8_t>> Frames;
+		std::shared_ptr<AsepriteFormat::FSprite> Aseprite;
 		bool bLoaded = false;
 		bool bValid = false;
 	};
@@ -1148,12 +1185,12 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 			}
 			else if (Format == EImageFormat::Aseprite)
 			{
-				AsepriteFormat::FSprite Aseprite;
-				if (AsepriteFormat::Load(SourcePath, Aseprite) && !Aseprite.Frames.empty())
+				Source.Aseprite = std::make_shared<AsepriteFormat::FSprite>();
+				if (AsepriteFormat::Load(SourcePath, *Source.Aseprite) && !Source.Aseprite->Frames.empty())
 				{
-					Source.Width = Aseprite.Width;
-					Source.Height = Aseprite.Height;
-					Source.Frames = std::move(Aseprite.Frames);
+					Source.Width = Source.Aseprite->Width;
+					Source.Height = Source.Aseprite->Height;
+					Source.Frames = Source.Aseprite->Frames;
 					Source.bValid = true;
 				}
 			}
@@ -1182,6 +1219,16 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 		NewSprite->AsepriteIndex = SpriteJson.value("AsepriteIndex", INDEX_NONE);
 
 		FSourceImage& Source = LoadSourceImage(NewSprite->SourcePathFile);
+		if (Source.Aseprite)
+		{
+			NewSprite->InkLayer = SpriteJson.value("InkLayer", "");
+			NewSprite->AttributeLayer = SpriteJson.value("AttributeLayer", "");
+			NewSprite->MaskLayer = SpriteJson.value("MaskLayer", "");
+			Source.Aseprite->InkLayer = NewSprite->InkLayer;
+			Source.Aseprite->AttributeLayer = NewSprite->AttributeLayer;
+			Source.Aseprite->MaskLayer = NewSprite->MaskLayer;
+		}
+
 		const int32_t EffectiveFrame = NewSprite->AsepriteIndex >= 0 &&
 			NewSprite->AsepriteIndex < static_cast<int32_t>(Source.Frames.size())
 			? NewSprite->AsepriteIndex
@@ -1239,6 +1286,80 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 			IO::LoadBinaryData(NewSprite->ZXColorView->MaskData, MaskDataFile);
 		}
 
+		if (Source.Aseprite && bCanConvertSource)
+		{
+			auto GetCroppedLayer = [&](const std::string& LayerName, std::vector<uint8_t>& OutputRGBA)
+				{
+					std::vector<uint8_t> LayerRGBA;
+					if (!AsepriteFormat::GetLayerFrameRGBA(*Source.Aseprite, EffectiveFrame, LayerName, LayerRGBA) ||
+						LayerRGBA.size() < static_cast<size_t>(Source.Width) * Source.Height * 4)
+					{
+						return false;
+					}
+
+					OutputRGBA.resize(static_cast<size_t>(NewSprite->Width) * NewSprite->Height * 4);
+					for (uint32_t Y = 0; Y < NewSprite->Height; ++Y)
+					{
+						const size_t SourceOffset =
+							(static_cast<size_t>(NewSprite->SpritePositionToImageY + Y) * Source.Width +
+								NewSprite->SpritePositionToImageX) * 4;
+						const size_t DestinationOffset = static_cast<size_t>(Y) * NewSprite->Width * 4;
+						std::memcpy(
+							OutputRGBA.data() + DestinationOffset,
+							LayerRGBA.data() + SourceOffset,
+							static_cast<size_t>(NewSprite->Width) * 4);
+					}
+					return true;
+				};
+			const UI::FConversationSettings Settings
+			{
+				.InkAlways = EZXColor::Black_,
+				.TransparentIndex = EZXColor::Transparent,
+				.ReplaceTransparent = EZXColor::Black,
+			};
+			auto ConvertAttributeLayer = [&NewSprite, &Settings](
+				const std::vector<uint8_t>& RGBA,
+				std::vector<uint8_t>& OutputAttributeData)
+				{
+					std::vector<uint8_t> IndexedData;
+					std::vector<uint8_t> IgnoredInkData;
+					std::vector<uint8_t> IgnoredMaskData;
+					UI::QuantizeToZX(
+						RGBA.data(), NewSprite->Width, NewSprite->Height, 4,
+						IndexedData, UI::ToU32(COLOR(0, 0, 0, 0)));
+					UI::ZXIndexColorToZXAttributeColor(
+						IndexedData, NewSprite->Width, NewSprite->Height,
+						IgnoredInkData, OutputAttributeData, IgnoredMaskData, Settings);
+				};
+
+			std::vector<uint8_t> LayerRGBA;
+			if (GetCroppedLayer(NewSprite->InkLayer, LayerRGBA))
+			{
+				UI::ZXAlphaToPixelData(
+					LayerRGBA.data(),
+					NewSprite->Width,
+					NewSprite->Height,
+					4,
+					NewSprite->ZXColorView->InkData);
+			}
+			if (GetCroppedLayer(NewSprite->MaskLayer, LayerRGBA))
+			{
+				UI::ZXAlphaToPixelData(
+					LayerRGBA.data(),
+					NewSprite->Width,
+					NewSprite->Height,
+					4,
+					NewSprite->ZXColorView->MaskData,
+					true);
+			}
+			if (GetCroppedLayer(NewSprite->AttributeLayer, LayerRGBA))
+			{
+				ConvertAttributeLayer(
+					LayerRGBA,
+					NewSprite->ZXColorView->AttributeData);
+			}
+		}
+
 		// additional data
 		if (SpriteJson.contains("Regions"))
 		{
@@ -1292,7 +1413,9 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 			MaskData,
 			true,
 			&NewSprite->ZXColorView->IndexedData,
-			true /* ????????!!!!!!!*/);
+			true /* ????????!!!!!!!*/,
+			false,
+			!NewSprite->InkLayer.empty());
 		OutputSprites.push_back(NewSprite);
 	}
 
@@ -1400,24 +1523,36 @@ void SSpriteList::ExportSprites(
 		}
 
 		std::filesystem::path InkDataFilePath;
-		if (Sprite->ZXColorView->InkData.size() > 0)
+		if (bExportInk && Sprite->ZXColorView->InkData.size() > 0)
 		{
 			InkDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / MakeExportFilename(".ink")));
 			IO::SaveBinaryData(Sprite->ZXColorView->InkData, InkDataFilePath, bUniqueExportFilename);
 		}
 
 		std::filesystem::path AttributeDataFilePath;
-		if (Sprite->ZXColorView->AttributeData.size() > 0)
+		if (bExportAttribute && Sprite->ZXColorView->AttributeData.size() > 0)
 		{
 			AttributeDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / MakeExportFilename(".attr")));
 			IO::SaveBinaryData(Sprite->ZXColorView->AttributeData, AttributeDataFilePath, bUniqueExportFilename);
 		}
 
 		std::filesystem::path MaskDataFilePath;
-		if (Sprite->ZXColorView->MaskData.size() > 0)
+		if (bExportMask && Sprite->ZXColorView->MaskData.size() > 0)
 		{
 			MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / MakeExportFilename(".mask")));
-			IO::SaveBinaryData(Sprite->ZXColorView->MaskData, MaskDataFilePath, bUniqueExportFilename);
+			if (Sprite->MaskLayer.empty())
+			{
+				IO::SaveBinaryData(Sprite->ZXColorView->MaskData, MaskDataFilePath, bUniqueExportFilename);
+			}
+			else
+			{
+				std::vector<uint8_t> ExportMaskData = Sprite->ZXColorView->MaskData;
+				for (uint8_t& MaskByte : ExportMaskData)
+				{
+					MaskByte = ~MaskByte;
+				}
+				IO::SaveBinaryData(ExportMaskData, MaskDataFilePath, bUniqueExportFilename);
+			}
 		}
 
 		nlohmann::ordered_json SpriteJson =
@@ -1437,6 +1572,12 @@ void SSpriteList::ExportSprites(
 		if (Sprite->AsepriteIndex != INDEX_NONE)
 		{
 			SpriteJson.emplace("AsepriteIndex", Sprite->AsepriteIndex);
+		}
+		if (FAppSprite::SupportImageFormat(Sprite->SourcePathFile) == EImageFormat::Aseprite)
+		{
+			SpriteJson.emplace("InkLayer", Sprite->InkLayer);
+			SpriteJson.emplace("AttributeLayer", Sprite->AttributeLayer);
+			SpriteJson.emplace("MaskLayer", Sprite->MaskLayer);
 		}
 		if (!Sprite->Regions.empty())
 		{
@@ -1516,7 +1657,13 @@ void SSpriteList::ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>
 		const EImageFormat ImageFormat = FAppSprite::SupportImageFormat(FilePath);
 		if (ImageFormat != EImageFormat::None)
 		{
-			FAppSprite::Import_Image(Viewer, FilePath, ImageFormat);
+			FAppSprite::Import_Image(
+				Viewer,
+				FilePath,
+				ImageFormat,
+				Sprite->InkLayer,
+				Sprite->AttributeLayer,
+				Sprite->MaskLayer);
 		}
 	}
 }

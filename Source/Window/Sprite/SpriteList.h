@@ -174,6 +174,9 @@ struct FSprite
 	uint32_t SpritePositionToImageX;
 	uint32_t SpritePositionToImageY;
 	std::filesystem::path SourcePathFile;
+	std::string InkLayer;
+	std::string AttributeLayer;
+	std::string MaskLayer;
 
 	// internal variable
 	static int32_t StaticUniqueID;
@@ -259,6 +262,9 @@ private:
 		const std::vector<uint8_t>& InkData,
 		const std::vector<uint8_t>& AttributeData,
 		const std::vector<uint8_t>& MaskData,
+		const std::string& InkLayer,
+		const std::string& AttributeLayer,
+		const std::string& MaskLayer,
 		int32_t AsepriteIndex = INDEX_NONE);
 
 	std::vector<std::shared_ptr<FSprite>> UpdateSprite(
@@ -268,6 +274,9 @@ private:
 		const std::vector<uint8_t>& InkData,
 		const std::vector<uint8_t>& AttributeData,
 		const std::vector<uint8_t>& MaskData,
+		const std::string& InkLayer,
+		const std::string& AttributeLayer,
+		const std::string& MaskLayer,
 		int32_t AsepriteIndex = INDEX_NONE);
 
 	bool HasMissingImportData(const std::filesystem::path& FilePath) const;
@@ -300,6 +309,9 @@ private:
 
 	// popup menu 'Export'
 	bool bUniqueExportFilename;
+	bool bExportInk;
+	bool bExportAttribute;
+	bool bExportMask;
 	int32_t IndexSelectedScript;
 	std::vector<std::string> ScriptFileNames;
 	std::map<std::string, std::string> ScriptFiles;
