@@ -1540,19 +1540,7 @@ void SSpriteList::ExportSprites(
 		if (bExportMask && Sprite->ZXColorView->MaskData.size() > 0)
 		{
 			MaskDataFilePath = IO::NormalizePath(std::filesystem::absolute(ExportPath / MakeExportFilename(".mask")));
-			if (Sprite->MaskLayer.empty())
-			{
-				IO::SaveBinaryData(Sprite->ZXColorView->MaskData, MaskDataFilePath, bUniqueExportFilename);
-			}
-			else
-			{
-				std::vector<uint8_t> ExportMaskData = Sprite->ZXColorView->MaskData;
-				for (uint8_t& MaskByte : ExportMaskData)
-				{
-					MaskByte = ~MaskByte;
-				}
-				IO::SaveBinaryData(ExportMaskData, MaskDataFilePath, bUniqueExportFilename);
-			}
+			IO::SaveBinaryData(Sprite->ZXColorView->MaskData, MaskDataFilePath, bUniqueExportFilename);
 		}
 
 		nlohmann::ordered_json SpriteJson =
