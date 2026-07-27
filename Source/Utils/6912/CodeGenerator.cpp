@@ -411,7 +411,8 @@ void CodeGenerator::AddCandidate(FAnalysis& Analysis, const FCandidate& Candidat
     }
 
     FCandidate ScoredCandidate = Candidate;
-    ScoredCandidate.StartAddr = AddrOf(ScoredCandidate.StartOffset, Analysis.ScreenBaseAddress);
+    const uint16_t StartAddressOffset = static_cast<uint16_t>(Candidate.StartAddr - ZX_SCREEN_BASE);
+    ScoredCandidate.StartAddr = static_cast<uint16_t>(Analysis.ScreenBaseAddress + StartAddressOffset);
     auto AddByteFrequency = [&Analysis](int32_t Offset)
     {
         if (!IsValidOffset(Offset) || Analysis.ByteFrequency.size() != 256)
