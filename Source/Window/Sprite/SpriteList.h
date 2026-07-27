@@ -290,7 +290,7 @@ private:
 		bool bOpenFolder = true,
 		bool bCreate = true);
 
-	void SendSelectedSprite() const;
+	void SendSelectedSprite(bool bOpenMetadata = false) const;
 	void ApplyImportSprites(const std::vector<std::shared_ptr<FSprite>>& ReadSprites);
 
 	bool bNeedKeptOpened_ExportPopup;

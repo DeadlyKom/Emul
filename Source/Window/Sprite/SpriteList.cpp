@@ -253,7 +253,7 @@ void SSpriteList::Render()
 		}
 		if (ImGui::MenuItem("Edit Meta"))
 		{
-			SendSelectedSprite();
+			SendSelectedSprite(true);
 		}
 		ImGui::EndPopup();
 	}
@@ -1601,18 +1601,15 @@ void SSpriteList::ExportSprites(
 	}
 }
 
-void SSpriteList::SendSelectedSprite() const 
+void SSpriteList::SendSelectedSprite(bool bOpenMetadata /*= false*/) const
 {
 	if (IndexSelectedSprite != INDEX_NONE && Sprites.size() > IndexSelectedSprite)
 	{
 		const std::shared_ptr<FSprite>& Sprite = Sprites[IndexSelectedSprite];
 		std::shared_ptr<SViewerBase> Viewer = GetParent();
-		// forced open window 'Edit metadata'
+		if (bOpenMetadata && Viewer)
 		{
-			if (Viewer && !Viewer->IsWindowVisibility(NAME_SpriteMetadata))
-			{
-				Viewer->SetWindowVisibility(NAME_SpriteMetadata);
-			}
+			Viewer->SetWindowVisibility(NAME_SpriteMetadata);
 		}
 
 		// forced open window Canvas
