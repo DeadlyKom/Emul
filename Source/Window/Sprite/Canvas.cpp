@@ -1856,7 +1856,7 @@ void SCanvas::Handler_RectangleMarquee()
 		}
 	}
 
-	if (!bOpenPopupMenu && IO.MouseClicked[ImGuiMouseButton_Left])
+	if (IO.MouseClicked[ImGuiMouseButton_Left])
 	{
 		ZXColorView->RectStart = UI::ConverZXViewPositionToPixel(*ZXColorView, ImGui::GetMousePos());
 		ZXColorView->RectEnd = ZXColorView->RectStart;
@@ -1875,10 +1875,6 @@ void SCanvas::Handler_RectangleMarquee()
 	else if (IO.MouseReleased[ImGuiMouseButton_Left])
 	{
 		bRectangleMarqueeActive = false;
-	}
-	else if (bOpenPopupMenu && ZXColorView->bVisibilityRectangleMarquee && IO.MouseClicked[ImGuiMouseButton_Left])
-	{
-		bOpenPopupMenu = false;
 	}
 
 	//ImGui::Text("Min (%f, %f), Max (%f, %f)",
