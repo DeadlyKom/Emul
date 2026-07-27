@@ -695,6 +695,11 @@ void SCanvas::Tick(float DeltaTime)
 	}
 }
 
+bool SCanvas::IsActiveCanvas() const
+{
+	return ActiveCanvas.lock().get() == this;
+}
+
 void SCanvas::Render()
 {
 	SWindow::Render();

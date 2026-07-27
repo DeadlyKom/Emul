@@ -1813,7 +1813,7 @@ std::shared_ptr<SCanvas> FAppSprite::GetActiveCanvas()
 {
 	for (std::shared_ptr<SCanvas> Canvas : ActiveCanvas)
 	{
-		if (Canvas->IsOpen() && Canvas->IsFocus())
+		if (Canvas->IsOpen() && (Canvas->IsFocus() || Canvas->IsActiveCanvas()))
 		{
 			return Canvas;
 		}

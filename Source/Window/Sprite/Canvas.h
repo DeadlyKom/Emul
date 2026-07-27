@@ -52,6 +52,7 @@ public:
 		const std::string& MaskLayer);
 	EImageFormat GetImageFormat() const { return ImageFormat; }
 	bool HasTimeline() const;
+	bool IsActiveCanvas() const;
 	int32_t GetSelectedFrameIndex() const { return SelectedSpritesFrame; }
 	CodeGenerator::FResult BuildCodeGenerationResult(const CodeGenerator::FOptions& Options, const std::string& LabelName, const CodeGenerator::FProgressInfo* Progress = nullptr);
 
