@@ -44,6 +44,7 @@ namespace
 	static const char* Menu_View_Show_PixelGridName = "Pixel grid";
 	static const char* Menu_View_Show_AttributeGridName = "Attribute grid";
 	static const char* Menu_View_Show_AlphaCheckerboardName = "Alpha checkerboard";
+	static const char* Menu_View_Show_AttributeClashName = "Attribute clash";
 	static const char* Menu_View_FrameModeName = "Frame mode";
 	static const char* Menu_View_FrameMode_NoneName = "None";
 	static const char* Menu_View_FrameMode_DifferenceName = "Difference forward";
@@ -452,6 +453,7 @@ void FAppSprite::SetupHotKeys()
 		{ ImGuiMod_Ctrl | ImGuiKey_W,					ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_Close,							this)	},	// (Ctrl + S)
 		{ ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_W,	ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_CloseAll,						this)	},	// (Ctrl + Shift + W)
 		{ ImGuiMod_Ctrl | ImGuiKey_R,					ImGuiInputFlags_RouteGlobal,							std::bind(&ThisClass::Imput_ReloadActiveCanvas,				this)	},	// (Ctrl + R)
+		{ ImGuiKey_ScrollLock,							ImGuiInputFlags_RouteGlobal,							std::bind(&ThisClass::Imput_ToggleAttributeClash,			this)	},	// (Scroll Lock)
 		{ ImGuiKey_KeypadMultiply,						ImGuiInputFlags_RouteGlobal,							std::bind(&ThisClass::Imput_ToggleFrameDirection,			this)	},	// (Num *)
 		{ ImGuiKey_KeypadDivide,						ImGuiInputFlags_RouteGlobal,							std::bind(&ThisClass::Imput_ToggleFrameMode,				this)	},	// (Num /)
 	};
@@ -589,6 +591,11 @@ void FAppSprite::Show_MenuBar()
 			if (ImGui::MenuItem(Menu_View_Show_AlphaCheckerboardName, NULL, ViewFlags.bAlphaCheckerboardGrid))
 			{
 				ViewFlags.bAlphaCheckerboardGrid = !ViewFlags.bAlphaCheckerboardGrid;
+				bUpdateOptions = true;
+			}
+			if (ImGui::MenuItem(Menu_View_Show_AttributeClashName, "Scroll Lock", ViewFlags.bAttributeClash))
+			{
+				ViewFlags.bAttributeClash = !ViewFlags.bAttributeClash;
 				bUpdateOptions = true;
 			}
 			if (ViewFlags.bAlphaCheckerboardGrid)
@@ -1852,6 +1859,15 @@ void FAppSprite::Imput_ToggleFrameDirection()
 		Canvas_Event.ViewFlags = ViewFlags;
 		Viewer->GetEventSystem().Publish(Canvas_Event);
 	}
+}
+
+void FAppSprite::Imput_ToggleAttributeClash()
+{
+	ViewFlags.bAttributeClash = !ViewFlags.bAttributeClash;
+	FEvent_Canvas CanvasEvent(FEventTag::CanvasViewFlagsTag);
+	CanvasEvent.CanvasName = {};
+	CanvasEvent.ViewFlags = ViewFlags;
+	Viewer->GetEventSystem().Publish(CanvasEvent);
 }
 
 bool FAppSprite::OpenFile(const std::filesystem::path& FilePath)

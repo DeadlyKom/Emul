@@ -179,6 +179,8 @@ private:
 	bool bDragging;
 	bool bRefreshCanvas;
 	bool bTransparentMask;
+	bool bAttributeClash;
+	bool bLastAttributeClashPhase;
 	bool bRectangleMarqueeActive;
 	bool bNeedConvertCanvasToZX;
 	bool bNeedConvertZXToCanvas;

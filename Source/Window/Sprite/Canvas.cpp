@@ -212,6 +212,8 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	, bDragging(false)
 	, bRefreshCanvas(false)
 	, bTransparentMask(false)
+	, bAttributeClash(false)
+	, bLastAttributeClashPhase(false)
 	, bRectangleMarqueeActive(false)
 	, bNeedConvertCanvasToZX(false)
 	, bNeedConvertZXToCanvas(false)
@@ -280,7 +282,9 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 			}
 			else if (Event.Tag == FEventTag::CanvasViewFlagsTag)
 			{
+				const bool bAttributeClashChanged = bAttributeClash != Event.ViewFlags.bAttributeClash;
 				bTransparentMask = Event.ViewFlags.bTransparentMask;
+				bAttributeClash = Event.ViewFlags.bAttributeClash;
 				ZXColorView->Options.bGrid = Event.ViewFlags.bGrid;
 				ZXColorView->Options.bPixelGrid = Event.ViewFlags.bPixelGrid;
 				ZXColorView->Options.bAttributeGrid = Event.ViewFlags.bAttributeGrid;
@@ -292,6 +296,7 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 				bTransparentMask = Event.ViewFlags.bTransparentMask;
 
 				ChangeFrameMode(Event.ViewFlags.FrameMode);
+				bRefreshCanvas |= bAttributeClashChanged;
 			}
 			else if (Event.Tag == FEventTag::CanvasViewScaleTag)
 			{
@@ -895,6 +900,15 @@ void SCanvas::SetupHotKeys()
 void SCanvas::Tick(float DeltaTime)
 {
 	ZXColorView->TimeCounter += DeltaTime;
+	const bool bAttributeClashPhase = fmodf(ZXColorView->TimeCounter, 0.5f) >= 0.25f;
+	if (bAttributeClash &&
+		!(OptionsFlags[0] & FCanvasOptionsFlags::Source) &&
+		FrameMode == EFrameMode::None &&
+		bAttributeClashPhase != bLastAttributeClashPhase)
+	{
+		bLastAttributeClashPhase = bAttributeClashPhase;
+		bRefreshCanvas = true;
+	}
 	if (SelectedSprite)
 	{
 		SelectedSprite->ZXColorView->TimeCounter += DeltaTime;
@@ -2827,6 +2841,59 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 					bTransparentPaper);
 			}
 		}
+		bFroceRebuiltSpriteFrame = false;
+		return;
+	}
+
+	if (!bSource && bAttributeClash && FrameMode == EFrameMode::None)
+	{
+		std::vector<uint8_t> FinalZXIndexedData;
+		ConvertZXDataToIndexed(
+			Width,
+			Height,
+			ZXColorView->InkData,
+			ZXColorView->AttributeData,
+			ZXColorView->MaskData,
+			FinalZXIndexedData);
+
+		// Black and Transparent share index 0. Canonicalize opaque black so it
+		// compares equal to the opaque black produced by source quantization.
+		const int32_t BoundaryX = Width >> 3;
+		for (int32_t Y = 0; Y < Height; ++Y)
+		{
+			for (int32_t X = 0; X < Width; ++X)
+			{
+				const int32_t ByteX = X >> 3;
+				if (ByteX >= BoundaryX)
+				{
+					continue;
+				}
+				const size_t MaskIndex = static_cast<size_t>(Y) * BoundaryX + ByteX;
+				const size_t PixelIndex = static_cast<size_t>(Y) * Width + X;
+				const uint8_t PixelBit = static_cast<uint8_t>(1 << (7 - (X & 7)));
+				if (MaskIndex < ZXColorView->MaskData.size() &&
+					PixelIndex < FinalZXIndexedData.size() &&
+					(ZXColorView->MaskData[MaskIndex] & PixelBit) != 0 &&
+					FinalZXIndexedData[PixelIndex] == EZXColor::Black)
+				{
+					FinalZXIndexedData[PixelIndex] = EZXColor::Black_;
+				}
+			}
+		}
+
+		if (bLastAttributeClashPhase)
+		{
+			const size_t PixelCount = min(FinalZXIndexedData.size(), ZXColorView->IndexedData.size());
+			for (size_t PixelIndex = 0; PixelIndex < PixelCount; ++PixelIndex)
+			{
+				if (ZXColorView->IndexedData[PixelIndex] != FinalZXIndexedData[PixelIndex])
+				{
+					FinalZXIndexedData[PixelIndex] = ZXColorView->IndexedData[PixelIndex];
+				}
+			}
+		}
+
+		UI::ZXIndexColorToImage(ZXColorView->Image, FinalZXIndexedData, Width, Height);
 		bFroceRebuiltSpriteFrame = false;
 		return;
 	}

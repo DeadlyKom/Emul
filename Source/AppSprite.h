@@ -57,6 +57,7 @@ struct FViewFlags
 	bool bAttributeGrid;
 	bool bAlphaCheckerboardGrid;
 	bool bTransparentMask;
+	bool bAttributeClash;
 	EFrameMode::Type FrameMode;
 	ImVec2 GridSettingSize;
 	ImVec2 GridSettingOffset;
@@ -68,6 +69,7 @@ struct FViewFlags
 		, bAttributeGrid(false)
 		, bAlphaCheckerboardGrid(true)
 		, bTransparentMask(false)
+		, bAttributeClash(false)
 		, FrameMode(EFrameMode::None)
 		, GridSettingSize(8.0f, 8.0f)
 		, GridSettingOffset(0.0f, 0.0f)
@@ -121,6 +123,7 @@ private:
 	void Imput_CloseAll();
 	void Imput_ToggleFrameMode();
 	void Imput_ToggleFrameDirection();
+	void Imput_ToggleAttributeClash();
 
 	void Quit() { bOpen = false; }
 	bool OpenFile(const std::filesystem::path& FilePath);
