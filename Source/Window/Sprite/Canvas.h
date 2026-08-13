@@ -46,6 +46,9 @@ public:
 	virtual void Destroy() override;
 
 	const std::filesystem::path& GetSourcePathFile() const { return SourcePathFile; }
+	bool CanReloadFromSource() const;
+	bool HasUnsavedChanges() const { return bSourceDirty || bAsepriteSourceDirty || bIPMDirty; }
+	bool ReloadFromSource();
 	void SetAsepriteLayerAssignments(
 		const std::string& InkLayer,
 		const std::string& AttributeLayer,

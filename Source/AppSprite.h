@@ -107,6 +107,7 @@ private:
 	void Show_MenuBar();
 
 	bool ShowModal_WindowQuit();
+	bool ShowModal_ReloadCanvas();
 	bool ShowModal_WindowNewCanvas();
 	bool ShowModal_WindowgGridSettings();
 	bool ShowModal_CodeGenerationProgress();
@@ -114,6 +115,7 @@ private:
 	bool Show_WindowgCodeGeneration();
 
 	void Input_HotKeys();
+	void Imput_ReloadActiveCanvas();
 	void Imput_Close();
 	void Imput_CloseAll();
 	void Imput_ToggleFrameMode();
@@ -132,6 +134,8 @@ private:
 	std::shared_ptr<SCanvas> GetActiveCanvas();
 
 	bool bOpen;
+	bool bReloadCanvasConfirmationRequested;
+	std::shared_ptr<SCanvas> PendingReloadCanvas;
 	FViewFlags ViewFlags;
 	EFrameMode::Type FrameDifferenceDirection;
 

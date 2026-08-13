@@ -26,6 +26,7 @@ namespace
 	static const char* Menu_File_OpenName = "Open";
 	static const char* Menu_File_OpenRecentName = "Open recent";
 	static const char* Menu_File_OpenRecent_ClearRecentFilesName = "Clear recent files";
+	static const char* Menu_File_ReloadActiveCanvasName = "Reload Active Canvas";
 	static const char* Menu_File_SaveName = "Save";
 	static const char* Menu_File_SaveAsName = "Save as..";
 	static const char* Menu_File_CloseName = "Close";
@@ -55,6 +56,7 @@ namespace
 
 
 	static const char* Modal_MenuQuitName = "Quit";
+	static const char* Modal_ReloadCanvasName = "Reload active canvas";
 	static const char* Modal_NewCanvasName = "New canvas";
 	static const char* Modal_GridSettingsName = "Grid settings";
 	static const char* Modal_CodeGenerationName = "Code generation";
@@ -141,6 +143,7 @@ namespace
 
 FAppSprite::FAppSprite()
 	: bOpen(true)
+	, bReloadCanvasConfirmationRequested(false)
 	, FrameDifferenceDirection(EFrameMode::Difference)
 	, bRectangularCanvas(false)
 	, bRoundingToMultipleEight(false)
@@ -445,10 +448,11 @@ void FAppSprite::SetupHotKeys()
 	Hotkeys =
 	{
 		// global
-		{ ImGuiKey_KeypadMultiply, ImGuiInputFlags_RouteGlobal, std::bind(&ThisClass::Imput_ToggleFrameDirection, this) }, // (Num *)
-		{ ImGuiMod_Ctrl | ImGuiKey_W,					ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_Close,							this)	},	// (ctrl + S)
-		{ ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_W,	ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_CloseAll,						this)	},	// (ctrl + S)
-		{ ImGuiKey_KeypadDivide,						ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_ToggleFrameMode,				this)	},	// (Num /)
+		{ ImGuiMod_Ctrl | ImGuiKey_W,					ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_Close,							this)	},	// (Ctrl + S)
+		{ ImGuiMod_Ctrl | ImGuiMod_Shift | ImGuiKey_W,	ImGuiInputFlags_Repeat | ImGuiInputFlags_RouteGlobal,	std::bind(&ThisClass::Imput_CloseAll,						this)	},	// (Ctrl + Shift + W)
+		{ ImGuiMod_Ctrl | ImGuiKey_R,					ImGuiInputFlags_RouteGlobal,							std::bind(&ThisClass::Imput_ReloadActiveCanvas,				this)	},	// (Ctrl + R)
+		{ ImGuiKey_KeypadMultiply,						ImGuiInputFlags_RouteGlobal,							std::bind(&ThisClass::Imput_ToggleFrameDirection,			this)	},	// (Num *)
+		{ ImGuiKey_KeypadDivide,						ImGuiInputFlags_RouteGlobal,							std::bind(&ThisClass::Imput_ToggleFrameMode,				this)	},	// (Num /)
 	};
 }
 
@@ -499,6 +503,13 @@ void FAppSprite::Show_MenuBar()
 
 				ImGui::EndMenu();
 			}
+		}
+
+		const std::shared_ptr<SCanvas> ActiveCanvasPtr = GetActiveCanvas();
+		const bool bCanReloadActiveCanvas = ActiveCanvasPtr && ActiveCanvasPtr->CanReloadFromSource();
+		if (ImGui::MenuItem(Menu_File_ReloadActiveCanvasName, "Ctrl+R", false, bCanReloadActiveCanvas))
+		{
+			Imput_ReloadActiveCanvas();
 		}
 
 		ImGui::Separator();
@@ -661,10 +672,51 @@ void FAppSprite::Show_MenuBar()
 		ImGui::EndMenu();
 	}
 
+	if (bReloadCanvasConfirmationRequested)
+	{
+		bReloadCanvasConfirmationRequested = false;
+		ImGui::OpenPopup(Modal_ReloadCanvasName);
+	}
+
 	if (ShowModal_WindowQuit()) {}
+	else if (ShowModal_ReloadCanvas()) {}
 	else if (ShowModal_WindowNewCanvas()) {}
 	else if (ShowModal_WindowgGridSettings()) {}
 	else if (bCodeGenerationOpen) { Show_WindowgCodeGeneration(); }
+}
+
+bool FAppSprite::ShowModal_ReloadCanvas()
+{
+	if (ImGui::IsWindowAppearing())
+	{
+		ImGui::SetNextWindowPos(ImGui::GetMainViewport()->GetCenter(), ImGuiCond_Appearing, ImVec2(0.5f, 0.5f));
+	}
+
+	const bool bVisible = ImGui::BeginPopupModal(Modal_ReloadCanvasName, NULL, ImGuiWindowFlags_AlwaysAutoResize);
+	if (bVisible)
+	{
+		ImGui::TextUnformatted("The active canvas has unsaved changes.\nReloading will discard them.");
+		ImGui::Separator();
+
+		if (ImGui::Button("Reload", ImVec2(120.0f, 0.0f)))
+		{
+			if (PendingReloadCanvas && PendingReloadCanvas->IsOpen())
+			{
+				PendingReloadCanvas->ReloadFromSource();
+			}
+			PendingReloadCanvas.reset();
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::SetItemDefaultFocus();
+		ImGui::SameLine();
+		if (ImGui::Button("Cancel", ImVec2(120.0f, 0.0f)))
+		{
+			PendingReloadCanvas.reset();
+			ImGui::CloseCurrentPopup();
+		}
+		ImGui::EndPopup();
+	}
+	return bVisible;
 }
 
 bool FAppSprite::ShowModal_WindowQuit()
@@ -1694,6 +1746,24 @@ bool FAppSprite::ExportCodeGenerationPreview()
 void  FAppSprite::Input_HotKeys()
 {
 	Shortcut::Handler(Hotkeys);
+}
+
+void FAppSprite::Imput_ReloadActiveCanvas()
+{
+	std::shared_ptr<SCanvas> Canvas = GetActiveCanvas();
+	if (!Canvas || !Canvas->CanReloadFromSource())
+	{
+		return;
+	}
+
+	if (Canvas->HasUnsavedChanges())
+	{
+		PendingReloadCanvas = Canvas;
+		bReloadCanvasConfirmationRequested = true;
+		return;
+	}
+
+	Canvas->ReloadFromSource();
 }
 
 void FAppSprite::Imput_Close()

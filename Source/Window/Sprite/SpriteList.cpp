@@ -742,6 +742,16 @@ std::vector<std::shared_ptr<FSprite>> SSpriteList::UpdateSprite(
 			Sprite->MaskLayer = MaskLayer;
 		}
 
+		const uint64_t SpriteMaxX = static_cast<uint64_t>(Sprite->SpritePositionToImageX) + Sprite->Width;
+		const uint64_t SpriteMaxY = static_cast<uint64_t>(Sprite->SpritePositionToImageY) + Sprite->Height;
+		if (SpriteMaxX > static_cast<uint64_t>(CanvasWidth) ||
+			SpriteMaxY > static_cast<uint64_t>(CanvasHeight))
+		{
+			LOG_WARNING(
+				"[UpdateSprite] Sprite '{}' is outside the reloaded canvas bounds and was not updated.",
+				Sprite->Name);
+			continue;
+		}
 
 		const int32_t CanvasBoundary_X = CanvasWidth >> 3;
 		const int32_t CanvasBoundary_Y = CanvasHeight >> 3;

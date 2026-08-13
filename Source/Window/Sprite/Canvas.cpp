@@ -632,6 +632,214 @@ bool SCanvas::HasTimeline() const
 		 AsepriteSprite->Layers.size() > 1);
 }
 
+bool SCanvas::CanReloadFromSource() const
+{
+	return !SourcePathFile.empty() &&
+		(ImageFormat == EImageFormat::PNG || ImageFormat == EImageFormat::Aseprite);
+}
+
+bool SCanvas::ReloadFromSource()
+{
+	if (!CanReloadFromSource())
+	{
+		return false;
+	}
+
+	const int32_t PreviousWidth = Width;
+	const int32_t PreviousHeight = Height;
+	const int32_t PreviousFrame = SelectedSpritesFrame;
+
+	auto LoadOverride = [](const std::filesystem::path& Path, size_t ExpectedSize, std::vector<uint8_t>& Output)
+		{
+			if (!std::filesystem::exists(Path))
+			{
+				return;
+			}
+
+			std::vector<uint8_t> Data;
+			const std::error_code Error = IO::LoadBinaryData(Data, Path);
+			if (Error || Data.size() != ExpectedSize)
+			{
+				LOG_ERROR("[ReloadFromSource] Invalid override file: {}", Path.string());
+				return;
+			}
+			Output = std::move(Data);
+		};
+
+	if (ImageFormat == EImageFormat::PNG)
+	{
+		int32_t NewWidth = 0;
+		int32_t NewHeight = 0;
+		uint8_t* ImageData = FImageBase::LoadToMemory(SourcePathFile, NewWidth, NewHeight);
+		if (!ImageData || NewWidth <= 0 || NewHeight <= 0)
+		{
+			FImageBase::ReleaseLoadedIntoMemory(ImageData);
+			LOG_ERROR("[ReloadFromSource] Failed to reload '{}'.", SourcePathFile.string());
+			return false;
+		}
+
+		std::vector<uint8_t> IndexedData;
+		std::vector<uint8_t> InkData;
+		std::vector<uint8_t> AttributeData;
+		std::vector<uint8_t> MaskData;
+		UI::QuantizeToZX(ImageData, NewWidth, NewHeight, 4, IndexedData, TransparentColor);
+		FImageBase::ReleaseLoadedIntoMemory(ImageData);
+		UI::ZXIndexColorToZXAttributeColor(
+			IndexedData,
+			NewWidth,
+			NewHeight,
+			InkData,
+			AttributeData,
+			MaskData,
+			ConversationSettings);
+
+		const std::filesystem::path LoadPath = SourcePathFile.parent_path();
+		const std::filesystem::path LoadName = SourcePathFile.stem();
+		const size_t ExpectedPixelSize = static_cast<size_t>(NewWidth >> 3) * NewHeight;
+		const size_t ExpectedAttributeSize = static_cast<size_t>(NewWidth >> 3) * (NewHeight >> 3);
+		LoadOverride(IO::NormalizePath(std::filesystem::absolute(LoadPath / std::format("{}.ink", LoadName.string()))), ExpectedPixelSize, InkData);
+		LoadOverride(IO::NormalizePath(std::filesystem::absolute(LoadPath / std::format("{}.attr", LoadName.string()))), ExpectedAttributeSize, AttributeData);
+		LoadOverride(IO::NormalizePath(std::filesystem::absolute(LoadPath / std::format("{}.mask", LoadName.string()))), ExpectedPixelSize, MaskData);
+
+		Width = NewWidth;
+		Height = NewHeight;
+		ZXColorView->IndexedData = std::move(IndexedData);
+		ZXColorView->InkData = std::move(InkData);
+		ZXColorView->AttributeData = std::move(AttributeData);
+		ZXColorView->MaskData = std::move(MaskData);
+	}
+	else
+	{
+		std::shared_ptr<AsepriteFormat::FSprite> ReloadedSprite = std::make_shared<AsepriteFormat::FSprite>();
+		if (!AsepriteFormat::Load(SourcePathFile, *ReloadedSprite) || !ReloadedSprite->IsValid())
+		{
+			LOG_ERROR("[ReloadFromSource] Failed to reload '{}'.", SourcePathFile.string());
+			return false;
+		}
+
+		const size_t PreviousFrameCount = AsepriteSprite ? AsepriteSprite->Frames.size() : 0;
+		const size_t PreviousLayerCount = AsepriteSprite ? AsepriteSprite->Layers.size() : 0;
+		if (AsepriteSprite)
+		{
+			ReloadedSprite->InkLayer = AsepriteSprite->InkLayer;
+			ReloadedSprite->AttributeLayer = AsepriteSprite->AttributeLayer;
+			ReloadedSprite->MaskLayer = AsepriteSprite->MaskLayer;
+		}
+
+		AsepriteSprite = std::move(ReloadedSprite);
+		Width = AsepriteSprite->Width;
+		Height = AsepriteSprite->Height;
+		MaxFramesInSprites = static_cast<int32_t>(AsepriteSprite->Frames.size()) - 1;
+		SelectedSpritesFrame = ImClamp(PreviousFrame, 0, MaxFramesInSprites);
+		if (!Keyframes ||
+			PreviousFrameCount != AsepriteSprite->Frames.size() ||
+			PreviousLayerCount != AsepriteSprite->Layers.size())
+		{
+			Keyframes = std::make_shared<FKeyframes>();
+			Keyframes->Make(
+				static_cast<int32_t>(AsepriteSprite->Frames.size()),
+				static_cast<int32_t>(AsepriteSprite->Layers.size()));
+		}
+
+		UI::QuantizeToZX(
+			AsepriteSprite->Frames[SelectedSpritesFrame].data(),
+			Width,
+			Height,
+			4,
+			ZXColorView->IndexedData,
+			TransparentColor);
+		UI::ZXIndexColorToZXAttributeColor(
+			ZXColorView->IndexedData,
+			Width,
+			Height,
+			ZXColorView->InkData,
+			ZXColorView->AttributeData,
+			ZXColorView->MaskData,
+			ConversationSettings);
+		LoadAsepriteFrameOverride(
+			SelectedSpritesFrame,
+			ZXColorView->InkData,
+			ZXColorView->AttributeData,
+			ZXColorView->MaskData);
+		ApplyAsepriteLayerOverrides(
+			SelectedSpritesFrame,
+			ZXColorView->InkData,
+			ZXColorView->AttributeData,
+			ZXColorView->MaskData);
+
+		FEvent_Timeline TimelineEvent(FEventTag::TimelineInitializeTag);
+		TimelineEvent.Keyframes = Keyframes;
+		TimelineEvent.Sprite = AsepriteSprite;
+		TimelineEvent.Format = ImageFormat;
+		TimelineEvent.Frame = SelectedSpritesFrame;
+		SendEvent(TimelineEvent);
+	}
+
+	const bool bCreateTexture = !ZXColorView->Image.IsValid() ||
+		PreviousWidth != Width || PreviousHeight != Height;
+	UI::ZXIndexColorToImage(
+		ZXColorView->Image,
+		ZXColorView->IndexedData,
+		Width,
+		Height,
+		bCreateTexture);
+
+	FEvent_StatusBar StatusEvent(FEventTag::CanvasSizeTag);
+	StatusEvent.CanvasSize = ImVec2(static_cast<float>(Width), static_cast<float>(Height));
+	SendEvent(StatusEvent);
+
+	if (ImageFormat == EImageFormat::Aseprite)
+	{
+		for (int32_t Frame = 0; Frame <= MaxFramesInSprites; ++Frame)
+		{
+			std::vector<uint8_t> InkData;
+			std::vector<uint8_t> AttributeData;
+			std::vector<uint8_t> MaskData;
+			if (!BuildAsepriteFrameZXData(Frame, InkData, AttributeData, MaskData))
+			{
+				continue;
+			}
+
+			std::vector<uint8_t> IndexedData;
+			UI::QuantizeToZX(
+				AsepriteSprite->Frames[Frame].data(),
+				Width,
+				Height,
+				4,
+				IndexedData,
+				TransparentColor);
+			NotifySpritesUpdated(Frame, IndexedData, InkData, AttributeData, MaskData);
+		}
+	}
+	else
+	{
+		NotifySpritesUpdated(
+			ImageFrameIndex,
+			ZXColorView->IndexedData,
+			ZXColorView->InkData,
+			ZXColorView->AttributeData,
+			ZXColorView->MaskData);
+	}
+
+	if (UndoQueue.IsContinuous())
+	{
+		UndoQueue.EndContinuous();
+	}
+	UndoQueue.Clear();
+	bPlay = false;
+	bSourceDirty = false;
+	bAsepriteSourceDirty = false;
+	bIPMDirty = false;
+	bNeedConvertCanvasToZX = false;
+	bNeedConvertZXToCanvas = false;
+	LastRebuiltSpriteFrame = SelectedSpritesFrame;
+	bFroceRebuiltSpriteFrame = true;
+	bRefreshCanvas = true;
+
+	LOG_DISPLAY("[ReloadFromSource] Reloaded '{}'.", SourcePathFile.string());
+	return true;
+}
+
 void SCanvas::SetAsepriteLayerAssignments(
 	const std::string& InkLayer,
 	const std::string& AttributeLayer,
