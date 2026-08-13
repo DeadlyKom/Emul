@@ -249,6 +249,7 @@ private:
 	void Imput_Select();
 	void Imput_Escape();
 	void Imput_Delete();
+	void ClearSprites();
 
 	void Draw_SpriteList();
 	void Draw_ExportSprites();

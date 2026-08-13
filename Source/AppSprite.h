@@ -116,6 +116,7 @@ private:
 
 	void Input_HotKeys();
 	void Imput_ReloadActiveCanvas();
+	void Imput_ClearSpriteList();
 	void Imput_Close();
 	void Imput_CloseAll();
 	void Imput_ToggleFrameMode();

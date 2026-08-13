@@ -26,6 +26,7 @@ namespace FEventTag
 	static const FName AddedSpriteTag = TEXT("AddedSprite");
 	static const FName RenamedSpriteTag = TEXT("RenamedSprite");
 	static const FName UpdateSpriteTag = TEXT("UpdateSprite");
+	static const FName ClearSpritesTag = TEXT("ClearSprites");
 
 	static const FName SelectedSpritesChangedTag = TEXT("SelectedSpritesChanged");
 	static const FName SelectedSpritesChangedFrameTag = TEXT("SelectedSpritesChangedFrame");

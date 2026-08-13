@@ -380,6 +380,13 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 		{
 			if (Event.Tag == FEventTag::SelectedSpritesChangedTag)
 			{
+				if (!Event.Sprite)
+				{
+					SelectedSprite.reset();
+					ZXColorView->bVisibilityRectangleMarquee = false;
+					return;
+				}
+
 				const std::filesystem::path CanvasSourcePath = SourcePathFile.empty()
 					? std::filesystem::path(GetWindowWName())
 					: SourcePathFile;

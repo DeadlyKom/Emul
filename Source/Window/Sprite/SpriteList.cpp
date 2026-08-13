@@ -98,6 +98,10 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 					Event.AsepriteIndex
 				);
 			}
+			else if (Event.Tag == FEventTag::ClearSpritesTag)
+			{
+				ClearSprites();
+			}
 		});
 	SubscribeEvent<FEvent_ImportJSON>(
 		[this](const FEvent_ImportJSON& Event)
@@ -319,6 +323,18 @@ void SSpriteList::Imput_Delete()
 	{
 		IndexSelectedSprite = INDEX_NONE;
 	}
+}
+
+void SSpriteList::ClearSprites()
+{
+	Sprites.clear();
+	EditingSprites.clear();
+	IndexSelectedSprite = INDEX_NONE;
+	IndexRenameSprite = INDEX_NONE;
+
+	FEvent_SelectedSprite Event(FEventTag::SelectedSpritesChangedTag);
+	Event.Sprite.reset();
+	SendEvent(Event);
 }
 
 void SSpriteList::Draw_SpriteList()

@@ -50,9 +50,10 @@ namespace
 	static const char* Menu_View_FrameMode_ReverseDifferenceName = "Difference reverse";
 
 	static const char* Menu_FrameName = "Frame";
-
-	static const char* Menu_MetadataName = "Metadata";
-	static const char* Menu_Metadata_ShowWindowName = "Show window";
+	static const char* Menu_SpritesName = "Sprites";
+	static const char* Menu_Sprites_ViewName = "View";
+	static const char* Menu_Sprites_View_MetadataName = "Metadata";
+	static const char* Menu_Sprites_ClearListName = "Clear list";
 
 
 	static const char* Modal_MenuQuitName = "Quit";
@@ -650,25 +651,44 @@ void FAppSprite::Show_MenuBar()
 
 		ImGui::EndMenu();
 	}
-	if (Viewer && ImGui::BeginMenu(Menu_MetadataName))
+	if (ImGui::BeginMenu(Menu_SpritesName))
 	{
-		if (ImGui::MenuItem(Menu_Metadata_ShowWindowName, nullptr, false, !Viewer->IsWindowVisibility(NAME_SpriteMetadata)))
+		if (ImGui::BeginMenu(Menu_Sprites_ViewName))
 		{
-			if (Viewer->GetWindows(NAME_SpriteMetadata).empty())
+			if (ImGui::MenuItem(Menu_Sprites_View_MetadataName, nullptr, false, Viewer && !Viewer->IsWindowVisibility(NAME_SpriteMetadata)))
 			{
-				FNativeDataInitialize Data
+				if (Viewer->GetWindows(NAME_SpriteMetadata).empty())
 				{
-					.Device = Device,
-					.DeviceContext = DeviceContext
-				};
-				Viewer->AddWindow(NAME_SpriteMetadata, std::make_shared<SSpriteMetadata>(NAME_DOS_12), Data, {});
+					FNativeDataInitialize Data
+					{
+						.Device = Device,
+						.DeviceContext = DeviceContext
+					};
+					Viewer->AddWindow(NAME_SpriteMetadata, std::make_shared<SSpriteMetadata>(NAME_DOS_12), Data, {});
+				}
+				else
+				{
+					Viewer->SetWindowVisibility(NAME_SpriteMetadata);
+				}
 			}
-			else
-			{
-				Viewer->SetWindowVisibility(NAME_SpriteMetadata);
-			}
+			ImGui::EndMenu();
 		}
 
+		ImGui::Separator();
+		bool bHasSprites = false;
+		if (Viewer && !Viewer->GetWindows(NAME_SpriteList).empty())
+		{
+			FEvent_RequestSprites Event;
+			Event.Callback = [&bHasSprites](const std::vector<std::shared_ptr<FSprite>>& Sprites)
+				{
+					bHasSprites = !Sprites.empty();
+				};
+			Viewer->GetEventSystem().Publish(Event);
+		}
+		if (ImGui::MenuItem(Menu_Sprites_ClearListName, nullptr, false, bHasSprites))
+		{
+			Imput_ClearSpriteList();
+		}
 		ImGui::EndMenu();
 	}
 
@@ -1766,6 +1786,17 @@ void FAppSprite::Imput_ReloadActiveCanvas()
 	Canvas->ReloadFromSource();
 }
 
+void FAppSprite::Imput_ClearSpriteList()
+{
+	if (!Viewer)
+	{
+		return;
+	}
+
+	FEvent_Sprite Event(FEventTag::ClearSpritesTag);
+	Viewer->GetEventSystem().Publish(Event);
+}
+
 void FAppSprite::Imput_Close()
 {
 	for (std::shared_ptr<SWindow>& Window : Viewer->GetWindows(NAME_Canvas))
@@ -1784,6 +1815,7 @@ void FAppSprite::Imput_CloseAll()
 	{
 		Viewer->RemoveWindow(NAME_Canvas, Window);
 	}
+	Imput_ClearSpriteList();
 }
 
 void FAppSprite::Imput_ToggleFrameMode()
