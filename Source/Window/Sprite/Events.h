@@ -124,6 +124,7 @@ struct FEvent_Sprite : public IEvent
 
 	// auxiliary variables
 	int32_t AsepriteIndex;
+	int32_t LayerIndex = 0;
 	int32_t UniqueID;
 
 	int32_t CanvasWidth;
@@ -156,6 +157,7 @@ struct FEvent_Timeline : public IEvent
 {
 	using IEvent::IEvent;
 	int32_t Frame;
+	int32_t LayerIndex;
 	EImageFormat Format;
 
 	std::shared_ptr<struct FKeyframes> Keyframes;

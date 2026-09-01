@@ -149,6 +149,19 @@ void STimeline::NativeInitialize(const FNativeDataInitialize& Data)
                     TimelineState.CurrentFrame = Event.Frame;
                     TimelineState.SelMinFrame = Event.Frame;
                     TimelineState.SelMaxFrame = Event.Frame;
+
+                    // Check whether the source selection includes a layer that must be restored.
+                    if (LayerCount > 0 && Event.LayerIndex != INDEX_NONE)
+                    {
+                        // Calculate a valid internal Aseprite layer index for the selected sprite.
+                        const int32_t SourceLayerIndex = Event.LayerIndex >= 0 && Event.LayerIndex < LayerCount ? Event.LayerIndex : 0;
+                        
+                        // Calculate the active editor layer for the internal bottom-to-top index.
+                        const int32_t EditorLayerIndex = LayerCount - SourceLayerIndex - 1;
+                        SetCurrentLayer(TimelineState, EditorLayerIndex);
+                        TimelineState.SelMinLayer = EditorLayerIndex;
+                        TimelineState.SelMaxLayer = EditorLayerIndex;
+                    }
                 }
             }
             else if (Event.Tag == FEventTag::TimelineChangedFrameTag)
@@ -490,12 +503,6 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
             }
         };
 
-    auto SetCurrentLayer = [&](int32_t Layer)
-        {
-            Layer = ClampInt(Layer, 0, LayerCount - 1);
-            State.CurrentLayer = Layer;
-        };
-
     auto GetFrameFromHeaderMouse = [&]()
         {
             float LocalX = Mouse.x - FrameHeaderMin.x + State.ScrollX;
@@ -581,7 +588,7 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
             State.bDragging = true;
             State.DragMode = TimelineDrag_LayersHeader;
             State.DragStartLayer = Layer;
-            SetCurrentLayer(Layer);
+            SetCurrentLayer(State, Layer);
             State.SelMinFrame = 0;
             State.SelMaxFrame = FrameCount - 1;
             State.SelMinLayer = Layer;
@@ -603,7 +610,7 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
         if (SpriteLayerIndex >= 0 && SpriteLayerIndex < static_cast<int32_t>(Sprite->Layers.size()))
         {
             PopupLayer = SpriteLayerIndex;
-            SetCurrentLayer(Layer);
+            SetCurrentLayer(State, Layer);
             ImGui::OpenPopup("TimelineLayerAssignmentPopup");
         }
     }
@@ -679,7 +686,7 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
     {
         int32_t Layer = GetLayerFromHeaderMouse();
 
-        SetCurrentLayer(Layer);
+        SetCurrentLayer(State, Layer);
 
         State.SelMinFrame = 0;
         State.SelMaxFrame = FrameCount - 1;
@@ -777,7 +784,7 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
             State.SelMaxLayer = Layer;
 
             SetCurrentFrame(Frame);
-            SetCurrentLayer(Layer);
+            SetCurrentLayer(State, Layer);
         }
 
         if (!State.bDragging &&
@@ -858,7 +865,7 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
             State.SelMaxLayer = max(State.DragStartLayer, Layer);
 
             SetCurrentFrame(Frame);
-            SetCurrentLayer(Layer);
+            SetCurrentLayer(State, Layer);
         }
 
         if (State.bDragging &&
@@ -1338,4 +1345,66 @@ void STimeline::InitializeFromAseprite(std::weak_ptr<AsepriteFormat::FSprite> Ne
 
     FrameCount = (int32_t)Sprite->Frames.size();
     LayerCount = (int32_t)Sprite->Layers.size();
+}
+
+void STimeline::SetCurrentLayer(FTimelineState& State, int32_t Layer)
+{
+    // Check whether the current Aseprite source contains layers that can receive focus.
+    if (LayerCount <= 0)
+    {
+        return;
+    }
+
+    // Calculate the valid editor row receiving the layer focus.
+    Layer = ClampInt(Layer, 0, LayerCount - 1);
+    State.CurrentLayer = Layer;
+
+    // Find the Aseprite source whose visibility bits must follow the focused row.
+    std::shared_ptr<AsepriteFormat::FSprite> Sprite = AsepriteSprite.lock();
+    if (!Sprite)
+    {
+        return;
+    }
+
+    // Calculate the internal bottom-to-top layer index represented by the editor row.
+    const int32_t SpriteLayerIndex = static_cast<int32_t>(Sprite->Layers.size()) - Layer - 1;
+    // Check whether the focused row maps to an existing source layer.
+    if (SpriteLayerIndex < 0 || SpriteLayerIndex >= static_cast<int32_t>(Sprite->Layers.size()))
+    {
+        return;
+    }
+
+    // Update the visibility bits so only the focused source layer remains active.
+    bool bVisibilityChanged = false;
+    for (int32_t LayerIndex = 0; LayerIndex < static_cast<int32_t>(Sprite->Layers.size()); ++LayerIndex)
+    {
+        AsepriteFormat::FLayer& SpriteLayer = Sprite->Layers[LayerIndex];
+        const bool bLayerVisible = (SpriteLayer.Flags & AsepriteFormat::ELayerFlags::Visible) != 0;
+        const bool bLayerShouldBeVisible = LayerIndex == SpriteLayerIndex;
+        // Check whether this source layer visibility already matches the focused row.
+        if (bLayerVisible == bLayerShouldBeVisible)
+        {
+            continue;
+        }
+
+        bVisibilityChanged = true;
+        // Check whether the focused source layer must receive the visibility bit.
+        if (bLayerShouldBeVisible)
+        {
+            SpriteLayer.Flags |= AsepriteFormat::ELayerFlags::Visible;
+        }
+        else
+        {
+            SpriteLayer.Flags &= ~AsepriteFormat::ELayerFlags::Visible;
+        }
+    }
+
+    // Check whether the composed frames must be rebuilt after changing layer visibility.
+    if (bVisibilityChanged && AsepriteFormat::RebuildFrames(*Sprite))
+    {
+        FEvent_Timeline Event(FEventTag::TimelineLayerVisibilityChangedTag);
+        Event.Sprite = Sprite;
+        Event.Format = EImageFormat::Aseprite;
+        SendEvent(Event);
+    }
 }

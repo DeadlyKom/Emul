@@ -80,7 +80,8 @@ void SSpriteList::NativeInitialize(const FNativeDataInitialize& Data)
 					Event.InkLayer,
 					Event.AttributeLayer,
 					Event.MaskLayer,
-					Event.AsepriteIndex);
+					Event.AsepriteIndex,
+					Event.LayerIndex);
 			}
 			else if (Event.Tag == FEventTag::UpdateSpriteTag)
 			{
@@ -582,7 +583,8 @@ void SSpriteList::AddSprite(
 	const std::string& InkLayer,
 	const std::string& AttributeLayer,
 	const std::string& MaskLayer,
-	int32_t AsepriteIndex /*= INDEX_NONE*/)
+	int32_t AsepriteIndex /*= INDEX_NONE*/,
+	int32_t LayerIndex /*= 0*/)
 {
 	std::shared_ptr<FSprite> NewSprite = std::make_shared<FSprite>();
 	NewSprite->bSelected = false;
@@ -602,6 +604,7 @@ void SSpriteList::AddSprite(
 	NewSprite->ZXColorView->Scale = ImVec2(1.0f, 1.0f);
 	NewSprite->ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
 
+	NewSprite->LayerIndex = LayerIndex;
 	NewSprite->AsepriteIndex = AsepriteIndex;
 	{
 		FEvent_Sprite Event;
@@ -1243,6 +1246,7 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 		NewSprite->SpritePositionToImageY = SpriteJson.value("PoxImgY", 0);
 		NewSprite->SourcePathFile = ResolvePath(FromUtf8(SpriteJson.value("FileImg", "")));
 		NewSprite->AsepriteIndex = SpriteJson.value("AsepriteIndex", INDEX_NONE);
+		NewSprite->LayerIndex = SpriteJson.value("LayerIndex", 0);
 
 		FSourceImage& Source = LoadSourceImage(NewSprite->SourcePathFile);
 		if (Source.Aseprite)
@@ -1259,17 +1263,49 @@ bool SSpriteList::ImportSprites(const std::filesystem::path& FilePath, std::vect
 			NewSprite->AsepriteIndex < static_cast<int32_t>(Source.Frames.size())
 			? NewSprite->AsepriteIndex
 			: 0;
+		std::vector<uint8_t> SourceLayerRGBA;
+		const std::vector<uint8_t>* SourceFrameRGBA = nullptr;
+		// Check whether the selected source frame is available.
+		if (EffectiveFrame >= 0 && EffectiveFrame < static_cast<int32_t>(Source.Frames.size()))
+		{
+			SourceFrameRGBA = &Source.Frames[EffectiveFrame];
+		}
+		// Check whether the imported source provides separate Aseprite layers.
+		if (Source.Aseprite)
+		{
+			// Calculate the source layer used to rebuild the imported sprite preview.
+			const int32_t LayerCount = static_cast<int32_t>(Source.Aseprite->Layers.size());
+			int32_t EffectiveLayer = 0;
+			// Check whether the stored source layer belongs to the imported Aseprite file.
+			if (NewSprite->LayerIndex >= 0 && NewSprite->LayerIndex < LayerCount)
+			{
+				EffectiveLayer = NewSprite->LayerIndex;
+			}
+			NewSprite->LayerIndex = EffectiveLayer;
+			SourceFrameRGBA = nullptr;
+			// Check whether the imported Aseprite source contains the selected layer.
+			if (LayerCount > 0)
+			{
+				// Find the selected layer name by its stored source index.
+				const std::string& LayerName = Source.Aseprite->Layers[EffectiveLayer].Name;
+				// Read only the stored layer and frame instead of the composed Aseprite frame.
+				if (AsepriteFormat::GetLayerFrameRGBA(*Source.Aseprite, EffectiveFrame, LayerName, SourceLayerRGBA))
+				{
+					SourceFrameRGBA = &SourceLayerRGBA;
+				}
+			}
+		}
 		const bool bCanConvertSource = Source.bValid &&
-			EffectiveFrame < static_cast<int32_t>(Source.Frames.size()) &&
+			SourceFrameRGBA != nullptr &&
 			NewSprite->Width > 0 && NewSprite->Height > 0 &&
 			NewSprite->Width % 8 == 0 && NewSprite->Height % 8 == 0 &&
 			NewSprite->SpritePositionToImageX + NewSprite->Width <= static_cast<uint32_t>(Source.Width) &&
 			NewSprite->SpritePositionToImageY + NewSprite->Height <= static_cast<uint32_t>(Source.Height) &&
-			Source.Frames[EffectiveFrame].size() >= static_cast<size_t>(Source.Width) * Source.Height * 4;
+			SourceFrameRGBA->size() >= static_cast<size_t>(Source.Width) * Source.Height * 4;
 		if (bCanConvertSource)
 		{
 			std::vector<uint8_t> CroppedRGBA(static_cast<size_t>(NewSprite->Width) * NewSprite->Height * 4);
-			const std::vector<uint8_t>& SourceRGBA = Source.Frames[EffectiveFrame];
+			const std::vector<uint8_t>& SourceRGBA = *SourceFrameRGBA;
 			for (uint32_t Y = 0; Y < NewSprite->Height; ++Y)
 			{
 				const size_t SourceOffset = (static_cast<size_t>(NewSprite->SpritePositionToImageY + Y) * Source.Width + NewSprite->SpritePositionToImageX) * 4;
@@ -1577,6 +1613,7 @@ void SSpriteList::ExportSprites(
 				{"PoxImgX", Sprite->SpritePositionToImageX},
 				{"PoxImgY", Sprite->SpritePositionToImageY},
 				{"FileImg", ToUtf8(IO::NormalizePath(Sprite->SourcePathFile).wstring())},
+				{"LayerIndex", Sprite->LayerIndex},
 
 				{"InkData", ToUtf8(InkDataFilePath.wstring())},
 				{"AttributeData", ToUtf8(AttributeDataFilePath.wstring())},

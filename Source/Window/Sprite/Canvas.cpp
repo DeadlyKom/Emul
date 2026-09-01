@@ -399,8 +399,51 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 				{
 					return;
 				}
+				// Check whether the selected sprite belongs to the loaded Aseprite source.
+				if (ImageFormat == EImageFormat::Aseprite && AsepriteSprite)
+				{
+					// Calculate the frame restored for the selected sprite.
+					int32_t SpriteFrame = 0;
+					// Check whether the stored frame belongs to the loaded Aseprite source.
+					if (Event.Sprite->AsepriteIndex >= 0 && Event.Sprite->AsepriteIndex <= MaxFramesInSprites)
+					{
+						SpriteFrame = Event.Sprite->AsepriteIndex;
+					}
 
+					// Calculate the source layer restored for the selected sprite.
+					const int32_t LayerCount = static_cast<int32_t>(AsepriteSprite->Layers.size());
+					int32_t SpriteLayer = 0;
+					// Check whether the stored layer belongs to the loaded Aseprite source.
+					if (Event.Sprite->LayerIndex >= 0 && Event.Sprite->LayerIndex < LayerCount)
+					{
+						SpriteLayer = Event.Sprite->LayerIndex;
+					}
+
+					// Check that pending frame edits can be saved before changing the selected sprite source.
+					if (SpriteFrame != SelectedSpritesFrame && !PrepareToChangeFrame())
+					{
+						return;
+					}
+
+					// Apply the stored source frame before refreshing the selected sprite.
+					SelectedSpritesFrame = SpriteFrame;
+					bRefreshCanvas = true;
+
+					// Restore the frame and source layer stored by the selected sprite.
+					FEvent_Timeline SourceSelectionEvent(FEventTag::TimelineInitializeTag);
+					SourceSelectionEvent.Keyframes = Keyframes;
+					SourceSelectionEvent.Sprite = AsepriteSprite;
+					SourceSelectionEvent.Format = ImageFormat;
+					SourceSelectionEvent.Frame = SpriteFrame;
+					SourceSelectionEvent.LayerIndex = SpriteLayer;
+					SendEvent(SourceSelectionEvent);
+				}
+
+				// Focus the Canvas that owns the selected sprite after its source state is restored.
+				Focus();
 				SelectedSprite = Event.Sprite;
+				bPlay = false;
+				PlayDuration = 0.0f;
 				ZXColorView->bVisibilityRectangleMarquee = true;
 				ZXColorView->RectangleMarqueeRect.Min = ImVec2((float)SelectedSprite->SpritePositionToImageX, (float)SelectedSprite->SpritePositionToImageY);
 				ZXColorView->RectangleMarqueeRect.Max = ImVec2((float)SelectedSprite->SpritePositionToImageX + (float)SelectedSprite->Width, (float)SelectedSprite->SpritePositionToImageY + (float)SelectedSprite->Height);
@@ -538,6 +581,7 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 			Timeline_Event.Sprite = AsepriteSprite;
 			Timeline_Event.Format = EImageFormat::Aseprite;
 			Timeline_Event.Frame = 0;
+			Timeline_Event.LayerIndex = INDEX_NONE;
 			SendEvent(Timeline_Event);
 		}
 
@@ -784,6 +828,7 @@ bool SCanvas::ReloadFromSource()
 		TimelineEvent.Sprite = AsepriteSprite;
 		TimelineEvent.Format = ImageFormat;
 		TimelineEvent.Frame = SelectedSpritesFrame;
+		TimelineEvent.LayerIndex = INDEX_NONE;
 		SendEvent(TimelineEvent);
 	}
 
@@ -977,7 +1022,6 @@ void SCanvas::Render()
 			}
 
 			bPlay = false;
-			SelectedSpritesFrame = 0;
 			PlayDuration = 0.0f;
 			bRefreshCanvas = true;
 			ActiveCanvas = Self;
@@ -989,6 +1033,18 @@ void SCanvas::Render()
 				TimelineEvent.Sprite = AsepriteSprite;
 				TimelineEvent.Format = ImageFormat;
 				TimelineEvent.Frame = SelectedSpritesFrame;
+				TimelineEvent.LayerIndex = INDEX_NONE;
+				// Apply the layer stored by the selected sprite when its Canvas becomes active.
+				if (SelectedSprite && AsepriteSprite)
+				{
+					TimelineEvent.LayerIndex = 0;
+					const int32_t LayerCount = static_cast<int32_t>(AsepriteSprite->Layers.size());
+					// Check whether the stored layer belongs to the loaded Aseprite source.
+					if (SelectedSprite->LayerIndex >= 0 && SelectedSprite->LayerIndex < LayerCount)
+					{
+						TimelineEvent.LayerIndex = SelectedSprite->LayerIndex;
+					}
+				}
 				SendEvent(TimelineEvent);
 			}
 		}
@@ -1545,12 +1601,28 @@ void SCanvas::Draw_PopupMenu_CreateSprite()
 			Event.AsepriteIndex = ImageFormat == EImageFormat::Aseprite ? SelectedSpritesFrame : ImageFrameIndex;
 			if (ImageFormat == EImageFormat::Aseprite && AsepriteSprite)
 			{
+				// Request the active editor layer before creating the sprite.
+				FEvent_RequestTimelineState RequestLayerState;
+				RequestLayerState.Callback =
+					[this, &Event](const FTimelineState& EditorState)
+					{
+						// Calculate the number of source layers available for the new sprite.
+						const int32_t LayerCount = static_cast<int32_t>(AsepriteSprite->Layers.size());
+						// Check that the active editor layer belongs to the loaded Aseprite source.
+						if (EditorState.CurrentLayer < 0 || EditorState.CurrentLayer >= LayerCount)
+						{
+							return;
+						}
+
+						// Calculate the internal Aseprite layer index stored from bottom to top.
+						Event.LayerIndex = LayerCount - EditorState.CurrentLayer - 1;
+					};
+				SendEvent(RequestLayerState);
+
 				Event.InkLayer = AsepriteSprite->InkLayer;
 				Event.AttributeLayer = AsepriteSprite->AttributeLayer;
 				Event.MaskLayer = AsepriteSprite->MaskLayer;
 			}
-
-
 			SendEvent(Event);
 
 			ImGui::CloseCurrentPopup();

@@ -182,6 +182,7 @@ struct FSprite
 	static int32_t StaticUniqueID;
 
 	int32_t AsepriteIndex;
+	int32_t LayerIndex;
 	int32_t UniqueID;
 	bool bSelected;
 	float Scale;
@@ -198,6 +199,7 @@ struct FSprite
 		, SpritePositionToImageX(INDEX_NONE)
 		, SpritePositionToImageY(INDEX_NONE)
 		, AsepriteIndex(INDEX_NONE)
+		, LayerIndex(0)
 		, UniqueID(StaticUniqueID++)
 		, bSelected(false)
 		, Scale(1.0f)
@@ -266,7 +268,8 @@ private:
 		const std::string& InkLayer,
 		const std::string& AttributeLayer,
 		const std::string& MaskLayer,
-		int32_t AsepriteIndex = INDEX_NONE);
+		int32_t AsepriteIndex = INDEX_NONE,
+		int32_t LayerIndex = 0);
 
 	std::vector<std::shared_ptr<FSprite>> UpdateSprite(
 		int32_t CanvasWidth, int32_t CanvasHeight,

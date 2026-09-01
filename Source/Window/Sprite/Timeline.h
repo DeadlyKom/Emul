@@ -83,6 +83,7 @@ private:
 	void DrawTimeline(const char* Id, FTimelineState& State, float TimelineHeight = 180.0f, FTimelineDrawCellContentFn DrawCellContent = nullptr, void* DrawCellUserData = nullptr);
 	bool ShowModal_ActiveAreaIgnoredPixel();
 	void InitializeFromAseprite(std::weak_ptr<AsepriteFormat::FSprite> NewSprite, std::weak_ptr<FKeyframes> SpriteKeyframes);
+	void SetCurrentLayer(FTimelineState& State, int32_t Layer);
 
 	// image 
 	FImageHandle ImageFirstFrame;
