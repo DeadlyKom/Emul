@@ -11,6 +11,97 @@
 
 #include "stb/stb_image_write.h"
 
+struct FZXDataDiff
+{
+	enum class EState
+	{
+		Equal,
+		Different,
+		Missing,
+		SizeMismatch,
+		ReadError,
+	};
+	EState State = EState::Missing;
+	std::vector<uint8_t> SavedData;
+	std::vector<uint8_t> SourceData;
+	size_t DifferentBytes = 0;
+	std::error_code Error;
+};
+
+struct FSourceZXDiff
+{
+	enum class EOperation
+	{
+		And,
+		Or,
+		Xor,
+	};
+	int32_t Width = 0;
+	int32_t Height = 0;
+	int32_t Frame = INDEX_NONE;
+	FZXDataDiff Ink;
+	FZXDataDiff Attribute;
+	FZXDataDiff Mask;
+	// Default operations for the three rows of the source comparison dialog.
+	EOperation InkOperation = EOperation::And;
+	EOperation AttributeOperation = EOperation::Or;
+	EOperation MaskOperation = EOperation::Or;
+	bool bPreview = true;
+	bool bPreviewDirty = true;
+	std::vector<uint8_t> PreviewInk;
+	std::vector<uint8_t> PreviewAttribute;
+	std::vector<uint8_t> PreviewMask;
+
+	void UpdatePreviewData()
+	{
+		// Check whether the selected operations require a new temporary result.
+		if (!bPreviewDirty)
+		{
+			return;
+		}
+		auto MergeData = [](const FZXDataDiff& Diff, EOperation Operation, std::vector<uint8_t>& Output) -> void
+		{
+			// Create a result for the same byte positions as the two original versions.
+			Output.resize(Diff.SourceData.size());
+			// Calculate each result byte without accumulating previous previews.
+			for (size_t Index = 0; Index < Output.size(); ++Index)
+			{
+				switch (Operation)
+				{
+				case EOperation::And:
+					Output[Index] = Diff.SavedData[Index] & Diff.SourceData[Index];
+					break;
+				case EOperation::Or:
+					Output[Index] = Diff.SavedData[Index] | Diff.SourceData[Index];
+					break;
+				case EOperation::Xor:
+					Output[Index] = Diff.SavedData[Index] ^ Diff.SourceData[Index];
+					break;
+				}
+			}
+		};
+		// Build the three components for both Preview and Apply.
+		MergeData(Ink, InkOperation, PreviewInk);
+		MergeData(Attribute, AttributeOperation, PreviewAttribute);
+		MergeData(Mask, MaskOperation, PreviewMask);
+		bPreviewDirty = false;
+	}
+};
+
+struct FSourceZXApplyAction : Undo::FContinuousMarkerAction
+{
+	std::vector<uint8_t> InkData;
+	std::vector<uint8_t> AttributeData;
+	std::vector<uint8_t> MaskData;
+	bool bNeedConvertZXToCanvas = true;
+	std::function<void(FSourceZXApplyAction&)> Swap;
+
+	void Execute() override
+	{
+		Swap(*this);
+	}
+};
+
 namespace
 {
 	static const wchar_t* ThisWindowName = L"Canvas";
@@ -224,6 +315,9 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	, bInvertFramePixels(true)
 	, bInvertFrameAttributes(true)
 	, bInvertAllFrames(false)
+	, bCheckSourceZXDiff(false)
+	, ZXDataGeneration(0)
+	, bSourceZXPreviewActive(false)
 	, LastOptionsFlags(FCanvasOptionsFlags::None)
 	, LastSetPixelColorIndex(EZXColor::None)
 	, LastSetPixelPosition(-1.0f, -1.0f)
@@ -673,6 +767,8 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 		FEvent_ToolBar Event_ToolBar(FEventTag::RequestToolModeTag);
 		SendEvent(Event_ToolBar);
 	}
+	// Request source comparison after the canvas has finished loading.
+	bCheckSourceZXDiff = CanReloadFromSource();
 }
 
 bool SCanvas::HasTimeline() const
@@ -726,28 +822,16 @@ bool SCanvas::ReloadFromSource()
 	{
 		int32_t NewWidth = 0;
 		int32_t NewHeight = 0;
-		uint8_t* ImageData = FImageBase::LoadToMemory(SourcePathFile, NewWidth, NewHeight);
-		if (!ImageData || NewWidth <= 0 || NewHeight <= 0)
-		{
-			FImageBase::ReleaseLoadedIntoMemory(ImageData);
-			LOG_ERROR("[ReloadFromSource] Failed to reload '{}'.", SourcePathFile.string());
-			return false;
-		}
-
 		std::vector<uint8_t> IndexedData;
 		std::vector<uint8_t> InkData;
 		std::vector<uint8_t> AttributeData;
 		std::vector<uint8_t> MaskData;
-		UI::QuantizeToZX(ImageData, NewWidth, NewHeight, 4, IndexedData, TransparentColor);
-		FImageBase::ReleaseLoadedIntoMemory(ImageData);
-		UI::ZXIndexColorToZXAttributeColor(
-			IndexedData,
-			NewWidth,
-			NewHeight,
-			InkData,
-			AttributeData,
-			MaskData,
-			ConversationSettings);
+		// Convert the source into temporary ZX data before loading saved overrides.
+		if (!BuildPNGSourceZXData(NewWidth, NewHeight, IndexedData, InkData, AttributeData, MaskData))
+		{
+			LOG_ERROR("[ReloadFromSource] Failed to reload '{}'.", SourcePathFile.string());
+			return false;
+		}
 
 		const std::filesystem::path LoadPath = SourcePathFile.parent_path();
 		const std::filesystem::path LoadName = SourcePathFile.stem();
@@ -797,31 +881,10 @@ bool SCanvas::ReloadFromSource()
 				static_cast<int32_t>(AsepriteSprite->Layers.size()));
 		}
 
-		UI::QuantizeToZX(
-			AsepriteSprite->Frames[SelectedSpritesFrame].data(),
-			Width,
-			Height,
-			4,
-			ZXColorView->IndexedData,
-			TransparentColor);
-		UI::ZXIndexColorToZXAttributeColor(
-			ZXColorView->IndexedData,
-			Width,
-			Height,
-			ZXColorView->InkData,
-			ZXColorView->AttributeData,
-			ZXColorView->MaskData,
-			ConversationSettings);
-		LoadAsepriteFrameOverride(
-			SelectedSpritesFrame,
-			ZXColorView->InkData,
-			ZXColorView->AttributeData,
-			ZXColorView->MaskData);
-		ApplyAsepriteLayerOverrides(
-			SelectedSpritesFrame,
-			ZXColorView->InkData,
-			ZXColorView->AttributeData,
-			ZXColorView->MaskData);
+		UI::QuantizeToZX(AsepriteSprite->Frames[SelectedSpritesFrame].data(), Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
+		UI::ZXIndexColorToZXAttributeColor(ZXColorView->IndexedData, Width, Height, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData, ConversationSettings);
+		LoadAsepriteFrameOverride(SelectedSpritesFrame, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData);
+		ApplyAsepriteLayerOverrides(SelectedSpritesFrame, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData);
 
 		FEvent_Timeline TimelineEvent(FEventTag::TimelineInitializeTag);
 		TimelineEvent.Keyframes = Keyframes;
@@ -858,24 +921,13 @@ bool SCanvas::ReloadFromSource()
 			}
 
 			std::vector<uint8_t> IndexedData;
-			UI::QuantizeToZX(
-				AsepriteSprite->Frames[Frame].data(),
-				Width,
-				Height,
-				4,
-				IndexedData,
-				TransparentColor);
+			UI::QuantizeToZX(AsepriteSprite->Frames[Frame].data(), Width, Height, 4, IndexedData, TransparentColor);
 			NotifySpritesUpdated(Frame, IndexedData, InkData, AttributeData, MaskData);
 		}
 	}
 	else
 	{
-		NotifySpritesUpdated(
-			ImageFrameIndex,
-			ZXColorView->IndexedData,
-			ZXColorView->InkData,
-			ZXColorView->AttributeData,
-			ZXColorView->MaskData);
+		NotifySpritesUpdated(ImageFrameIndex, ZXColorView->IndexedData, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData);
 	}
 
 	if (UndoQueue.IsContinuous())
@@ -894,6 +946,8 @@ bool SCanvas::ReloadFromSource()
 	bRefreshCanvas = true;
 
 	LOG_DISPLAY("[ReloadFromSource] Reloaded '{}'.", SourcePathFile.string());
+	// Request comparison against the source that has just been reloaded.
+	bCheckSourceZXDiff = true;
 	return true;
 }
 
@@ -999,6 +1053,7 @@ void SCanvas::Render()
 	{
 		RebuildCanvasFromAseprite(SelectedSpritesFrame);
 		bRefreshCanvas = false;
+		bSourceZXPreviewActive = false;
 	}
 
 	const bool bNoMove = ToolMode[0] == EToolMode::RectangleMarquee;
@@ -1074,6 +1129,7 @@ void SCanvas::Render()
 		ApplyToolMode();
 		Draw_PopupMenu();
 		Draw_FrameInversionPopup();
+		Draw_SourceZXDiffPopup();
 
 		const float WindowWidth = ImGui::GetWindowContentRegionMax().x;
 		const float WidthDirty = 25.0f;
@@ -1214,6 +1270,8 @@ void SCanvas::Render()
 
 		ImGui::BeginChild("Child", ImVec2(0.0f, 0.0f), ImGuiChildFlags_Borders | ImGuiChildFlags_NavFlattened, ImGuiWindowFlags_NoBringToFrontOnFocus);
 		CanvasID = ImGui::GetCurrentWindow()->ID;
+		// Update only the displayed image after the comparison controls have been processed.
+		UpdateSourceZXDiffPreview();
 		UI::Draw_ZXColorView(ZXColorView);
 		ImGui::EndChild();
 
@@ -1413,6 +1471,295 @@ void SCanvas::Draw_FrameInversionPopup()
 	}
 
 	ImGui::EndPopup();
+}
+
+void SCanvas::Draw_SourceZXDiffPopup()
+{
+	const std::string PopupName = std::format("ZX Differences##SourceZXDiff_{}", GetWindowName());
+	// Check whether this canvas can show its pending comparison without replacing another popup.
+	if (bCheckSourceZXDiff && IsActiveCanvas() && !ImGui::IsPopupOpen(nullptr, ImGuiPopupFlags_AnyPopupId | ImGuiPopupFlags_AnyPopupLevel))
+	{
+		bCheckSourceZXDiff = false;
+		// Discard the previous comparison before checking a newly loaded source.
+		SourceZXDiff.reset();
+		// Create the old and new ZX versions for this comparison.
+		auto Diff = std::make_shared<FSourceZXDiff>();
+		// Check whether the current source frame can be compared with its saved ZX files.
+		if (BuildSourceZXDiff(SelectedSpritesFrame, *Diff))
+		{
+			const bool bHasSavedData = Diff->Ink.State != FZXDataDiff::EState::Missing || Diff->Attribute.State != FZXDataDiff::EState::Missing || Diff->Mask.State != FZXDataDiff::EState::Missing;
+			bool bHasDifferences = Diff->Ink.State != FZXDataDiff::EState::Equal || Diff->Attribute.State != FZXDataDiff::EState::Equal || Diff->Mask.State != FZXDataDiff::EState::Equal;
+			auto CanMergeData = [](const FZXDataDiff& Data) -> bool
+			{
+				// Check that both versions were read and have matching byte positions.
+				return Data.State == FZXDataDiff::EState::Equal || Data.State == FZXDataDiff::EState::Different;
+			};
+			// Check whether all three components can be merged before deciding to show the window.
+			if (CanMergeData(Diff->Ink) && CanMergeData(Diff->Attribute) && CanMergeData(Diff->Mask))
+			{
+				// Calculate the result of applying the default operations to the saved files again.
+				Diff->UpdatePreviewData();
+				// Check whether applying this result would change any saved component.
+				bHasDifferences = Diff->PreviewInk != Diff->Ink.SavedData || Diff->PreviewAttribute != Diff->Attribute.SavedData || Diff->PreviewMask != Diff->Mask.SavedData;
+			}
+			// Check whether existing ZX files require a choice instead of a first conversion.
+			if (bHasSavedData && bHasDifferences)
+			{
+				SourceZXDiff = std::move(Diff);
+				bPlay = false;
+			}
+		}
+	}
+
+	// Check whether this canvas has a comparison dialog to draw.
+	if (!SourceZXDiff)
+	{
+		return;
+	}
+	// Draw a floating window so the canvas remains available for navigation.
+	bool bWindowOpen = true;
+	const bool bVisible = ImGui::Begin(PopupName.c_str(), &bWindowOpen, ImGuiWindowFlags_AlwaysAutoResize | ImGuiWindowFlags_NoDocking);
+	// Check whether the comparison window was collapsed or closed.
+	if (!bVisible || !bWindowOpen)
+	{
+		ImGui::End();
+		// Check whether the user closed the window rather than collapsed it.
+		if (!bWindowOpen)
+		{
+			// Release the temporary comparison when its window is closed.
+			SourceZXDiff.reset();
+		}
+		return;
+	}
+
+	auto DrawTooltip = [](const char* Text) -> void
+	{
+		// Check whether the pointer is over this item, including disabled controls.
+		if (ImGui::IsItemHovered(ImGuiHoveredFlags_AllowWhenDisabled))
+		{
+			ImGui::SetTooltip("%s", Text);
+		}
+	};
+
+	ImGui::TextUnformatted(SourcePathFile.filename().string().c_str());
+	DrawTooltip("Исходный файл, с которым сравниваются сохранённые ZX-данные.");
+	// Check whether the source comparison belongs to a numbered animation frame.
+	if (SourceZXDiff->Frame != INDEX_NONE)
+	{
+		ImGui::Text("Frame: %d", SourceZXDiff->Frame);
+		DrawTooltip("Кадр исходника, использованный для сравнения.");
+	}
+	ImGui::TextUnformatted("Saved ZX data differs from the source conversion.");
+	DrawTooltip("Сравниваются сохранённые ZX-файлы и новая конвертация исходника.");
+	ImGui::Separator();
+
+	static const char* OperationNames[] = { "AND", "OR", "XOR" };
+	auto DrawRow = [this, &DrawTooltip](const char* Label, const char* Tooltip, const FZXDataDiff& Diff, FSourceZXDiff::EOperation& Operation) -> void
+	{
+		ImGui::TableNextRow();
+		ImGui::TableNextColumn();
+		ImGui::TextUnformatted(Label);
+		DrawTooltip(Tooltip);
+		ImGui::TableNextColumn();
+		switch (Diff.State)
+		{
+		case FZXDataDiff::EState::Equal:
+			ImGui::TextUnformatted("Identical");
+			DrawTooltip("Сохранённые данные и новая конвертация совпадают побайтно.");
+			break;
+		case FZXDataDiff::EState::Different:
+			ImGui::Text("%zu of %zu bytes differ", Diff.DifferentBytes, Diff.SourceData.size());
+			DrawTooltip("Количество отличающихся байтов и общий размер данных.");
+			break;
+		case FZXDataDiff::EState::Missing:
+			ImGui::TextUnformatted("File missing");
+			DrawTooltip("Сохранённый ZX-файл отсутствует, сравнение и выбор операции недоступны.");
+			break;
+		case FZXDataDiff::EState::SizeMismatch:
+			ImGui::Text("Size mismatch: %zu / %zu bytes", Diff.SavedData.size(), Diff.SourceData.size());
+			DrawTooltip("Размеры не совпадают, сначала указан размер сохранённого файла, затем новой конвертации. Выбор операции недоступен.");
+			break;
+		case FZXDataDiff::EState::ReadError:
+			ImGui::TextUnformatted("Read error");
+			DrawTooltip("Не удалось прочитать сохранённый ZX-файл, сравнение и выбор операции недоступны.");
+			break;
+		}
+		ImGui::TableNextColumn();
+		ImGui::PushID(Label);
+		ImGui::SetNextItemWidth(90.0f);
+		ImGui::BeginDisabled(Diff.State != FZXDataDiff::EState::Equal && Diff.State != FZXDataDiff::EState::Different);
+		int32_t OperationIndex = static_cast<int32_t>(Operation);
+		// Check whether the user selected another operation for this ZX component.
+		if (ImGui::Combo("##Operation", &OperationIndex, OperationNames, IM_ARRAYSIZE(OperationNames)))
+		{
+			Operation = static_cast<FSourceZXDiff::EOperation>(OperationIndex);
+			SourceZXDiff->bPreviewDirty = true;
+		}
+		ImGui::EndDisabled();
+		DrawTooltip("Операция применяется к соответствующим битам сохранённых данных и новой конвертации.\nAND: бит 1, только если он 1 в обеих версиях.\nOR: бит 1, если он 1 хотя бы в одной версии.\nXOR: бит 1, если значения бита различаются.");
+		ImGui::PopID();
+	};
+
+	// Create the three component rows with their comparison results and operations.
+	if (ImGui::BeginTable("##SourceZXDiff", 3, ImGuiTableFlags_BordersInnerV | ImGuiTableFlags_SizingFixedFit))
+	{
+		ImGui::TableSetupColumn("Type");
+		ImGui::TableSetupColumn("Differences");
+		ImGui::TableSetupColumn("Operation");
+		ImGui::TableHeadersRow();
+		DrawRow("Ink", "Пиксельные данные из файла .ink.", SourceZXDiff->Ink, SourceZXDiff->InkOperation);
+		DrawRow("Paper (.attr)", "Байты атрибутов из файла .attr целиком, включая цвета INK и PAPER, BRIGHT и FLASH.", SourceZXDiff->Attribute, SourceZXDiff->AttributeOperation);
+		DrawRow("Mask", "Маска прозрачности из файла .mask.", SourceZXDiff->Mask, SourceZXDiff->MaskOperation);
+		ImGui::EndTable();
+	}
+
+	ImGui::Separator();
+	const bool bCanPreview = CanPreviewSourceZXDiff();
+	ImGui::BeginDisabled(!bCanPreview);
+	ImGui::Checkbox("Preview", &SourceZXDiff->bPreview);
+	ImGui::EndDisabled();
+	DrawTooltip(bCanPreview ? "Показывать результат выбранных операций на канвасе без изменения рабочих данных и файлов." : "Предпросмотр доступен при совпадении кадра, размеров и наличии всех ZX-данных.");
+	// Check whether this comparison can be displayed on the current canvas frame.
+	if (!bCanPreview)
+	{
+		ImGui::TextDisabled("Preview unavailable.");
+		DrawTooltip("Предпросмотр доступен при совпадении кадра, размеров и наличии всех ZX-данных.");
+	}
+	ImGui::Separator();
+	ImGui::BeginDisabled(!bCanPreview);
+	// Check whether the user wants to commit the selected operations to the canvas.
+	if (ImGui::Button("Apply"))
+	{
+		ApplySourceZXDiff();
+	}
+	ImGui::EndDisabled();
+	DrawTooltip(bCanPreview ? "Применить выбранные операции к ZX-данным канваса одним действием Undo, без записи файлов." : "Применение доступно при совпадении кадра, размеров и наличии всех ZX-данных.");
+	ImGui::SameLine();
+	// Check whether the user wants to close the comparison without applying it.
+	if (ImGui::Button("Cancel"))
+	{
+		// Release the temporary comparison when its dialog is closed.
+		SourceZXDiff.reset();
+	}
+	DrawTooltip("Закрыть окно и вернуть обычное отображение канваса без применения результата.");
+	ImGui::End();
+}
+
+bool SCanvas::CanPreviewSourceZXDiff() const
+{
+	// Check whether the comparison still belongs to the loaded canvas and selected frame.
+	if (!SourceZXDiff || bCheckSourceZXDiff || bFroceRebuiltSpriteFrame || !ZXColorView->Image.IsValid() ||
+		Width <= 0 || Height <= 0 || Width % 8 != 0 || Height % 8 != 0 ||
+		SourceZXDiff->Width != Width || SourceZXDiff->Height != Height ||
+		(ImageFormat == EImageFormat::Aseprite && (SourceZXDiff->Frame != SelectedSpritesFrame || LastRebuiltSpriteFrame != SelectedSpritesFrame)))
+	{
+		return false;
+	}
+
+	// Calculate the byte counts required to display the complete canvas.
+	const size_t PixelSize = static_cast<size_t>(Width >> 3) * Height;
+	const size_t AttributeSize = static_cast<size_t>(Width >> 3) * (Height >> 3);
+	auto HasValidData = [](const FZXDataDiff& Diff, size_t ExpectedSize) -> bool
+	{
+		// Check that both versions were read completely and have matching byte positions.
+		return (Diff.State == FZXDataDiff::EState::Equal || Diff.State == FZXDataDiff::EState::Different) && Diff.SavedData.size() == ExpectedSize && Diff.SourceData.size() == ExpectedSize;
+	};
+	return HasValidData(SourceZXDiff->Ink, PixelSize) && HasValidData(SourceZXDiff->Attribute, AttributeSize) && HasValidData(SourceZXDiff->Mask, PixelSize);
+}
+
+void SCanvas::UpdateSourceZXDiffPreview()
+{
+	// Check whether preview is enabled and its data can be displayed on this frame.
+	if (!CanPreviewSourceZXDiff() || !SourceZXDiff->bPreview)
+	{
+		// Check whether the texture still contains a preview that must be removed.
+		if (bSourceZXPreviewActive)
+		{
+			// Restore the ordinary display from the unchanged canvas data.
+			RebuildCanvasFromAseprite(SelectedSpritesFrame);
+			bSourceZXPreviewActive = false;
+		}
+		return;
+	}
+
+	// Build the same temporary result that Apply will use.
+	SourceZXDiff->UpdatePreviewData();
+
+	// Select the visible components, showing the complete merged result in source view.
+	const bool bSource = OptionsFlags[0] & FCanvasOptionsFlags::Source;
+	const bool bInk = bSource || bTransparentMask || (OptionsFlags[0] & FCanvasOptionsFlags::Ink);
+	const bool bPaper = bSource || bTransparentMask || (OptionsFlags[0] & FCanvasOptionsFlags::Attribute);
+	const bool bMask = bSource || (OptionsFlags[0] & FCanvasOptionsFlags::Mask);
+	const bool bTransparentPaper = AsepriteSprite && !AsepriteSprite->InkLayer.empty();
+	// Convert only the display texture, leaving working arrays, dirty flags and Undo unchanged.
+	UI::ZXAttributeColorToImage(ZXColorView->Image, Width, Height, bInk ? SourceZXDiff->PreviewInk.data() : nullptr, bPaper ? SourceZXDiff->PreviewAttribute.data() : nullptr, bMask ? SourceZXDiff->PreviewMask.data() : nullptr, false, nullptr, true, bTransparentMask, bTransparentPaper);
+	bSourceZXPreviewActive = true;
+}
+
+void SCanvas::ApplySourceZXDiff()
+{
+	// Check that both versions still describe the complete current canvas.
+	if (!CanPreviewSourceZXDiff())
+	{
+		return;
+	}
+	// Build the result even when Preview is switched off.
+	SourceZXDiff->UpdatePreviewData();
+	// Check whether applying the result would actually change any ZX data.
+	if (ZXColorView->InkData == SourceZXDiff->PreviewInk && ZXColorView->AttributeData == SourceZXDiff->PreviewAttribute && ZXColorView->MaskData == SourceZXDiff->PreviewMask)
+	{
+		// Check whether the unchanged canvas result still differs from the saved ZX files.
+		bIPMDirty |= ZXColorView->InkData != SourceZXDiff->Ink.SavedData || ZXColorView->AttributeData != SourceZXDiff->Attribute.SavedData || ZXColorView->MaskData != SourceZXDiff->Mask.SavedData;
+		// Check whether the unchanged ZX result is currently hidden by the source view.
+		if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
+		{
+			OptionsFlags[0] = FCanvasOptionsFlags::Ink | FCanvasOptionsFlags::Attribute | FCanvasOptionsFlags::Mask;
+		}
+		SourceZXDiff.reset();
+		RebuildCanvasFromAseprite(SelectedSpritesFrame);
+		bRefreshCanvas = false;
+		bSourceZXPreviewActive = false;
+		return;
+	}
+
+	// Create one action that is also its own Undo and Redo boundary.
+	auto Action = std::make_shared<FSourceZXApplyAction>();
+	Action->InkData = SourceZXDiff->PreviewInk;
+	Action->AttributeData = SourceZXDiff->PreviewAttribute;
+	Action->MaskData = SourceZXDiff->PreviewMask;
+	Action->Swap = [this, Frame = SelectedSpritesFrame, CanvasWidth = Width, CanvasHeight = Height, Generation = ZXDataGeneration](FSourceZXApplyAction& Param) -> void
+	{
+		// Check that this snapshot still belongs to the current frame and loaded ZX data.
+		if (SelectedSpritesFrame != Frame || Width != CanvasWidth || Height != CanvasHeight || ZXDataGeneration != Generation || bFroceRebuiltSpriteFrame)
+		{
+			LOG_WARNING("[ApplySourceZXDiff] Undo snapshot no longer matches the loaded canvas.");
+			return;
+		}
+		// Exchange the complete ZX result with the state stored for the next Undo or Redo.
+		ZXColorView->InkData.swap(Param.InkData);
+		ZXColorView->AttributeData.swap(Param.AttributeData);
+		ZXColorView->MaskData.swap(Param.MaskData);
+		std::swap(bNeedConvertZXToCanvas, Param.bNeedConvertZXToCanvas);
+		// Check whether the changed ZX data needs to be shown instead of the source.
+		if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
+		{
+			OptionsFlags[0] = FCanvasOptionsFlags::Ink | FCanvasOptionsFlags::Attribute | FCanvasOptionsFlags::Mask;
+		}
+		// Mark restored data as unsaved even when Save was used between Apply and Undo.
+		bIPMDirty = true;
+		bRefreshCanvas = true;
+	};
+	// Check whether an earlier pencil stroke needs its own boundary closed first.
+	if (UndoQueue.IsContinuous())
+	{
+		UndoQueue.EndContinuous();
+	}
+	UndoQueue.SetWithUndo(Action);
+	// Close the comparison and display the applied working data immediately.
+	SourceZXDiff.reset();
+	RebuildCanvasFromAseprite(SelectedSpritesFrame);
+	bRefreshCanvas = false;
+	bSourceZXPreviewActive = false;
 }
 
 void SCanvas::Draw_PopupMenu_CreateSprite()
@@ -1900,7 +2247,8 @@ void SCanvas::Imput_Redo()
 
 void SCanvas::Imput_Save()
 {
-	const bool bSource = OptionsFlags[0] & FCanvasOptionsFlags::Source;
+	// Save pending ZX changes regardless of whether the source is currently displayed.
+	const bool bSource = !bIPMDirty && (OptionsFlags[0] & FCanvasOptionsFlags::Source);
 	const bool bAsepriteSourcePending = bSource && ImageFormat == EImageFormat::Aseprite && bAsepriteSourceDirty;
 	if ((bSource && !bSourceDirty && !bAsepriteSourcePending) ||
 		(!bSource && !bIPMDirty))
@@ -2450,7 +2798,8 @@ bool SCanvas::BuildAsepriteFrameZXData(
 	int32_t Frame,
 	std::vector<uint8_t>& InkData,
 	std::vector<uint8_t>& AttributeData,
-	std::vector<uint8_t>& MaskData) const
+	std::vector<uint8_t>& MaskData,
+	bool bLoadFrameOverride /*= true*/) const
 {
 	if (!AsepriteSprite ||
 		!AsepriteSprite->IsValid() ||
@@ -2462,16 +2811,138 @@ bool SCanvas::BuildAsepriteFrameZXData(
 
 	std::vector<uint8_t> IndexedData;
 	UI::QuantizeToZX(AsepriteSprite->Frames[Frame].data(), Width, Height, 4, IndexedData, TransparentColor);
-	UI::ZXIndexColorToZXAttributeColor(
-		IndexedData,
-		Width,
-		Height,
-		InkData,
-		AttributeData,
-		MaskData,
-		ConversationSettings);
-	LoadAsepriteFrameOverride(Frame, InkData, AttributeData, MaskData);
+	UI::ZXIndexColorToZXAttributeColor(IndexedData, Width, Height, InkData, AttributeData, MaskData, ConversationSettings);
+	// Check whether the caller needs saved edits in addition to the source data.
+	if (bLoadFrameOverride)
+	{
+		// Load the saved frame data before applying the assigned source layers.
+		LoadAsepriteFrameOverride(Frame, InkData, AttributeData, MaskData);
+	}
 	ApplyAsepriteLayerOverrides(Frame, InkData, AttributeData, MaskData);
+	return true;
+}
+
+bool SCanvas::BuildPNGSourceZXData(
+	int32_t& SourceWidth,
+	int32_t& SourceHeight,
+	std::vector<uint8_t>& IndexedData,
+	std::vector<uint8_t>& InkData,
+	std::vector<uint8_t>& AttributeData,
+	std::vector<uint8_t>& MaskData) const
+{
+	// Check whether this canvas has a PNG source to convert.
+	if (ImageFormat != EImageFormat::PNG || SourcePathFile.empty())
+	{
+		return false;
+	}
+
+	// Load the source image independently of the canvas and saved ZX data.
+	uint8_t* ImageData = FImageBase::LoadToMemory(SourcePathFile, SourceWidth, SourceHeight);
+	// Check whether the source image was loaded with valid dimensions.
+	if (!ImageData || SourceWidth <= 0 || SourceHeight <= 0)
+	{
+		FImageBase::ReleaseLoadedIntoMemory(ImageData);
+		return false;
+	}
+
+	// Convert the source pixels using the current transparency and ZX settings.
+	UI::QuantizeToZX(ImageData, SourceWidth, SourceHeight, 4, IndexedData, TransparentColor);
+	FImageBase::ReleaseLoadedIntoMemory(ImageData);
+	UI::ZXIndexColorToZXAttributeColor(IndexedData, SourceWidth, SourceHeight, InkData, AttributeData, MaskData, ConversationSettings);
+	return true;
+}
+
+bool SCanvas::BuildSourceZXDiff(int32_t Frame, FSourceZXDiff& Output) const
+{
+	// Check whether this canvas has a supported source file to compare.
+	if (!CanReloadFromSource())
+	{
+		return false;
+	}
+
+	FSourceZXDiff Result;
+	// Check which source format supplies the temporary ZX data.
+	if (ImageFormat == EImageFormat::Aseprite)
+	{
+		// Convert the loaded source frame with its assigned layers and no saved ZX data.
+		if (!BuildAsepriteFrameZXData(Frame, Result.Ink.SourceData, Result.Attribute.SourceData, Result.Mask.SourceData, false))
+		{
+			return false;
+		}
+		Result.Width = Width;
+		Result.Height = Height;
+		Result.Frame = Frame;
+	}
+	else
+	{
+		std::vector<uint8_t> IndexedData;
+		// Convert the PNG source independently of the current canvas data.
+		if (!BuildPNGSourceZXData(Result.Width, Result.Height, IndexedData, Result.Ink.SourceData, Result.Attribute.SourceData, Result.Mask.SourceData))
+		{
+			return false;
+		}
+	}
+
+	auto CompareData = [this, Frame](const char* Extension, FZXDataDiff& Diff) -> void
+	{
+		std::filesystem::path DataPath;
+		// Check whether the saved ZX filename must include an Aseprite frame index.
+		if (ImageFormat == EImageFormat::Aseprite)
+		{
+			DataPath = GetAsepriteFrameOverridePath(Frame, Extension);
+		}
+		else
+		{
+			// Replace the PNG extension with the corresponding ZX data extension.
+			DataPath = SourcePathFile;
+			DataPath.replace_extension(Extension);
+			DataPath = IO::NormalizePath(std::filesystem::absolute(DataPath));
+		}
+
+		// Read the saved file size to distinguish missing, empty and inaccessible files.
+		const uintmax_t FileSize = std::filesystem::file_size(DataPath, Diff.Error);
+		// Check whether the file size could be read before loading its contents.
+		if (Diff.Error)
+		{
+			Diff.State = Diff.Error == std::errc::no_such_file_or_directory ? FZXDataDiff::EState::Missing : FZXDataDiff::EState::ReadError;
+			return;
+		}
+
+		// Check whether the saved file has any bytes to load.
+		if (FileSize > 0)
+		{
+			// Load the saved bytes without replacing the source conversion.
+			Diff.Error = IO::LoadBinaryData(Diff.SavedData, DataPath);
+			// Check whether all saved bytes were read successfully.
+			if (Diff.Error)
+			{
+				// Discard partial data so it cannot be used as a complete saved version.
+				Diff.SavedData.clear();
+				Diff.State = Diff.Error == std::errc::no_such_file_or_directory ? FZXDataDiff::EState::Missing : FZXDataDiff::EState::ReadError;
+				return;
+			}
+		}
+
+		// Check whether the two versions have matching byte positions to compare.
+		if (Diff.SavedData.size() != Diff.SourceData.size())
+		{
+			Diff.State = FZXDataDiff::EState::SizeMismatch;
+			return;
+		}
+
+		// Calculate how many bytes differ between the saved and converted versions.
+		for (size_t Index = 0; Index < Diff.SourceData.size(); ++Index)
+		{
+			Diff.DifferentBytes += Diff.SavedData[Index] != Diff.SourceData[Index];
+		}
+		Diff.State = Diff.DifferentBytes > 0 ? FZXDataDiff::EState::Different : FZXDataDiff::EState::Equal;
+	};
+
+	// Compare each saved ZX component with its own source conversion.
+	CompareData(".ink", Result.Ink);
+	CompareData(".attr", Result.Attribute);
+	CompareData(".mask", Result.Mask);
+	Output = std::move(Result);
 	return true;
 }
 
@@ -2488,13 +2959,7 @@ bool SCanvas::SaveSource(const std::filesystem::path& SavePath, const std::files
 
 	const std::filesystem::path PNGFilePath = IO::NormalizePath(SavePath / std::format("{}.png", SaveName.string()));
 	constexpr int32_t Channels = 4;
-	if (!stbi_write_png(
-		PNGFilePath.string().c_str(),
-		Width,
-		Height,
-		Channels,
-		RGBA.data(),
-		Width * Channels))
+	if (!stbi_write_png(PNGFilePath.string().c_str(), Width, Height, Channels, RGBA.data(), Width * Channels))
 	{
 		std::cerr << "Failed to write PNG!" << std::endl;
 		LOG_ERROR("[{}]\t Failed to write PNG!", (__FUNCTION__));
@@ -2507,11 +2972,7 @@ bool SCanvas::SaveIPM(const std::filesystem::path& SavePath, const std::filesyst
 {
 	if (ImageFormat == EImageFormat::Aseprite)
 	{
-		return SaveAsepriteFrameOverride(
-			SelectedSpritesFrame,
-			ZXColorView->InkData,
-			ZXColorView->AttributeData,
-			ZXColorView->MaskData);
+		return SaveAsepriteFrameOverride(SelectedSpritesFrame, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData);
 	}
 
 	bool bSaved = true;
@@ -2574,28 +3035,14 @@ bool SCanvas::Load(const std::filesystem::path& LoadPath, const std::filesystem:
 
 void SCanvas::ConversionToZX(const UI::FConversationSettings& Settings)
 {
-	UI::ZXIndexColorToZXAttributeColor(
-		ZXColorView->IndexedData,
-		Width, Height,
-		ZXColorView->InkData,
-		ZXColorView->AttributeData,
-		ZXColorView->MaskData,
-		Settings);
-	UI::ZXIndexColorToImage(
-		ZXColorView->Image,
-		ZXColorView->IndexedData,
-		Width, Height);
+	UI::ZXIndexColorToZXAttributeColor(ZXColorView->IndexedData, Width, Height, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData, Settings);
+	UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
 }
 
 void SCanvas::ConversionToCanvas(const UI::FConversationSettings& Settings)
 {
-	UI::ZXAttributeColorToZXIndexColor(
-		ZXColorView->Image,
-		Width, Height,
-		ZXColorView->IndexedData,
-		ZXColorView->InkData,
-		ZXColorView->AttributeData,
-		ZXColorView->MaskData,
+	UI::ZXAttributeColorToZXIndexColor(ZXColorView->Image, Width, Height, 
+		ZXColorView->IndexedData, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData, 
 		AsepriteSprite && !AsepriteSprite->InkLayer.empty());
 }
 
@@ -2664,13 +3111,7 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 		Pixel.Color.push_back(ColorIndex);
 		Pixel.Canvas = OptionsFlags[0];
 	}
-	UndoQueue.SetWithUndo(
-		std::make_shared<Undo::TAction<FPixelToCanvas>>(
-			std::bind(&ThisClass::UndoSwapPixel, this, std::placeholders::_1),
-			Pixel
-		)
-	);
-
+	UndoQueue.SetWithUndo(std::make_shared<Undo::TAction<FPixelToCanvas>>(std::bind(&ThisClass::UndoSwapPixel, this, std::placeholders::_1),Pixel));
 }
 
 void SCanvas::UpdateCursorColor(bool bButton /*= false*/)
@@ -2852,6 +3293,8 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 
 	if (bRebuildFrame)
 	{
+		// Invalidate merge snapshots when another frame or layer state is loaded.
+		++ZXDataGeneration;
 		UI::QuantizeToZX(AsepriteSprite->Frames[Frame].data(), Width, Height, 4, ZXColorView->IndexedData, TransparentColor);
 		UI::ZXIndexColorToZXAttributeColor(
 			ZXColorView->IndexedData,

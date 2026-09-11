@@ -63,6 +63,10 @@ private:
 	void Draw_PopupMenu();
 	void Draw_PopupMenu_CreateSprite();
 	void Draw_FrameInversionPopup();
+	void Draw_SourceZXDiffPopup();
+	bool CanPreviewSourceZXDiff() const;
+	void UpdateSourceZXDiffPreview();
+	void ApplySourceZXDiff();
 
 	void Input_HotKeys();
 	void Input_Mouse();
@@ -122,7 +126,16 @@ private:
 		int32_t Frame,
 		std::vector<uint8_t>& InkData,
 		std::vector<uint8_t>& AttributeData,
+		std::vector<uint8_t>& MaskData,
+		bool bLoadFrameOverride = true) const;
+	bool BuildPNGSourceZXData(
+		int32_t& SourceWidth,
+		int32_t& SourceHeight,
+		std::vector<uint8_t>& IndexedData,
+		std::vector<uint8_t>& InkData,
+		std::vector<uint8_t>& AttributeData,
 		std::vector<uint8_t>& MaskData) const;
+	bool BuildSourceZXDiff(int32_t Frame, struct FSourceZXDiff& Output) const;
 	void InvertZXDataInRect(
 		std::vector<uint8_t>& InkData,
 		std::vector<uint8_t>& AttributeData,
@@ -130,7 +143,6 @@ private:
 		bool bInvertPixels,
 		bool bInvertAttributes) const;
 	bool ApplyFrameInversion();
-
 	void ConversionToZX(const UI::FConversationSettings& Settings);
 	void ConversionToCanvas(const UI::FConversationSettings& Settings);
 	bool UpdateAsepriteFrameFromSource();
@@ -193,6 +205,10 @@ private:
 	bool bInvertAllFrames;
 	ImRect FrameInversionRect;
 	std::string FrameInversionError;
+	bool bCheckSourceZXDiff;
+	uint64_t ZXDataGeneration;
+	bool bSourceZXPreviewActive;
+	std::shared_ptr<struct FSourceZXDiff> SourceZXDiff;
 
 	// popup menu 'New Sprite'
 	bool bRoundingToMultipleEight;
