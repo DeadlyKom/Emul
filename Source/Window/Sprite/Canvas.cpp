@@ -1506,6 +1506,9 @@ void SCanvas::Draw_SourceZXDiffPopup()
 			if (bHasSavedData && bHasDifferences)
 			{
 				SourceZXDiff = std::move(Diff);
+				// Show all three ZX components when the comparison window opens.
+				OptionsFlags[0] = FCanvasOptionsFlags::Ink | FCanvasOptionsFlags::Attribute | FCanvasOptionsFlags::Mask;
+				bRefreshCanvas = true;
 				bPlay = false;
 			}
 		}
