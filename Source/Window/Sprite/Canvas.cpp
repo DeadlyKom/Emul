@@ -533,8 +533,6 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 					SendEvent(SourceSelectionEvent);
 				}
 
-				// Focus the Canvas that owns the selected sprite after its source state is restored.
-				Focus();
 				SelectedSprite = Event.Sprite;
 				bPlay = false;
 				PlayDuration = 0.0f;
