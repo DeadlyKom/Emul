@@ -54,9 +54,12 @@ void SViewer::NativeInitialize(const FNativeDataInitialize& _Data)
 
 void SViewer::Initialize(const std::vector<std::any>& Args)
 {
+	SetupHotKeys();
+
 	for (auto& [Type, Window] : Windows)
 	{
 		Window->Initialize(Args);
+		Window->SetupHotKeys();
 	}
 }
 
