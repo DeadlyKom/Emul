@@ -113,6 +113,7 @@ namespace UI
 		ImVec2 ScaleMax = ImVec2(32.0f, 32.0f);
 
 		// view state
+		bool bFitToView = false;
 		ImVec2 ImagePosition = ImVec2(0.5f, 0.5f);					// the UV value at the center of the current view
 		ImVec2 PanelTopLeftPixel = ImVec2(0.0f, 0.0);				// top left of view in ImGui pixel coordinates
 		ImVec2 ViewTopLeftPixel = ImVec2(0.0f, 0.0f);				// position in ImGui pixel coordinates

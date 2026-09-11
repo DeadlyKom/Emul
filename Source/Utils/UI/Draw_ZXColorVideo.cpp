@@ -348,6 +348,31 @@ void Draw_RectangleMarquee(std::shared_ptr<UI::FZXColorView> ZXColorView, const 
 
 void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)
 {
+	ImGuiWindow* Window = ImGui::GetCurrentWindow();
+	const float BorderWidth = 1.0f;
+	const ImVec2 AvailablePanelSize = ImGui::GetContentRegionAvail() - ImVec2(BorderWidth, BorderWidth) * 2.0f;
+	// Check that the opening canvas has a visible area and an image ready to fit.
+	if (ZXColorView->bFitToView && !Window->SkipItems && ZXColorView->Image.IsValid() &&
+		AvailablePanelSize.x > 0.0f && AvailablePanelSize.y > 0.0f &&
+		ZXColorView->Image.Size.x > 0.0f && ZXColorView->Image.Size.y > 0.0f && ZXColorView->PixelAspectRatio > 0.0f)
+	{
+		// Calculate the common scale limits for both axes.
+		const float MinimumScale = ImMax(ZXColorView->ScaleMin.x / ZXColorView->PixelAspectRatio, ZXColorView->ScaleMin.y);
+		const float MaximumScale = ImMin(ZXColorView->ScaleMax.x / ZXColorView->PixelAspectRatio, ZXColorView->ScaleMax.y);
+		// Calculate one scale that fits both dimensions while preserving the pixel aspect ratio.
+		float FitScale = ImClamp(ImMin(AvailablePanelSize.x / (ZXColorView->Image.Size.x * ZXColorView->PixelAspectRatio), AvailablePanelSize.y / ZXColorView->Image.Size.y), MinimumScale, MaximumScale);
+		// Check whether grid rendering will round the scale to whole pixels.
+		if (FitScale > ZXColorView->MinimumGridSize)
+		{
+			FitScale = ImMax(ImFloor(FitScale), MinimumScale);
+		}
+		// Update zoom and center the image, including images too large at the minimum scale.
+		SetScale(*ZXColorView, FitScale);
+		ZXColorView->ViewSizeUV = ImVec2(1.0f, 1.0f);
+		ZXColorView->ImagePosition = ImVec2(0.5f, 0.5f);
+		ZXColorView->bFitToView = false;
+	}
+
 	// update shader variable
 	{
 		if (ZXColorView->Scale.y > ZXColorView->MinimumGridSize)
@@ -364,13 +389,10 @@ void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)
 		ZXColorView->bForceNearestSampling = (ZXColorView->Scale.x > 1.0f || ZXColorView->Scale.y > 1.0f);
 	}
 
-	ImGuiWindow* Window = ImGui::GetCurrentWindow();
 	ImDrawList* DrawList = ImGui::GetWindowDrawList();
 
 	// keep track of size of area that we draw for borders later
-	const float BorderWidth = 1.0f;
 	ZXColorView->PanelTopLeftPixel = ImGui::GetCursorScreenPos();
-	const ImVec2 AvailablePanelSize = ImGui::GetContentRegionAvail() - ImVec2(BorderWidth, BorderWidth) * 2.0f;
 	const ImRect PanelRect(
 		ZXColorView->PanelTopLeftPixel + ImVec2(BorderWidth, BorderWidth),
 		ZXColorView->PanelTopLeftPixel + ImVec2(BorderWidth, BorderWidth) + AvailablePanelSize);

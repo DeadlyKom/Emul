@@ -581,6 +581,8 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 	ZXColorView = std::make_shared<UI::FZXColorView>();
 	ZXColorView->Scale = ImVec2(2.5f, 2.5f);
 	ZXColorView->ImagePosition = ImVec2(0.0f, 0.0f);
+	// Fit the new canvas once its visible drawing area has a valid size.
+	ZXColorView->bFitToView = true;
 
 	for (const auto& Arg : Args)
 	{
