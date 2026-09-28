@@ -95,6 +95,7 @@ namespace UI
 	{
 		bool bAttributeGrid = false;
 		bool bGrid = false;
+		bool bSnapToGrid = false;
 		bool bPixelGrid = true;
 		bool bAlphaTransparent = true;
 		bool bAlphaCheckerboardGrid = true;

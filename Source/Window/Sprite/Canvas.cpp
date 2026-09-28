@@ -380,6 +380,7 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 				bTransparentMask = Event.ViewFlags.bTransparentMask;
 				bAttributeClash = Event.ViewFlags.bAttributeClash;
 				ZXColorView->Options.bGrid = Event.ViewFlags.bGrid;
+				ZXColorView->Options.bSnapToGrid = Event.ViewFlags.bSnapToGrid;
 				ZXColorView->Options.bPixelGrid = Event.ViewFlags.bPixelGrid;
 				ZXColorView->Options.bAttributeGrid = Event.ViewFlags.bAttributeGrid;
 				ZXColorView->Options.bAlphaCheckerboardGrid = Event.ViewFlags.bAlphaCheckerboardGrid;
@@ -2014,13 +2015,17 @@ void SCanvas::Input_HotKeys()
 		return;
 	}
 
-	if (ImGui::IsKeyPressed(ImGuiMod_Alt) && !IsEqualToolMode(EToolMode::Eyedropper))
+	// Reserve Alt for temporary grid snapping while the rectangle selection tool is active.
+	if (!IsEqualToolMode(EToolMode::RectangleMarquee))
 	{
-		SetToolMode(EToolMode::Eyedropper, false);
-	}
-	else if (ImGui::IsKeyReleased(ImGuiMod_Alt)/* && !IsEqualToolMode(EToolMode::None, 1)*/)
-	{
-		SetToolMode(ToolMode[1], false);
+		if (ImGui::IsKeyPressed(ImGuiMod_Alt) && !IsEqualToolMode(EToolMode::Eyedropper))
+		{
+			SetToolMode(EToolMode::Eyedropper, false);
+		}
+		else if (ImGui::IsKeyReleased(ImGuiMod_Alt)/* && !IsEqualToolMode(EToolMode::None, 1)*/)
+		{
+			SetToolMode(ToolMode[1], false);
+		}
 	}
 }
 
@@ -2499,12 +2504,26 @@ void SCanvas::Handler_RectangleMarquee()
 {
 	const ImGuiIO& IO = ImGui::GetIO();
 	const bool bHovered = ImGui::IsWindowHovered();
-	auto UpdateRectangleMarquee = [this]()
+	auto UpdateRectangleMarquee = [this, &IO]()
 		{
 			const ImVec2& p1 = ZXColorView->RectStart;
 			const ImVec2& p2 = ZXColorView->RectEnd;
 			ZXColorView->RectangleMarqueeRect.Min = ImVec2(ImMin(p1.x, p2.x), ImMin(p1.y, p2.y));
 			ZXColorView->RectangleMarqueeRect.Max = ImVec2(ImMax(p1.x, p2.x) + 1.0f, ImMax(p1.y, p2.y) + 1.0f);
+
+			// Check that snapping is enabled in the menu or by held Alt and both grid steps are positive.
+			if ((ZXColorView->Options.bSnapToGrid || IO.KeyAlt) && ZXColorView->Options.GridSettingSize.x > 0.0f && ZXColorView->Options.GridSettingSize.y > 0.0f)
+			{
+				const ImVec2& GridSize = ZXColorView->Options.GridSettingSize;
+				const ImVec2& GridOffset = ZXColorView->Options.GridSettingOffset;
+
+				// Expand the selection to whole grid cells relative to the configured offset.
+				ZXColorView->RectangleMarqueeRect.Min.x = floorf((ZXColorView->RectangleMarqueeRect.Min.x - GridOffset.x) / GridSize.x) * GridSize.x + GridOffset.x;
+				ZXColorView->RectangleMarqueeRect.Min.y = floorf((ZXColorView->RectangleMarqueeRect.Min.y - GridOffset.y) / GridSize.y) * GridSize.y + GridOffset.y;
+				ZXColorView->RectangleMarqueeRect.Max.x = ceilf((ZXColorView->RectangleMarqueeRect.Max.x - GridOffset.x) / GridSize.x) * GridSize.x + GridOffset.x;
+				ZXColorView->RectangleMarqueeRect.Max.y = ceilf((ZXColorView->RectangleMarqueeRect.Max.y - GridOffset.y) / GridSize.y) * GridSize.y + GridOffset.y;
+			}
+
 			ZXColorView->RectangleMarqueeRect.Min = ImClamp(ZXColorView->RectangleMarqueeRect.Min, ImVec2(0, 0), ZXColorView->Image.Size);
 			ZXColorView->RectangleMarqueeRect.Max = ImClamp(ZXColorView->RectangleMarqueeRect.Max, ImVec2(0, 0), ZXColorView->Image.Size);
 			ZXColorView->bVisibilityRectangleMarquee =

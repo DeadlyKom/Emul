@@ -53,6 +53,7 @@ namespace EFrameMode
 struct FViewFlags
 {
 	bool bGrid;
+	bool bSnapToGrid;
 	bool bPixelGrid;
 	bool bAttributeGrid;
 	bool bAlphaCheckerboardGrid;
@@ -65,6 +66,7 @@ struct FViewFlags
 
 	FViewFlags()
 		: bGrid(false)
+		, bSnapToGrid(false)
 		, bPixelGrid(true)
 		, bAttributeGrid(false)
 		, bAlphaCheckerboardGrid(true)

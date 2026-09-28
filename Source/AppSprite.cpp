@@ -38,7 +38,9 @@ namespace
 
 	static const char* Menu_ViewName = "View";
 	static const char* Menu_View_ShowName = "Show";
-	static const char* Menu_View_GridSettingsName = "Grid settings";
+	static const char* Menu_View_GridName = "Grid";
+	static const char* Menu_View_GridSettingsName = "Grid Settings";
+	static const char* Menu_View_Grid_SnapToGridName = "Snap to Grid";
 	static const char* Menu_View_Show_TransparentName = "Transparent";
 	static const char* Menu_View_Show_GridName = "Grid";
 	static const char* Menu_View_Show_PixelGridName = "Pixel grid";
@@ -465,6 +467,7 @@ void FAppSprite::Show_MenuBar()
 	const ImGuiID NewCanvaseID = ImGui::GetCurrentWindow()->GetID(Modal_NewCanvasName);
 	const ImGuiID GridSettingsID = ImGui::GetCurrentWindow()->GetID(Modal_GridSettingsName);
 	const ImGuiID CodeGenerationID = ImGui::GetCurrentWindow()->GetID(Modal_CodeGenerationName);
+	bool bOpenGridSettings = false;
 
 	if (ImGui::BeginMenu(Menu_FileName))
 	{
@@ -651,9 +654,24 @@ void FAppSprite::Show_MenuBar()
 
 		ImGui::Separator();
 
-		if (ImGui::MenuItem(Menu_View_GridSettingsName))
+		// Group the grid settings and snapping option in their own submenu.
+		if (ImGui::BeginMenu(Menu_View_GridName))
 		{
-			ImGui::OpenPopup(GridSettingsID);
+			// Defer the settings dialog until the menu popup stack is closed.
+			if (ImGui::MenuItem(Menu_View_GridSettingsName))
+			{
+				bOpenGridSettings = true;
+			}
+
+			// Publish the snapping option through the existing view settings event.
+			if (ImGui::MenuItem(Menu_View_Grid_SnapToGridName, nullptr, &ViewFlags.bSnapToGrid))
+			{
+				FEvent_Canvas Event(FEventTag::CanvasViewFlagsTag);
+				Event.CanvasName = {};
+				Event.ViewFlags = ViewFlags;
+				Viewer->GetEventSystem().Publish(Event);
+			}
+			ImGui::EndMenu();
 		}
 
 		ImGui::EndMenu();
@@ -697,6 +715,12 @@ void FAppSprite::Show_MenuBar()
 			Imput_ClearSpriteList();
 		}
 		ImGui::EndMenu();
+	}
+
+	// Open the grid settings at the same popup level as the modal dialog.
+	if (bOpenGridSettings)
+	{
+		ImGui::OpenPopup(GridSettingsID);
 	}
 
 	if (bReloadCanvasConfirmationRequested)
