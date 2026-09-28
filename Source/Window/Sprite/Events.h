@@ -20,6 +20,7 @@ namespace FEventTag
 	static const FName CanvasViewScaleTag = TEXT("CanvasViewScale");
 	static const FName CanvasViewPositionTag = TEXT("CanvasViewPosition");
 	static const FName ChangeColorTag = TEXT("ChangeColor");
+	static const FName ChangePixelOperationTag = TEXT("ChangePixelOperation");
 	static const FName CanvasSizeTag = TEXT("CanvasSize");;
 	static const FName MousePositionTag = TEXT("MouseState");
 	static const FName AddSpriteTag = TEXT("AddSprite");
@@ -95,6 +96,7 @@ struct FEvent_ToolBar : public IEvent
 
 struct FEvent_Color : public IEvent
 {
+	EPixelOperation::Type PixelOperation = EPixelOperation::Set;
 	uint8_t ButtonIndex = INDEX_NONE;											// pressed mouse button
 	UI::EZXSpectrumColor::Type SelectedColorIndex = UI::EZXSpectrumColor::None;	// zx color
 	ESubcolor::Type SelectedSubcolorIndex = ESubcolor::None;					// type ink/paper/bright

@@ -343,6 +343,13 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	Subcolor[ESubcolor::Bright] = EZXColor::False;
 	Subcolor[ESubcolor::Flash] = EZXColor::False;
 
+	// Initialize independent Ink and Paper selections for both mouse buttons.
+	for (uint8_t ButtonIndex = 0; ButtonIndex < 2; ++ButtonIndex)
+	{
+		ButtonSubcolor[ButtonIndex][ESubcolor::Ink] = Subcolor[ESubcolor::Ink];
+		ButtonSubcolor[ButtonIndex][ESubcolor::Paper] = Subcolor[ESubcolor::Paper];
+	}
+
 	OptionsFlags[0] = FCanvasOptionsFlags::Source;
 	OptionsFlags[1] = FCanvasOptionsFlags::Source;
 
@@ -373,6 +380,8 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 			{
 				OptionsFlags[0] = Event.OptionsFlags;
 				OptionsFlags[1] = Event.OptionsFlags;
+				// Allow drawing at the same position after the enabled planes change.
+				LastSetPixelPosition = ImVec2(-1.0f, -1.0f);
 			}
 			else if (Event.Tag == FEventTag::CanvasViewFlagsTag)
 			{
@@ -420,13 +429,44 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 			Event.SelectedColorIndex;		// zx color
 			Event.SelectedSubcolorIndex;	// type ink/paper/bright
 
+			// Update only the selected button's pixel operation.
+			if (Event.Tag == FEventTag::ChangePixelOperationTag && Event.ButtonIndex < 2)
+			{
+				ButtonPixelOperation[Event.ButtonIndex] = Event.PixelOperation;
+				LastSetPixelPosition = ImVec2(-1.0f, -1.0f);
+			}
+
 			if (Event.Tag == FEventTag::ChangeColorTag)
 			{
-				ButtonColor[Event.ButtonIndex & 0x01] = Event.SelectedColorIndex;
+				// Store the selected color without replacing the button's other component.
+				if (Event.ButtonIndex < 2 && Event.SelectedSubcolorIndex < ESubcolor::MAX)
+				{
+					// Keep Ink and Paper independent while Bright and Flash remain shared.
+					if (Event.SelectedSubcolorIndex <= ESubcolor::Paper)
+					{
+						ButtonColor[Event.ButtonIndex] = Event.SelectedColorIndex;
+						ButtonSubcolor[Event.ButtonIndex][Event.SelectedSubcolorIndex] = Event.SelectedColorIndex;
+					}
+				}
+
+				// Update the shared palette settings.
 				if (Event.SelectedSubcolorIndex < ESubcolor::MAX)
 				{
 					Subcolor[Event.SelectedSubcolorIndex] = Event.SelectedColorIndex;
 				}
+				// Apply the sampled Ink and Paper only to the pressed mouse button.
+				else if (Event.SelectedSubcolorIndex == ESubcolor::All && Event.ButtonIndex < 2)
+				{
+					// Extract both colors from the sampled attribute.
+					const uint8_t AttributeInkColor = Event.SelectedColorIndex & 0x07;
+					const uint8_t AttributePaperColor = (Event.SelectedColorIndex >> 3) & 0x07;
+					// Preserve attribute black as an opaque color.
+					ButtonSubcolor[Event.ButtonIndex][ESubcolor::Ink] = AttributeInkColor == 0 ? EZXColor::Black_ : AttributeInkColor;
+					ButtonSubcolor[Event.ButtonIndex][ESubcolor::Paper] = AttributePaperColor == 0 ? EZXColor::Black_ : AttributePaperColor;
+				}
+
+				// Allow the next stroke to apply the changed palette settings.
+				LastSetPixelPosition = ImVec2(-1.0f, -1.0f);
 			}
 		});
 
@@ -1264,6 +1304,8 @@ void SCanvas::Render()
 
 		if (OptionsFlags[0] != OptionsFlags[1])
 		{
+			// Allow drawing at the same position after the enabled planes change.
+			LastSetPixelPosition = ImVec2(-1.0f, -1.0f);
 			OptionsFlags[1] = OptionsFlags[0];
 			FEvent_Canvas Event;
 			Event.Tag = FEventTag::CanvasOptionsFlagsTag;
@@ -2594,6 +2636,11 @@ void SCanvas::Handler_Pencil()
 	}
 
 	const int8_t ButtonIndex = Context.IO.MouseDown[ImGuiMouseButton_Left] ? 0 : 1;
+	// Allow a new press to invert the same pixel again without repeating while held.
+	if (Context.IO.MouseClicked[ButtonIndex])
+	{
+		LastSetPixelPosition = ImVec2(-1.0f, -1.0f);
+	}
 	const float X = FMath::Clamp((float)FMath::FloorToInt32(ZXColorView->CursorPosition.x), 0.0f, (float)Width - 1);
 	const float Y = FMath::Clamp((float)FMath::FloorToInt32(ZXColorView->CursorPosition.y), 0.0f, (float)Height - 1);
 	Set_PixelToCanvas({ X, Y }, ButtonIndex);
@@ -2678,7 +2725,7 @@ void SCanvas::Handler_Eyedropper()
 		FEvent_Color Event;
 		{
 			Event.Tag = FEventTag::ChangeColorTag;
-			Event.ButtonIndex = INDEX_NONE;										// pressed mouse button
+			Event.ButtonIndex = ButtonIndex;										// pressed mouse button
 			Event.SelectedColorIndex = UI::EZXSpectrumColor::Type(Attribute);	// zx color
 			Event.SelectedSubcolorIndex = ESubcolor::All;						// ink (LKM), paper (RKM)
 		}
@@ -3127,6 +3174,8 @@ void SCanvas::NotifySpritesUpdated(
 void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 {
 	const uint8_t ColorIndex = ButtonColor[ButtonIndex];
+
+	// Check whether this pixel already received the same button color.
 	if (LastSetPixelPosition == Position &&
 		LastSetButtonIndex == ButtonIndex &&
 		LastSetPixelColorIndex == ColorIndex)
@@ -3138,13 +3187,23 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 	LastSetButtonIndex = ButtonIndex;
 	LastSetPixelColorIndex = ColorIndex;
 
+	// Create the operation using the selected mouse button color.
 	FPixelToCanvas Pixel;
 	{
 		Pixel.Position.push_back(Position);
 		Pixel.Color.push_back(ColorIndex);
 		Pixel.Canvas = OptionsFlags[0];
+		Pixel.PixelOperation = ButtonPixelOperation[ButtonIndex];
+
+		// Copy this button's Ink and Paper together with shared Bright and Flash.
+		for (uint8_t Index = 0; Index < ESubcolor::MAX; ++Index)
+		{
+			Pixel.Subcolor[Index] = Index <= ESubcolor::Paper ? ButtonSubcolor[ButtonIndex][Index] : Subcolor[Index];
+		}
 	}
-	UndoQueue.SetWithUndo(std::make_shared<Undo::TAction<FPixelToCanvas>>(std::bind(&ThisClass::UndoSwapPixel, this, std::placeholders::_1),Pixel));
+
+	UndoQueue.SetWithUndo(std::make_shared<Undo::TAction<FPixelToCanvas>>(
+		std::bind(&ThisClass::UndoSwapPixel, this, std::placeholders::_1), Pixel));
 }
 
 void SCanvas::UpdateCursorColor(bool bButton /*= false*/)
@@ -3551,9 +3610,11 @@ bool SCanvas::FrameDifferenceZXColor(
 
 void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 {
-	//std::swap(OptionsFlags[0], Param.Canvas);
+	// Use this operation's palette for all drawing and transparency checks.
+	const auto& Subcolor = Param.Subcolor;
 
-	if (OptionsFlags[0] & FCanvasOptionsFlags::Source)
+	// Use the mode recorded when this operation was created.
+	if (Param.Canvas & FCanvasOptionsFlags::Source)
 	{
 		for (int32_t Index = (int32_t)Param.Color.size() - 1; Index >= 0; --Index)
 		{
@@ -3586,32 +3647,34 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 
 			const int32_t InkMaskOffset = (by * 8 + dy) * Boundary_X + bx;
 			uint8_t& Pixels = ZXColorView->InkData[InkMaskOffset];
+			// Preserve the original pixel byte for XOR before the undo exchange.
+			const uint8_t _Pixels = Pixels;
 			uint8_t& Mask = ZXColorView->MaskData[InkMaskOffset];
 			uint8_t& Attribute = ZXColorView->AttributeData[by * Boundary_X + bx];
 			uint8_t _Attribute = Attribute;
 
 			// swap pixel color
 			const uint8_t PixelBit = 1 << (7 - dx);
-			const uint8_t Flags = OptionsFlags[0] & ~FCanvasOptionsFlags::Source;
+			const uint8_t Flags = Param.Canvas & ~FCanvasOptionsFlags::Source;
 
-			// swap pixel bit
-			if (/*Flags & FCanvasOptionsFlags::Ink && */Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
+			// Keep pixels unchanged for None, including during undo and redo.
+			if ((Flags & FCanvasOptionsFlags::Ink) && Param.PixelOperation != EPixelOperation::None)
 			{
 				uint8_t& PixelsByte = reinterpret_cast<uint8_t*>(&Color)[3];
 				uint8_t Diff = (Pixels ^ PixelsByte) & PixelBit;
 				Pixels ^= Diff;
 				PixelsByte ^= Diff;
 			}
-			// swap mask bit
-			if (/*Flags & FCanvasOptionsFlags::Mask && */Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
+			// Exchange the mask bit only when this operation enables mask editing.
+			if ((Flags & FCanvasOptionsFlags::Mask) && Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
 			{
 				uint8_t& MaskByte = reinterpret_cast<uint8_t*>(&Color)[2];
 				uint8_t Diff = (Mask ^ MaskByte) & PixelBit;
 				Mask ^= Diff;
 				MaskByte ^= Diff;
 			}
-			// swap byte attribute
-			if (/*Flags & FCanvasOptionsFlags::Attribute && */Subcolor[ESubcolor::Paper] != EZXColor::Transparent)
+			// Save or restore the attribute whenever this operation can change it.
+			if (Flags & FCanvasOptionsFlags::Attribute)
 			{
 				std::swap(Attribute, reinterpret_cast<uint8_t*>(&Color)[1]);
 			}
@@ -3620,23 +3683,26 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 			uint8_t& _Color = reinterpret_cast<uint8_t*>(&Color)[0];
 			if (_Color != EZXColor::None)
 			{
-				if (bTransparentMask || Flags & FCanvasOptionsFlags::Ink)
+				// Apply the recorded pixel operation independently of the selected colors.
+				if (Flags & FCanvasOptionsFlags::Ink)
 				{
-					if (_Color != EZXColor::Transparent)
+					switch (Param.PixelOperation)
 					{
-						const uint8_t PixelBit = 1 << (7 - dx);
-						const bool bOperation = (_Color & 0x07) != EZXColor::White;
-						if (!bTransparentMask && bOperation)
-						{
-							Pixels |= PixelBit;									// set bit
-						}
-						else
-						{
-							Pixels &= ~(PixelBit);								// reset bit
-						}
+					case EPixelOperation::Set:
+						Pixels |= PixelBit;
+						break;
+					case EPixelOperation::Res:
+						Pixels &= ~PixelBit;
+						break;
+					case EPixelOperation::Xor:
+						Pixels = _Pixels ^ PixelBit;
+						break;
+					case EPixelOperation::None:
+						break;
 					}
 				}
-				if (bTransparentMask || Flags & FCanvasOptionsFlags::Mask)
+				// Write the mask only when mask editing is enabled and Ink is not transparent.
+				if ((Flags & FCanvasOptionsFlags::Mask) && Subcolor[ESubcolor::Ink] != EZXColor::Transparent)
 				{
 					const uint8_t PixelBit = 1 << (7 - dx);
 					const bool bOperation = _Color != EZXColor::Transparent;
@@ -3649,15 +3715,18 @@ void SCanvas::UndoSwapPixel(FPixelToCanvas& Param)
 						Mask &= ~(PixelBit);									// reset bit
 					}
 				}
-				if (bTransparentMask || Flags & FCanvasOptionsFlags::Attribute)
+				// Write attributes only when this operation enables attribute editing.
+				if (Flags & FCanvasOptionsFlags::Attribute)
 				{
 					const bool bInkTransparent = Subcolor[ESubcolor::Ink] == EZXColor::Transparent;
 					const bool bPaperTransparent = Subcolor[ESubcolor::Paper] == EZXColor::Transparent;
+					const bool bBrightTransparent = Subcolor[ESubcolor::Bright] == EZXColor::Transparent;
 
-					const uint8_t InkColor = bInkTransparent ? (Attribute & 0x07) : Subcolor[ESubcolor::Ink] & 0x07;
-					const uint8_t PaperColor = bPaperTransparent ? ((Attribute >> 3) & 0x07) : Subcolor[ESubcolor::Paper] & 0x07;
+					const uint8_t InkColor = bInkTransparent ? (_Attribute & 0x07) : Subcolor[ESubcolor::Ink] & 0x07;
+					const uint8_t PaperColor = bPaperTransparent ? ((_Attribute >> 3) & 0x07) : Subcolor[ESubcolor::Paper] & 0x07;
 
-					const bool bBright = bTransparentMask ? (_Attribute & 0x40) : Subcolor[ESubcolor::Bright] == EZXColor::True;
+					// Preserve the original brightness when its palette setting is transparent.
+					const bool bBright = (bTransparentMask || bBrightTransparent) ? (_Attribute & 0x40) : Subcolor[ESubcolor::Bright] == EZXColor::True;
 					const bool bFlash = bTransparentMask ? (_Attribute & 0x80) : Subcolor[ESubcolor::Flash] == EZXColor::True;
 
 					Attribute = (bFlash << 7) | (bBright << 6) | (PaperColor << 3) | InkColor;
