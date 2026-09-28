@@ -47,7 +47,7 @@ private:
 
 	uint32_t OptionsFlags;
 	uint8_t ButtonColor[2];
-	uint8_t ButtonSubcolor[2][ESubcolor::Paper + 1];
+	uint8_t ButtonSubcolor[2][ESubcolor::Bright + 1];
 	EPixelOperation::Type ButtonPixelOperation[2] = { EPixelOperation::Set, EPixelOperation::Res };
 	uint8_t Subcolor[ESubcolor::MAX];
 };

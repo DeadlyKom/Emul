@@ -343,11 +343,12 @@ SCanvas::SCanvas(EFont::Type _FontName, const std::wstring& Name, const std::fil
 	Subcolor[ESubcolor::Bright] = EZXColor::False;
 	Subcolor[ESubcolor::Flash] = EZXColor::False;
 
-	// Initialize independent Ink and Paper selections for both mouse buttons.
+	// Initialize independent Ink, Paper and brightness for both mouse buttons.
 	for (uint8_t ButtonIndex = 0; ButtonIndex < 2; ++ButtonIndex)
 	{
 		ButtonSubcolor[ButtonIndex][ESubcolor::Ink] = Subcolor[ESubcolor::Ink];
 		ButtonSubcolor[ButtonIndex][ESubcolor::Paper] = Subcolor[ESubcolor::Paper];
+		ButtonSubcolor[ButtonIndex][ESubcolor::Bright] = Subcolor[ESubcolor::Bright];
 	}
 
 	OptionsFlags[0] = FCanvasOptionsFlags::Source;
@@ -441,10 +442,14 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 				// Store the selected color without replacing the button's other component.
 				if (Event.ButtonIndex < 2 && Event.SelectedSubcolorIndex < ESubcolor::MAX)
 				{
-					// Keep Ink and Paper independent while Bright and Flash remain shared.
+					// Keep brightness settings out of the raw mouse button color.
 					if (Event.SelectedSubcolorIndex <= ESubcolor::Paper)
 					{
 						ButtonColor[Event.ButtonIndex] = Event.SelectedColorIndex;
+					}
+					// Store this button's components while Flash remains shared.
+					if (Event.SelectedSubcolorIndex <= ESubcolor::Bright)
+					{
 						ButtonSubcolor[Event.ButtonIndex][Event.SelectedSubcolorIndex] = Event.SelectedColorIndex;
 					}
 				}
@@ -454,7 +459,7 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 				{
 					Subcolor[Event.SelectedSubcolorIndex] = Event.SelectedColorIndex;
 				}
-				// Apply the sampled Ink and Paper only to the pressed mouse button.
+				// Apply the sampled Ink, Paper and brightness only to the pressed mouse button.
 				else if (Event.SelectedSubcolorIndex == ESubcolor::All && Event.ButtonIndex < 2)
 				{
 					// Extract both colors from the sampled attribute.
@@ -463,6 +468,7 @@ void SCanvas::NativeInitialize(const FNativeDataInitialize& Data)
 					// Preserve attribute black as an opaque color.
 					ButtonSubcolor[Event.ButtonIndex][ESubcolor::Ink] = AttributeInkColor == 0 ? EZXColor::Black_ : AttributeInkColor;
 					ButtonSubcolor[Event.ButtonIndex][ESubcolor::Paper] = AttributePaperColor == 0 ? EZXColor::Black_ : AttributePaperColor;
+					ButtonSubcolor[Event.ButtonIndex][ESubcolor::Bright] = (Event.SelectedColorIndex & 0x40) ? EZXColor::True : EZXColor::False;
 				}
 
 				// Allow the next stroke to apply the changed palette settings.
@@ -3195,10 +3201,10 @@ void SCanvas::Set_PixelToCanvas(const ImVec2& Position, uint8_t ButtonIndex)
 		Pixel.Canvas = OptionsFlags[0];
 		Pixel.PixelOperation = ButtonPixelOperation[ButtonIndex];
 
-		// Copy this button's Ink and Paper together with shared Bright and Flash.
+		// Copy this button's Ink, Paper and brightness together with shared Flash.
 		for (uint8_t Index = 0; Index < ESubcolor::MAX; ++Index)
 		{
-			Pixel.Subcolor[Index] = Index <= ESubcolor::Paper ? ButtonSubcolor[ButtonIndex][Index] : Subcolor[Index];
+			Pixel.Subcolor[Index] = Index <= ESubcolor::Bright ? ButtonSubcolor[ButtonIndex][Index] : Subcolor[Index];
 		}
 	}
 
