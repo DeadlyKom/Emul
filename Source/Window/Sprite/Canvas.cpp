@@ -1276,6 +1276,14 @@ void SCanvas::Render()
 		// Update only the displayed image after the comparison controls have been processed.
 		UpdateSourceZXDiffPreview();
 		UI::Draw_ZXColorView(ZXColorView);
+		// Check that only the active canvas reports its zoom after fitting and drawing.
+		if (IsActiveCanvas())
+		{
+			// Update the status bar with the scale actually used to draw the image.
+			FEvent_StatusBar Event(FEventTag::CanvasViewScaleTag);
+			Event.CanvasScale = ZXColorView->Scale.y;
+			SendEvent(Event);
+		}
 		ImGui::EndChild();
 
 		ImGui::End();

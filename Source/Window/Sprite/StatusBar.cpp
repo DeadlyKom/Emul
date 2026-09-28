@@ -1,5 +1,7 @@
 #include "StatusBar.h"
 #include <Window/Sprite/Events.h>
+#include <Utils/UI/Draw.h>
+#include <format>
 
 namespace
 {
@@ -14,6 +16,7 @@ SStatusBar::SStatusBar(EFont::Type _FontName, std::string _DockSlot /*= ""*/)
 		.SetIncludeInWindows(true))
 	, CanvasSize(0.0f, 0.0f)
 	, MousePosition(0.0f, 0.0f)
+	, CanvasScale(1.0f)
 {}
 
 void SStatusBar::NativeInitialize(const FNativeDataInitialize& Data)
@@ -31,6 +34,11 @@ void SStatusBar::NativeInitialize(const FNativeDataInitialize& Data)
 			{
 				MousePosition = Event.MousePosition;
 			}
+			// Check whether the active canvas has reported its current zoom.
+			else if (Event.Tag == FEventTag::CanvasViewScaleTag)
+			{
+				CanvasScale = Event.CanvasScale;
+			}
 		});
 }
 
@@ -45,6 +53,11 @@ void SStatusBar::Render()
 	ImGui::Begin(GetWindowName().c_str(), &bOpen);
 	{
 		Draw_MousePosition();
+		// Format the current zoom without trailing zeroes and align it to the right edge.
+		const std::string ScaleText = std::format("x{:.5g}", CanvasScale);
+		const ImVec2 Padding(0.0f, 0.0f);
+		ImGui::SameLine();
+		UI::TextAligned(ScaleText.c_str(), { 1.0f, 0.5f }, &Padding);
 		ImGui::End();
 	}
 }

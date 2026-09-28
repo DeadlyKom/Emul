@@ -188,6 +188,11 @@ void UI::OnDrawCallback_ZXVideo(const ImDrawList* ParentList, const ImDrawCmd* C
 			{
 				Flags |= FORCE_NEAREST_SAMPLING;
 			}
+			// Check whether source-image pixels need area coverage in this view.
+			if (ZXColorView->bPixelCoverageSampling)
+			{
+				Flags |= PIXEL_COVERAGE_SAMPLING;
+			}
 			ConstantBuffer->Flags = Flags;
 
 			ConstantBuffer->GridSize[0] = ZXColorView->Options.GridSettingSize.x;
@@ -231,6 +236,8 @@ void OnDrawCallback_LineMarchingAnts(const ImDrawList* ParentList, const ImDrawC
 
 void UI::Draw_ZXColorView_Initialize(std::shared_ptr<UI::FZXColorView> ZXColorView, ERenderType::Type RenderType)
 {
+	// Enable source-pixel coverage for canvas views.
+	ZXColorView->bPixelCoverageSampling = RenderType == ERenderType::Canvas;
 	ZXColorView->PS_Grid = Shader::CreatePixelShaderFromResource(ZXColorView->Device, IDR_PS_GRID);
 	ZXColorView->PCB_Grid = Shader::CreatePixelShaderConstantBuffer<Shader::PIXEL_CONSTANT_BUFFER>(ZXColorView->Device);
 	if (RenderType == ERenderType::Canvas)
@@ -282,25 +289,14 @@ void Draw_RectangleMarquee(std::shared_ptr<UI::FZXColorView> ZXColorView, const 
 {	
 	ImRect RectangleMarqueeRectTmp = RectangleRect != nullptr ? *RectangleRect : ZXColorView->RectangleMarqueeRect;
 
-	// convert to local pixel coordinates
-	const ImVec2 Floor = ImFloor(ZXColorView->UV.Min * ZXColorView->Image.Size);
-	RectangleMarqueeRectTmp.Min = (RectangleMarqueeRectTmp.Min - Floor) * ZXColorView->Scale;
-	RectangleMarqueeRectTmp.Max = (RectangleMarqueeRectTmp.Max - Floor) * ZXColorView->Scale;
+	// Calculate the UV-to-screen scale from the same rectangle and UV range used by AddImage.
+	const ImVec2 UVToPixels = VisibleRect.GetSize() / (ZXColorView->UV.Max - ZXColorView->UV.Min);
 
-	// clamp to the image boundaries
-	//const ImVec2 ImgScaled = ZXColorView->Image.Size * ZXColorView->Scale;
-	//RectangleMarqueeRectTmp.Min = ImClamp(RectangleMarqueeRectTmp.Min, ImVec2(0, 0), ImgScaled);
-	//RectangleMarqueeRectTmp.Max = ImClamp(RectangleMarqueeRectTmp.Max, ImVec2(0, 0), ImgScaled);
-
-	// screen position
-	const ImVec2 TopLeftSubTexel = (ZXColorView->ImagePosition * ZXColorView->Scale * ZXColorView->Image.Size) - ZXColorView->ViewSize * 0.5f;
-	const ImVec2 TopLeftPixel = (ZXColorView->ViewTopLeftPixel - (TopLeftSubTexel - ImFloor(TopLeftSubTexel / ZXColorView->Scale) * ZXColorView->Scale));
-
-	ImVec2 A = TopLeftPixel + RectangleMarqueeRectTmp.Min;
-	ImVec2 B = TopLeftPixel + RectangleMarqueeRectTmp.Max;
+	// Convert both selection corners using the actual displayed image coordinates.
+	ImVec2 A = VisibleRect.Min + (RectangleMarqueeRectTmp.Min / ZXColorView->Image.Size - ZXColorView->UV.Min) * UVToPixels;
+	ImVec2 B = VisibleRect.Min + (RectangleMarqueeRectTmp.Max / ZXColorView->Image.Size - ZXColorView->UV.Min) * UVToPixels;
 
 	ImDrawList* DrawList = ImGui::GetWindowDrawList();
-	DrawList->_FringeScale = 0.0625f;
 	DrawList->AddCallback(OnDrawCallback_LineMarchingAnts, ZXColorView.get());
 
 	const ImU32 Color = ImGui::GetColorU32(ImGuiCol_Button);
@@ -327,6 +323,10 @@ void Draw_RectangleMarquee(std::shared_ptr<UI::FZXColorView> ZXColorView, const 
 	ImVec2 Right1 = ImClamp(ImVec2(B.x, A.y), VisibleMin, VisibleMax);
 	ImVec2 Right2 = ImClamp(ImVec2(B.x, B.y), VisibleMin, VisibleMax);
 
+	// Disable the antialiasing fringe to keep the marquee one screen pixel thick.
+	const ImDrawListFlags DrawFlags = DrawList->Flags;
+	DrawList->Flags &= ~ImDrawListFlags_AntiAliasedLines;
+
 	// draw only visible lines
 	if (ClampLineToRect(Top1, Top2, VisibleRect))
 	{
@@ -344,6 +344,9 @@ void Draw_RectangleMarquee(std::shared_ptr<UI::FZXColorView> ZXColorView, const 
 	{
 		DrawList->AddLine(Right1, Right2, Color, Thickness);
 	}
+
+	// Restore antialiasing for subsequent drawing commands.
+	DrawList->Flags = DrawFlags;
 }
 
 void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)
@@ -361,11 +364,6 @@ void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)
 		const float MaximumScale = ImMin(ZXColorView->ScaleMax.x / ZXColorView->PixelAspectRatio, ZXColorView->ScaleMax.y);
 		// Calculate one scale that fits both dimensions while preserving the pixel aspect ratio.
 		float FitScale = ImClamp(ImMin(AvailablePanelSize.x / (ZXColorView->Image.Size.x * ZXColorView->PixelAspectRatio), AvailablePanelSize.y / ZXColorView->Image.Size.y), MinimumScale, MaximumScale);
-		// Check whether grid rendering will round the scale to whole pixels.
-		if (FitScale > ZXColorView->MinimumGridSize)
-		{
-			FitScale = ImMax(ImFloor(FitScale), MinimumScale);
-		}
 		// Update zoom and center the image, including images too large at the minimum scale.
 		SetScale(*ZXColorView, FitScale);
 		ZXColorView->ViewSizeUV = ImVec2(1.0f, 1.0f);
@@ -379,7 +377,6 @@ void UI::Draw_ZXColorView(std::shared_ptr<UI::FZXColorView> ZXColorView)
 		{
 			// enable grid in shader
 			ZXColorView->GridColor.w = 1.0f;
-			SetScale(*ZXColorView, FMath::Round(ZXColorView->Scale.y));
 		}
 		else
 		{
@@ -594,32 +591,45 @@ void UI::Set_ZXViewScale(std::shared_ptr<UI::FZXColorView> ZXColorView, float Sc
 		float LocalScale = ZXColorView->Scale.y;
 		float PrevScale = LocalScale;
 
-		bool keepTexelSizeRegular = LocalScale > ZXColorView->MinimumGridSize;
+		// Calculate how many table positions to advance, using two while Ctrl is held.
+		int32_t ZoomStepsRemaining = ImGui::GetIO().KeyCtrl ? 2 : 1;
+
+		// Check which direction the wheel changes the zoom.
 		if (Scale > 0.0f)
 		{
-			LocalScale *= ZXColorView->ZoomRate;
-			if (keepTexelSizeRegular)
+			// Search for the nearest larger value in the progressive zoom table.
+			for (const float ZoomLevel : ZXColorView->ZoomLevels)
 			{
-				// it looks nicer when all the grid cells are the same size
-				// so keep scale integer when zoomed in
-				LocalScale = ImCeil(LocalScale);
+				// Check whether this entry is above the current scale.
+				if (ZoomLevel > PrevScale)
+				{
+					// Select the next zoom level.
+					LocalScale = ZoomLevel;
+					// Count this transition and stop after the requested number of steps.
+					if (--ZoomStepsRemaining == 0)
+					{
+						break;
+					}
+				}
 			}
 		}
 		else
 		{
-			LocalScale /= ZXColorView->ZoomRate;
-			if (keepTexelSizeRegular)
+			// Search backwards for the nearest smaller value in the progressive zoom table.
+			for (int32_t Index = IM_ARRAYSIZE(ZXColorView->ZoomLevels) - 1; Index >= 0; --Index)
 			{
-				// see comment above. We're doing a floor this time to make
-				// sure the scale always changes when scrolling
-				LocalScale = FMath::ImFloorSigned(LocalScale);
+				// Check whether this entry is below the current scale.
+				if (ZXColorView->ZoomLevels[Index] < PrevScale)
+				{
+					// Select the previous zoom level.
+					LocalScale = ZXColorView->ZoomLevels[Index];
+					// Count this transition and stop after the requested number of steps.
+					if (--ZoomStepsRemaining == 0)
+					{
+						break;
+					}
+				}
 			}
-		}
-		/* to make it easy to get back to 1:1 size we ensure that we stop
-		 * here without going straight past it*/
-		if ((PrevScale < 1.0f && LocalScale > 1.0f) || (PrevScale > 1.0f && LocalScale < 1.0f))
-		{
-			LocalScale = 1.0f;
 		}
 		SetScale(*ZXColorView, ImVec2(ZXColorView->PixelAspectRatio * LocalScale, LocalScale));
 		if (LocalScale <= ZXColorView->ScaleMax.y && LocalScale >= ZXColorView->ScaleMin.y)

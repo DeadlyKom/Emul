@@ -14,6 +14,7 @@ namespace UI
 	#define ALPHA_TRANSPARENT		1 << 4
 	#define ALPHA_CHECKERBOARD_GRID 1 << 5
 	#define PIXEL_CURSOR			1 << 6
+	#define PIXEL_COVERAGE_SAMPLING 1 << 7
 	#define ONLY_NEAREST_SAMPLING   1 << 30
 	#define FORCE_NEAREST_SAMPLING  1 << 31
 
@@ -105,7 +106,15 @@ namespace UI
 	struct FZXColorView
 	{
 		// scale
-		float ZoomRate = 1.25f;										// how fast mouse wheel affects zoom
+		// Define progressive zoom levels, with larger steps at higher magnification.
+		static constexpr float ZoomLevels[] =
+		{
+			0.125f, 0.25f, 0.375f, 0.5f, 0.625f, 0.75f, 0.875f, 1.0f,
+			1.125f, 1.25f, 1.375f, 1.5f, 1.625f, 1.75f, 1.875f, 2.0f,
+			2.25f, 2.5f, 2.75f, 3.0f, 3.25f, 3.5f, 3.75f, 4.0f,
+			4.5f, 5.0f, 5.5f, 6.0f, 6.5f, 7.0f, 7.5f, 8.0f,
+			10.0f, 12.0f, 14.0f, 16.0f, 18.0f, 20.0f, 22.0f, 24.0f, 26.0f, 28.0f, 30.0f, 32.0f,
+		};
 		float PixelAspectRatio = 1.0f;								// values other than 1 not supported yet
 		float MinimumGridSize = 4.0f;								// don't draw the grid if lines would be closer than MinimumGridSize pixels
 		ImVec2 Scale = ImVec2(2.0f, 2.0f);							// 1 pixel is 1 texel
@@ -139,6 +148,7 @@ namespace UI
 		// shader variable
 		bool bBeamEnable = false;
 		bool bCursorEnable = false;
+		bool bPixelCoverageSampling = false;
 		bool bOnlyNearestSampling = false;
 		bool bForceNearestSampling = true;								// if true fragment shader will always sample from texel centers
 		float TimeCounter = 0.0f;

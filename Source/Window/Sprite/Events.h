@@ -83,6 +83,7 @@ struct FEvent_StatusBar : public IEvent
 {
 	ImVec2 CanvasSize{};
 	ImVec2 MousePosition{};
+	float CanvasScale = 1.0f;
 	using IEvent::IEvent;
 };
 

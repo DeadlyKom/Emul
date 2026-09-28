@@ -713,6 +713,15 @@ void STimeline::DrawTimeline(const char* Id, FTimelineState& State, float Timeli
         )
     );
 
+    // Check whether the wheel is over the layer column, including its Layers header.
+    if (bCanAcceptMouse && IsPointInsideRect(Mouse, CornerMin, LayerNamesMax) && IO.MouseWheel != 0.0f && !IO.KeyCtrl && !IO.MouseWheelRequestAxisSwap && ImGui::TestKeyOwner(ImGuiKey_MouseWheelY, ImGuiKeyOwner_NoOwner))
+    {
+        // Calculate the vertical scroll step used by the frame body.
+        const float ScrollStep = ImFloor(min(5.0f * ImGui::GetFontSize(), BodyViewH * 0.67f));
+        // Update the frame body before drawing both frames and layer names.
+        ImGui::SetNextWindowScroll(ImVec2(-1.0f, max(0.0f, State.ScrollY - IO.MouseWheel * ScrollStep)));
+    }
+
     ImGui::BeginChild(
         "FrameBody",
         ImVec2(HeaderW, BodyH),

@@ -20,4 +20,5 @@ private:
 
 	ImVec2 CanvasSize;
 	ImVec2 MousePosition;
+	float CanvasScale;
 };
