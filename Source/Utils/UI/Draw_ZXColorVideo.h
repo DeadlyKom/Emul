@@ -147,7 +147,7 @@ namespace UI
 		ImVec4 GridColor = ImVec4(0.025f, 0.025f, 0.15f, 0.0f);
 		ImVec4 CursorColor = ImVec4(0.0f, 0.0f, 0.0f, 1.0f);
 		ImVec4 BackgroundColor = ImVec4(0.0f, 1.0f, 0.0f, 0.0f);		// color used for alpha blending
-		ImVec4 TransparentColor = ImVec4(0.169f, 0.396f, 0.925f, 0.0f);	// the color used to display transparency
+		ImVec4 TransparentColor = ImVec4(0.75f, 0.75f, 0.75f, 0.0f);	// the color used to display transparency
 		FZXViewOptions Options;
 
 		// render data

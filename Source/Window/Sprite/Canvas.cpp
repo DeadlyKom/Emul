@@ -711,6 +711,9 @@ void SCanvas::Initialize(const std::vector<std::any>& Args)
 		ApplyAsepriteLayerOverrides(0, ZXColorView->InkData, ZXColorView->AttributeData, ZXColorView->MaskData);
 		LastRebuiltSpriteFrame = 0;
 
+		// Update the canvas from the loaded Aseprite frame before displaying it.
+		bRefreshCanvas = true;
+
 		break;
 	}
 
@@ -3418,7 +3421,18 @@ void SCanvas::RebuildCanvasFromAseprite(int32_t Frame /*= 0*/)
 
 	if (bSource)
 	{
-		UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
+		// Check whether the original Aseprite colors can be displayed without hiding source edits.
+		if (bValidAsepriteFrame && FrameMode == EFrameMode::None && !bSourceDirty)
+		{
+			// Update the texture from the composed frame with its original colors and alpha.
+			FImageBase::Get().UpdateTexture(
+				ZXColorView->Image.Handle,
+				AsepriteSprite->Frames[Frame].data());
+		}
+		else
+		{
+			UI::ZXIndexColorToImage(ZXColorView->Image, ZXColorView->IndexedData, Width, Height);
+		}
 	}
 	else
 	{

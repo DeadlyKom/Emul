@@ -73,7 +73,7 @@ struct FViewFlags
 		, FrameMode(EFrameMode::None)
 		, GridSettingSize(8.0f, 8.0f)
 		, GridSettingOffset(0.0f, 0.0f)
-		, TransparentColor(0.169f, 0.396f, 0.925f, 0.0f)
+		, TransparentColor(0.75f, 0.75f, 0.75f, 0.0f)
 	{}
 };
 
