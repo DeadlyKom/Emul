@@ -49,5 +49,7 @@ private:
 	uint8_t ButtonColor[2];
 	uint8_t ButtonSubcolor[2][ESubcolor::Bright + 1];
 	EPixelOperation::Type ButtonPixelOperation[2] = { EPixelOperation::Set, EPixelOperation::Res };
+	EPixelOperation::Type MaskOperation = EPixelOperation::Set;
+	EPixelOperation::Type ButtonAttributeOperation[2] = { EPixelOperation::Set, EPixelOperation::Set };
 	uint8_t Subcolor[ESubcolor::MAX];
 };

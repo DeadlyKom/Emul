@@ -59,6 +59,18 @@ void SPalette::NativeInitialize(const FNativeDataInitialize& Data)
 				ButtonPixelOperation[Event.ButtonIndex] = Event.PixelOperation;
 			}
 
+			// Keep the standalone mask preset independent of the per-button pixel operations.
+			if (Event.Tag == FEventTag::ChangeMaskOperationTag)
+			{
+				MaskOperation = Event.PixelOperation;
+			}
+
+			// Keep standalone attribute operations separate from pixel operations.
+			if (Event.Tag == FEventTag::ChangeAttributeOperationTag && Event.ButtonIndex < 2)
+			{
+				ButtonAttributeOperation[Event.ButtonIndex] = Event.PixelOperation;
+			}
+
 			if (Event.Tag == FEventTag::ChangeColorTag)
 			{
 				if (Event.SelectedSubcolorIndex == ESubcolor::All)
@@ -247,6 +259,74 @@ void SPalette::Display_Colors()
 	else
 	{
 		const uint8_t Flags = OptionsFlags & ~FCanvasOptionsFlags::Source;
+		// Show bit operations without a color palette for standalone pixels and mask.
+		if (Flags == FCanvasOptionsFlags::Ink || Flags == FCanvasOptionsFlags::Mask)
+		{
+			const float BitPreviewSize = 32.0f;
+			ImGui::PushID("BitPalette");
+			for (uint8_t ButtonIndex = 0; ButtonIndex < 2; ++ButtonIndex)
+			{
+				ImGui::PushID(ButtonIndex);
+				// Align each button label with its solid black or white preview.
+				const ImVec2 RowPosition = StartPosition + ImVec2(0.0f, ButtonIndex * (BitPreviewSize + 12.0f));
+				ImGui::SetCursorPos(RowPosition + ImVec2(0.0f, (BitPreviewSize - ImGui::GetFontSize()) * 0.5f));
+				ImGui::TextUnformatted(ButtonIndex == 0 ? "Left" : "Right");
+				ImGui::SetCursorPos(RowPosition + ImVec2(ColorBox, 0.0f));
+				ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
+				// The mask view uses white for Left and black for Right, opposite to the pixel view.
+				const bool bWhitePreview = Flags == FCanvasOptionsFlags::Mask ? ButtonIndex == 0 : ButtonIndex == 1;
+				ImGui::ColorButton("Bit", UI::ToVec4(UI::ZXSpectrumColorRGBA[bWhitePreview ? EZXColor::White_ : EZXColor::Black_]),
+					ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop, ImVec2(BitPreviewSize, BitPreviewSize));
+				ImGui::PopStyleVar();
+				// Outline the black preview so it remains visible against the window.
+				ImGui::GetWindowDrawList()->AddRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(),
+					ImGui::GetColorU32(ImGuiCol_TextDisabled), 3.0f);
+
+				// Standalone pixels expose only SET, RES and XOR for each mouse button.
+				if (Flags == FCanvasOptionsFlags::Ink)
+				{
+					static const char* OperationNames[] = { "SET", "RES", "XOR" };
+					int32_t OperationIndex = ButtonPixelOperation[ButtonIndex] == EPixelOperation::None ?
+						(ButtonIndex == 0 ? EPixelOperation::Set : EPixelOperation::Res) : ButtonPixelOperation[ButtonIndex];
+					ImGui::SetCursorPos(RowPosition + ImVec2(PaletteBox, 0.0f));
+					ImGui::SetNextItemWidth(90.0f);
+					if (ImGui::Combo("##PixelOperation", &OperationIndex, OperationNames, IM_ARRAYSIZE(OperationNames)))
+					{
+						ButtonPixelOperation[ButtonIndex] = (EPixelOperation::Type)OperationIndex;
+						// Publish the selected bit operation through the existing event.
+						FEvent_Color Event;
+						Event.Tag = FEventTag::ChangePixelOperationTag;
+						Event.ButtonIndex = ButtonIndex;
+						Event.PixelOperation = ButtonPixelOperation[ButtonIndex];
+						SendEvent(Event);
+					}
+				}
+				ImGui::PopID();
+			}
+
+			// The mask retains one shared preset for both buttons.
+			if (Flags == FCanvasOptionsFlags::Mask)
+			{
+				static const char* OperationNames[] = { "SET|RES", "XOR" };
+				int32_t OperationIndex = MaskOperation == EPixelOperation::Xor ? 1 : 0;
+				ImGui::SetCursorPos(StartPosition + ImVec2(PaletteBox, 0.0f));
+				ImGui::SetNextItemWidth(90.0f);
+				if (ImGui::Combo("##MaskOperation", &OperationIndex, OperationNames, IM_ARRAYSIZE(OperationNames)))
+				{
+					MaskOperation = OperationIndex == 0 ? EPixelOperation::Set : EPixelOperation::Xor;
+					// Publish one preset shared by both mouse buttons in standalone mask mode.
+					FEvent_Color Event;
+					Event.Tag = FEventTag::ChangeMaskOperationTag;
+					Event.PixelOperation = MaskOperation;
+					SendEvent(Event);
+				}
+			}
+			ImGui::PopID();
+			return;
+		}
+
+		const bool bAttributeOnly = Flags == FCanvasOptionsFlags::Attribute;
+
 		const float PairPreviewSize = 32.0f;
 		const float ColorSize = 16.0f;
 		const float ColorSpacing = 2.4f;
@@ -343,64 +423,83 @@ void SPalette::Display_Colors()
 				ImGui::PopID();
 			}
 
-			// Draw a larger rounded Ink/Paper preview using this row's brightness.
+			// Use one solid selected color for standalone attributes and an Ink/Paper pair for combinations.
 			ImGui::SetCursorPos(RowPosition + ImVec2(ColorBox, (RowHeight - PairPreviewSize) * 0.5f));
 			ImGui::PushStyleVar(ImGuiStyleVar_FrameRounding, 3.0f);
-			ImGui::ColorButton("InkPaper", UI::ToVec4(UI::ZXSpectrumColorRGBA[EZXColor::Transparent]),
+			ImGui::ColorButton("InkPaper", UI::ToVec4(UI::ZXSpectrumColorRGBA[bAttributeOnly ? ButtonColor[ButtonIndex] : EZXColor::Transparent]),
 				ImGuiColorEditFlags_AlphaPreview | ImGuiColorEditFlags_NoTooltip | ImGuiColorEditFlags_NoDragDrop,
 				ImVec2(PairPreviewSize, PairPreviewSize));
 			ImGui::PopStyleVar();
-			const uint8_t ColorIndices[2] = { RowColorLambda(ButtonIndex, ESubcolor::Ink), RowColorLambda(ButtonIndex, ESubcolor::Paper) };
-			const ImU32 Colors[2] = { ImGui::GetColorU32(UI::ToVec4(UI::ZXSpectrumColorRGBA[ColorIndices[0]])),
-				ImGui::GetColorU32(UI::ToVec4(UI::ZXSpectrumColorRGBA[ColorIndices[1]])) };
-			const ImVec2 Min = ImGui::GetItemRectMin() + ImVec2(0.75f, 0.75f);
-			const ImVec2 Max = ImGui::GetItemRectMax() - ImVec2(0.75f, 0.75f);
-			const float Rounding = 3.0f;
-			ImDrawList* DrawList = ImGui::GetWindowDrawList();
-			// Fill the upper-left Ink half along its rounded outer corners.
-			DrawList->PathArcTo(ImVec2(Min.x + Rounding, Max.y - Rounding), Rounding, IM_PI * 0.75f, IM_PI);
-			DrawList->PathArcTo(Min + ImVec2(Rounding, Rounding), Rounding, IM_PI, IM_PI * 1.5f);
-			DrawList->PathArcTo(ImVec2(Max.x - Rounding, Min.y + Rounding), Rounding, IM_PI * 1.5f, IM_PI * 1.75f);
-			DrawList->PathFillConvex(Colors[0]);
-			// Fill the lower-right Paper half along its rounded outer corners.
-			DrawList->PathArcTo(ImVec2(Max.x - Rounding, Min.y + Rounding), Rounding, IM_PI * 1.75f, IM_PI * 2.0f);
-			DrawList->PathArcTo(Max - ImVec2(Rounding, Rounding), Rounding, 0.0f, IM_PI * 0.5f);
-			DrawList->PathArcTo(ImVec2(Min.x + Rounding, Max.y - Rounding), Rounding, IM_PI * 0.5f, IM_PI * 0.75f);
-			DrawList->PathFillConvex(Colors[1]);
-			// End the diagonal at the rounded outline.
-			const float DiagonalInset = Rounding * (1.0f - 0.70710678f);
-			DrawList->AddLine(ImVec2(Min.x + DiagonalInset, Max.y - DiagonalInset),
-				ImVec2(Max.x - DiagonalInset, Min.y + DiagonalInset), ImGui::GetColorU32(ImGuiCol_TextDisabled));
-			DrawList->AddRect(Min, Max, ImGui::GetColorU32(ImGuiCol_TextDisabled), Rounding);
-
-			for (uint8_t Component = 0; Component < 2; ++Component)
+			// Standalone attribute previews have no Ink/Paper diagonal.
+			if (bAttributeOnly)
 			{
-				const char* Label = Component == 0 ? "I" : "P";
-				// Center each label in its own triangle and keep it readable over the fill.
-				const ImVec2 LabelPosition = Min + (Max - Min) * (Component == 0 ? 0.25f : 0.75f) - ImGui::CalcTextSize(Label) * 0.5f;
-				const ImVec4 Fill = UI::ToVec4(UI::ZXSpectrumColorRGBA[ColorIndices[Component]]);
-				const bool bLightFill = (Fill.x + Fill.y * 2.0f + Fill.z) > 1.6f;
-				const ImU32 LabelColor = ImGui::GetColorU32(bLightFill ? ImVec4(0, 0, 0, 1) : ImVec4(1, 1, 1, 1));
-				const ImU32 ShadowColor = ImGui::GetColorU32(bLightFill ? ImVec4(1, 1, 1, 1) : ImVec4(0, 0, 0, 1));
-				DrawList->AddText(LabelPosition + ImVec2(1.0f, 1.0f), ShadowColor, Label);
-				DrawList->AddText(LabelPosition, LabelColor, Label);
+				ImGui::GetWindowDrawList()->AddRect(ImGui::GetItemRectMin(), ImGui::GetItemRectMax(),
+					ImGui::GetColorU32(ImGuiCol_TextDisabled), 3.0f);
+			}
+			else
+			{
+				const uint8_t ColorIndices[2] = { RowColorLambda(ButtonIndex, ESubcolor::Ink), RowColorLambda(ButtonIndex, ESubcolor::Paper) };
+				const ImU32 Colors[2] = { ImGui::GetColorU32(UI::ToVec4(UI::ZXSpectrumColorRGBA[ColorIndices[0]])),
+					ImGui::GetColorU32(UI::ToVec4(UI::ZXSpectrumColorRGBA[ColorIndices[1]])) };
+				const ImVec2 Min = ImGui::GetItemRectMin() + ImVec2(0.75f, 0.75f);
+				const ImVec2 Max = ImGui::GetItemRectMax() - ImVec2(0.75f, 0.75f);
+				const float Rounding = 3.0f;
+				ImDrawList* DrawList = ImGui::GetWindowDrawList();
+				// Fill the upper-left Ink half along its rounded outer corners.
+				DrawList->PathArcTo(ImVec2(Min.x + Rounding, Max.y - Rounding), Rounding, IM_PI * 0.75f, IM_PI);
+				DrawList->PathArcTo(Min + ImVec2(Rounding, Rounding), Rounding, IM_PI, IM_PI * 1.5f);
+				DrawList->PathArcTo(ImVec2(Max.x - Rounding, Min.y + Rounding), Rounding, IM_PI * 1.5f, IM_PI * 1.75f);
+				DrawList->PathFillConvex(Colors[0]);
+				// Fill the lower-right Paper half along its rounded outer corners.
+				DrawList->PathArcTo(ImVec2(Max.x - Rounding, Min.y + Rounding), Rounding, IM_PI * 1.75f, IM_PI * 2.0f);
+				DrawList->PathArcTo(Max - ImVec2(Rounding, Rounding), Rounding, 0.0f, IM_PI * 0.5f);
+				DrawList->PathArcTo(ImVec2(Min.x + Rounding, Max.y - Rounding), Rounding, IM_PI * 0.5f, IM_PI * 0.75f);
+				DrawList->PathFillConvex(Colors[1]);
+				// End the diagonal at the rounded outline.
+				const float DiagonalInset = Rounding * (1.0f - 0.70710678f);
+				DrawList->AddLine(ImVec2(Min.x + DiagonalInset, Max.y - DiagonalInset),
+					ImVec2(Max.x - DiagonalInset, Min.y + DiagonalInset), ImGui::GetColorU32(ImGuiCol_TextDisabled));
+				DrawList->AddRect(Min, Max, ImGui::GetColorU32(ImGuiCol_TextDisabled), Rounding);
+
+				for (uint8_t Component = 0; Component < 2; ++Component)
+				{
+					const char* Label = Component == 0 ? "I" : "P";
+					// Center each label in its own triangle and keep it readable over the fill.
+					const ImVec2 LabelPosition = Min + (Max - Min) * (Component == 0 ? 0.25f : 0.75f) - ImGui::CalcTextSize(Label) * 0.5f;
+					const ImVec4 Fill = UI::ToVec4(UI::ZXSpectrumColorRGBA[ColorIndices[Component]]);
+					const bool bLightFill = (Fill.x + Fill.y * 2.0f + Fill.z) > 1.6f;
+					const ImU32 LabelColor = ImGui::GetColorU32(bLightFill ? ImVec4(0, 0, 0, 1) : ImVec4(1, 1, 1, 1));
+					const ImU32 ShadowColor = ImGui::GetColorU32(bLightFill ? ImVec4(1, 1, 1, 1) : ImVec4(0, 0, 0, 1));
+					DrawList->AddText(LabelPosition + ImVec2(1.0f, 1.0f), ShadowColor, Label);
+					DrawList->AddText(LabelPosition, LabelColor, Label);
+				}
 			}
 
 			static const char* OperationNames[] = { "SET", "RES", "XOR", "None" };
-			int32_t OperationIndex = ButtonPixelOperation[ButtonIndex];
+			static const char* AttributeOperationNames[] = { "SET", "XOR" };
+			int32_t OperationIndex = bAttributeOnly ? (ButtonAttributeOperation[ButtonIndex] == EPixelOperation::Xor ? 1 : 0) : ButtonPixelOperation[ButtonIndex];
 			ImGui::SetCursorPos(ImVec2(OperationX, RowPosition.y));
 			ImGui::PushStyleVar(ImGuiStyleVar_FramePadding, ImVec2(ImGui::GetStyle().FramePadding.x, OperationPaddingY));
 			ImGui::SetNextItemWidth(70.0f);
-			// Pixel operations are available only while the I plane is enabled.
-			ImGui::BeginDisabled((Flags & FCanvasOptionsFlags::Ink) == 0);
-			if (ImGui::Combo("##PixelOperation", &OperationIndex, OperationNames, IM_ARRAYSIZE(OperationNames)))
+			// Attribute-only mode has SET/XOR, while combinations retain their pixel operations.
+			ImGui::BeginDisabled(!bAttributeOnly && (Flags & FCanvasOptionsFlags::Ink) == 0);
+			if (ImGui::Combo("##PixelOperation", &OperationIndex, bAttributeOnly ? AttributeOperationNames : OperationNames,
+				bAttributeOnly ? IM_ARRAYSIZE(AttributeOperationNames) : IM_ARRAYSIZE(OperationNames)))
 			{
-				ButtonPixelOperation[ButtonIndex] = (EPixelOperation::Type)OperationIndex;
+				// Store the operation for the selected plane without replacing the other plane's settings.
+				if (bAttributeOnly)
+				{
+					ButtonAttributeOperation[ButtonIndex] = OperationIndex == 0 ? EPixelOperation::Set : EPixelOperation::Xor;
+				}
+				else
+				{
+					ButtonPixelOperation[ButtonIndex] = (EPixelOperation::Type)OperationIndex;
+				}
 				// Publish the operation for this drawing-button row.
 				FEvent_Color Event;
-				Event.Tag = FEventTag::ChangePixelOperationTag;
+				Event.Tag = bAttributeOnly ? FEventTag::ChangeAttributeOperationTag : FEventTag::ChangePixelOperationTag;
 				Event.ButtonIndex = ButtonIndex;
-				Event.PixelOperation = ButtonPixelOperation[ButtonIndex];
+				Event.PixelOperation = bAttributeOnly ? ButtonAttributeOperation[ButtonIndex] : ButtonPixelOperation[ButtonIndex];
 				SendEvent(Event);
 			}
 			ImGui::EndDisabled();

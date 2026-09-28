@@ -163,6 +163,21 @@ void STimeline::NativeInitialize(const FNativeDataInitialize& Data)
                         TimelineState.SelMaxLayer = EditorLayerIndex;
                     }
                 }
+                else
+                {
+                    // Clear the old source and its selection when the active Canvas has no timeline data.
+                    AsepriteSprite.reset();
+                    Keyframes.reset();
+                    FrameCount = 0;
+                    LayerCount = 0;
+                    TimelineState = FTimelineState();
+                    PopupFrame = INDEX_NONE;
+                    PopupLayer = INDEX_NONE;
+                    bPendingIgnoredPixel00 = false;
+                    bPendingIgnoredPixelFF = false;
+                    bPendingIgnoredPixelCustom = false;
+                    PendingIgnoredPixelCustomValue = 0;
+                }
             }
             else if (Event.Tag == FEventTag::TimelineChangedFrameTag)
             {

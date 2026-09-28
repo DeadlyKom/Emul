@@ -223,6 +223,8 @@ private:
 	UI::EZXSpectrumColor::Type ButtonColor[2];
 	uint8_t ButtonSubcolor[2][ESubcolor::Bright + 1];
 	EPixelOperation::Type ButtonPixelOperation[2] = { EPixelOperation::Set, EPixelOperation::Res };
+	EPixelOperation::Type MaskOperation = EPixelOperation::Set;
+	EPixelOperation::Type ButtonAttributeOperation[2] = { EPixelOperation::Set, EPixelOperation::Set };
 	UI::EZXSpectrumColor::Type Subcolor[ESubcolor::MAX];
 	uint8_t LastSetButtonIndex;
 	uint8_t LastSetPixelColorIndex;

@@ -21,6 +21,8 @@ namespace FEventTag
 	static const FName CanvasViewPositionTag = TEXT("CanvasViewPosition");
 	static const FName ChangeColorTag = TEXT("ChangeColor");
 	static const FName ChangePixelOperationTag = TEXT("ChangePixelOperation");
+	static const FName ChangeMaskOperationTag = TEXT("ChangeMaskOperation");
+	static const FName ChangeAttributeOperationTag = TEXT("ChangeAttributeOperation");
 	static const FName CanvasSizeTag = TEXT("CanvasSize");;
 	static const FName MousePositionTag = TEXT("MouseState");
 	static const FName AddSpriteTag = TEXT("AddSprite");
